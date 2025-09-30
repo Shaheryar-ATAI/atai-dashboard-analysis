@@ -1,0 +1,209 @@
+/* ===== ATAI global theme (Bootstrap 5 overrides) ===== */
+
+:root{
+  /* Brand palette */
+  --atai-green: #95c53d;
+  --atai-green-600:#33322d;
+  --atai-green-50:#f5fde9;
+  --atai-dark:#1d3b1a;
+
+  /* Tell Bootstrap what "primary" is */
+  --bs-primary: var(--atai-green) !important;
+  --bs-primary-rgb: 149,197,61 !important;
+
+  /* Links (default content links, not navbar) */
+  --bs-link-color: var(--atai-green) !important;
+  --bs-link-hover-color: var(--atai-green-600) !important;
+}
+
+/* Page bg (soft gradient) */
+body{ background: linear-gradient(to bottom, #f9fff2, #f4fdf0); }
+
+/* =========================
+   NAVBAR (top green bar)
+   ========================= */
+.navbar-atai{
+  background: linear-gradient(90deg, var(--atai-green), var(--atai-green-600));
+  color:#fff;
+}
+/* Force navbar height */
+.navbar-atai {
+  background: linear-gradient(90deg, var(--atai-green), #3a3a3a);
+  padding: 0.5rem 1rem;   /* slim height */
+}
+
+/* Logo sizing */
+.navbar-brand .brand-logo {
+  height: 60px;  /* adjust as needed */
+  width: auto;
+  max-height: 68px;
+}
+
+/* Font for brand */
+.navbar-brand .brand-word {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff !important;
+  letter-spacing: 0.5px;
+  margin-left: 5px;
+}
+
+/* Navbar links */
+.navbar-nav .nav-link {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #fff !important;
+  margin-left: 0.8rem;
+}
+.navbar-nav .nav-link:hover {
+  color: #d9f2c2 !important;
+}
+/* Brand text */
+.navbar-atai .navbar-brand,
+.navbar-atai .navbar-brand span{
+  color:#ffffff !important;
+  font-weight:600;
+}
+
+/* Navbar links (Projects, Sales Orders, …) */
+.navbar-atai .nav-link{
+  color:#ffffff !important;
+  font-weight:500;
+  transition:color .2s ease-in-out, background-color .2s ease-in-out;
+  border-radius:8px;
+}
+
+/* Active/hover state for navbar links */
+.navbar-atai .nav-link:hover{
+  color:#e8f5e0 !important;
+}
+.navbar-atai .nav-link.active{
+  color:#0b2308 !important;                  /* dark text for contrast */
+  background: rgba(255,255,255,.22) !important;
+}
+
+/* Right side text: "Logged in as …" */
+.navbar-atai .navbar-text,
+.navbar-atai .navbar-text small,
+.navbar-atai .navbar-text span{
+  color:#ffffff !important;
+  font-weight:500;
+}
+
+/* Logout button on navbar */
+.navbar-atai .btn-logout,
+.navbar-atai .btn-danger{
+  background-color:#ffffff !important;
+  color: var(--atai-green) !important;
+  border:none;
+  font-weight:600;
+}
+.navbar-atai .btn-logout:hover,
+.navbar-atai .btn-danger:hover{
+  background-color:#f5f5f5 !important;
+  color:#6a922e !important;
+}
+
+/* =========================
+   BUTTONS
+   ========================= */
+.btn-primary,
+.btn-primary:disabled,
+.btn-primary.disabled{
+  background-color: var(--atai-green) !important;
+  border-color: var(--atai-green) !important;
+}
+.btn-primary:hover,
+.btn-primary:focus{
+  background-color: var(--atai-green-600) !important;
+  border-color: var(--atai-green-600) !important;
+}
+
+/* Outline buttons (filter chips) */
+.btn-outline-primary{
+  color: var(--atai-green) !important;
+  border-color: var(--atai-green) !important;
+  background-color: transparent !important;
+}
+.btn-outline-primary:hover,
+.btn-outline-primary:focus{
+  color:#fff !important;
+  background-color: var(--atai-green) !important;
+  border-color: var(--atai-green) !important;
+}
+
+/* =========================
+   TABS / PILLS (content area)
+   ========================= */
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link,
+.nav-tabs .nav-link.active{
+  color:#fff !important;
+  background-color: var(--atai-green) !important;
+  border-color: var(--atai-green) !important;
+}
+
+/* =========================
+   TYPOGRAPHY & LINKS (content)
+   ========================= */
+a{  color:#320061 !important; }
+a:hover{ color: var(--bs-link-hover-color) !important; }
+
+/* Inputs focus glow */
+.form-control:focus,
+.form-select:focus{
+  border-color: var(--atai-green-600) !important;
+  box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb), .25) !important;
+}
+
+/* Cards & shadows */
+.card{ border-radius:12px; box-shadow:0 8px 30px rgba(34,139,34,.06); }
+.card-header{ background:#fff; }
+
+/* Badges that use primary color */
+.badge.text-bg-primary,
+.badge.bg-primary{
+  background-color: var(--atai-green) !important;
+}
+
+/* DataTables current page */
+.dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.dataTables_wrapper .dataTables_paginate .paginate_button.current:hover{
+  background: var(--atai-green) !important;
+  border-color: var(--atai-green) !important;
+  color:#fff !important;
+}
+
+/* KPI chips */
+.badge-total-outline{
+  background: var(--atai-green-50) !important;
+  color: var(--atai-dark) !important;
+  border:1px solid var(--atai-green) !important;
+}
+
+/* Login avatar ring (if used) */
+.brand-ring{
+  width:68px; height:68px; border-radius:999px;
+  display:grid; place-items:center; background:#fff;
+  box-shadow:0 6px 20px rgba(34,139,34,.15),
+             inset 0 0 0 6px rgba(149,197,61,.18);
+}
+
+/* Responsive tweaks */
+@media (max-width: 576px){
+  .brand-ring{ width:56px; height:56px; }
+}
+
+/* bigger value-only badge */
+.badge-total{
+  font-size: 1.05rem;            /* larger */
+  font-weight: 700;
+  padding: .35rem .75rem;
+  border: 2px solid rgba(149,197,61,.65);
+  color: #1d3b1a;
+  background: rgba(149,197,61,.12);
+  border-radius: 999px;
+}
+
+.kpi-title{ font-weight: 700; }
