@@ -83,12 +83,12 @@
                 </li>
 
                 {{-- Sales roles only --}}
-                @hasanyrole('sales|sales_eastern|sales_central|sales_western')
+{{--                @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">Estimation</a>
                 </li>
-                @endhasanyrole
+{{--                @endhasanyrole--}}
 
                 {{-- GM/Admin only --}}
                 @hasanyrole('gm|admin')
@@ -126,6 +126,9 @@
 
 <main class="container-fluid py-4">
     {{-- ===== KPI SUMMARY (Highcharts) ===== --}}
+
+
+
     <div class="row g-3 mb-3" id="kpiRow" style="display:none">
         <div class="col-12">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2" id="projFilters">
@@ -169,12 +172,20 @@
                     <button class="btn btn-sm btn-primary" id="projApply">Update</button>
                 </div>
             </div>
-
+            <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
+                <div id="familyChips" class="btn-group" role="group" aria-label="Product family">
+                    <button type="button" class="btn btn-sm btn-outline-primary active" data-family="">All</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="ductwork">Ductwork</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="dampers">Dampers</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="sound">Sound Attenuators</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="accessories">Accessories</button>
+                </div>
+            </div>
             <div class="card kpi-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                         <div>
-                            <h6 class="mb-1">Dashboard</h6>
+                            <h6 class="mb-1">Inquiries Dashboard</h6>
                             <div class="text-secondary small">Live KPIs from MySQL (scoped by your role/region)</div>
                         </div>
                         <div class="d-flex gap-2">
@@ -202,7 +213,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                         <div>
-                            <h6 class="mb-1">Sales Forecast</h6>
+                            <h6 class="mb-1">Sales Forecast Dashboard</h6>
                             <div class="text-secondary small">From forecast table (filters & role applied)</div>
                         </div>
                         <div class="d-flex gap-2">
@@ -224,15 +235,6 @@
     </div>
 
     {{-- ===== Family filter chips (All / Ductwork / Dampers / Sound / Accessories) ===== --}}
-    <div class="d-flex align-items-center gap-2 my-3 flex-wrap">
-        <div id="familyChips" class="btn-group" role="group" aria-label="Product family">
-            <button type="button" class="btn btn-sm btn-outline-primary active" data-family="">All</button>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-family="ductwork">Ductwork</button>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-family="dampers">Dampers</button>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-family="sound">Sound Attenuators</button>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-family="accessories">Accessories</button>
-        </div>
-    </div>
 
     {{-- ===== TABS (Bidding / In-Hand / Lost) ===== --}}
     <ul class="nav nav-tabs" role="tablist">
@@ -278,24 +280,7 @@
                         <th>Status</th>
                         <th class="text-end">Actions</th>
                     </tr>
-                    <tr class="filters">
-                        <th></th>
-                        <th><input class="form-control form-control-sm" placeholder="Project"></th>
-                        <th><input class="form-control form-control-sm" placeholder="Client"></th>
-                        <th><input class="form-control form-control-sm" placeholder="Location"></th>
-                        <th>
-                            <select class="form-select form-select-sm">
-                                @foreach($areas as $a)
-                                    <option value="{{ $a }}">{{ $a===''?'All':$a }}</option>
-                                @endforeach
-                            </select>
-                        </th>
-                        <th><input class="form-control form-control-sm" placeholder="Quotation No"></th>
-                        <th><input class="form-control form-control-sm" placeholder="ATAI Products"></th>
-                        <th></th>
-                        <th></th>
-                        <th></th>
-                    </tr>
+
                     </thead>
                 </table>
             </div>
@@ -326,24 +311,7 @@
                         <th>Status</th>
                         <th class="text-end">Actions</th>
                     </tr>
-                    <tr class="filters">
-                        <th></th>
-                        <th><input class="form-control form-control-sm" placeholder="Project"></th>
-                        <th><input class="form-control form-control-sm" placeholder="Client"></th>
-                        <th><input class="form-control form-control-sm" placeholder="Location"></th>
-                        <th>
-                            <select class="form-select form-select-sm">
-                                @foreach($areas as $a)
-                                    <option value="{{ $a }}">{{ $a===''?'All':$a }}</option>
-                                @endforeach
-                            </select>
-                        </th>
-                        <th><input class="form-control form-control-sm" placeholder="Quotation No"></th>
-                        <th><input class="form-control form-control-sm" placeholder="ATAI Products"></th>
-                        <th></th>
-                        <th></th>
-                        <th></th>
-                    </tr>
+
                     </thead>
                 </table>
             </div>
@@ -374,24 +342,7 @@
                         <th>Status</th>
                         <th class="text-end">Actions</th>
                     </tr>
-                    <tr class="filters">
-                        <th></th>
-                        <th><input class="form-control form-control-sm" placeholder="Project"></th>
-                        <th><input class="form-control form-control-sm" placeholder="Client"></th>
-                        <th><input class="form-control form-control-sm" placeholder="Location"></th>
-                        <th>
-                            <select class="form-select form-select-sm">
-                                @foreach($areas as $a)
-                                    <option value="{{ $a }}">{{ $a===''?'All':$a }}</option>
-                                @endforeach
-                            </select>
-                        </th>
-                        <th><input class="form-control form-control-sm" placeholder="Quotation No"></th>
-                        <th><input class="form-control form-control-sm" placeholder="ATAI Products"></th>
-                        <th></th>
-                        <th></th>
-                        <th></th>
-                    </tr>
+
                     </thead>
                 </table>
             </div>
@@ -641,7 +592,7 @@
         // Bar: Projects by Area (with value in tooltip)
         if (document.getElementById('barByArea')) {
             Highcharts.chart('barByArea', Highcharts.merge(baseHC, {
-                title: {text: 'Projects by Area'},
+                title: {text: 'Inquiries by Area'},
                 xAxis: {categories: (resp.area || []).map(a => a.area || '—')},
                 yAxis: {title: {text: 'Count'}},
                 tooltip: {pointFormat: '<b>{point.y:,.0f}</b> Projects<br/>Value: SAR {point.value:,.0f}'},
@@ -759,7 +710,7 @@
     const projectColumns = [
         {data: 'id', name: 'id', width: '64px'},
         {data: 'name', name: 'name'},
-        {data: 'client', name: 'client'},
+        {data: 'client', name: 'client',},
         {data: 'location', name: 'location'},
         {data: 'area_badge', name: 'area', orderable: true, searchable: false},
         {data: 'quotation_no', name: 'quotation_no'},
@@ -789,24 +740,21 @@
                 dataSrc: (json) => json.data || [],
                 data: (d) => {
                     d.status = status;
-                    d.family = currentFamily || '';
+                    d.family = currentFamily || '';   // <-- this is what the backend reads
 
-                    const year = document.querySelector('#projYear')?.value || '';
-                    const month = document.querySelector('#monthSelect')?.value || '';
-                    const dFrom = document.querySelector('#dateFrom')?.value || '';
-                    const dTo = document.querySelector('#dateTo')?.value || '';
+                    const year   = document.querySelector('#projYear')?.value || '';
+                    const month  = document.querySelector('#monthSelect')?.value || '';
+                    const dFrom  = document.querySelector('#dateFrom')?.value || '';
+                    const dTo    = document.querySelector('#dateTo')?.value || '';
                     const region = document.querySelector('#projRegion')?.value || '';
 
                     if (dFrom) d.date_from = dFrom;
-                    if (dTo) d.date_to = dTo;
+                    if (dTo)   d.date_to   = dTo;
                     if (!dFrom && !dTo) {
                         if (month) d.month = month;
-                        if (year) d.year = year;
-                    } else {
-                        delete d.year;
-                        delete d.month;
+                        if (year)  d.year  = year;
                     }
-                    if (region) d.region = region; // controller expects "region"
+                    if (region) d.region = region; // if your controller expects "region"
                 }
             },
             columns: projectColumns,
@@ -891,31 +839,69 @@
     });
 
     function normalizeRow(row) {
+        const qVal =
+            row.quotationValue ?? row.quotation_value ?? row.price ?? 0;
+
         return {
             id: row.id,
-            name: row.name || '-',
-            client: row.client || '-',
-            location: row.location || '-',
-            area: row.area || '-',
-            status: String(row.status || '').toLowerCase(),
-            quotationValue: Number(row.quotation_value || 0),
-            quotationNo: row.quotation_no || '-',
-            ataiProducts: row.atai_products || '-',
-            checklist: row.checklist || {}
+            // names
+            name:           row.name           ?? row.projectName        ?? '-',
+            client:         row.client         ?? row.clientName         ?? '-',
+            location:       row.location       ?? row.projectLocation    ?? '-',
+            area:           row.area           ?? '-',
+
+            // numbers / money
+            quotationValue: Number(qVal),
+
+            // identifiers / misc
+            quotationNo:    row.quotationNo    ?? row.quotation_no       ?? '-',
+            ataiProducts:   row.ataiProducts   ?? row.atai_products      ?? '-',
+
+            // new fields you want shown
+            quotationDate:  row.quotationDate  ?? row.quotation_date     ?? null,
+            estimator:      row.estimator      ?? row.action1            ?? null,
+            dateRec:        row.dateRec        ?? row.date_rec           ?? null,
+
+            // status & meta
+            status: String(row.status ?? '').toLowerCase(),
+            checklist: row.checklist ?? {},
+            comments:  row.comments  ?? '',
         };
     }
-
     function fillDetails(dlId, p) {
         const dl = document.getElementById(dlId);
         if (!dl) return;
-        dl.innerHTML = [
+
+        const rows = [
             ['Project', p.name],
             ['Client', p.client],
-            ['Location', p.location], ['Area', p.area],
-            ['Quotation No', p.quotationNo], ['ATAI Products', p.ataiProducts], ['Price', fmtSAR(p.quotationValue)], ['Status', p.status.toUpperCase()],
-        ].map(([label, val]) => `<dt class="col-5">${label}</dt><dd class="col-7">${val}</dd>`).join('');
-    }
+            ['Location', p.location],
+            ['Area', p.area || '—'],
+            ['Quotation No', p.quotationNo || '—'],
 
+            // NEW: Quotation Date if present
+            ...(p.quotationDate ? [['Quotation Date', p.quotationDate]] : []),
+
+            // NEW: Date Received if present
+            ...(p.dateRec ? [['Date Received', p.dateRec]] : []),
+
+            ['ATAI Products', p.ataiProducts || '—'],
+
+            // NEW: Estimator from action1
+            ...(p.estimator ? [['Estimator', p.estimator]] : []),
+
+            // Price from quotationValue (numeric)
+            ['Price', fmtSAR(Number(p.quotationValue || 0))],
+
+            ['Status', String(p.status || '').toUpperCase()],
+        ];
+
+        dl.innerHTML = rows
+            .map(([label, val]) =>
+                `<dt class="col-5 text-muted">${label}</dt><dd class="col-7">${val ?? '—'}</dd>`
+            )
+            .join('');
+    }
     function openProjectModalFromData(row) {
         const p = normalizeRow(row);
         const values = p.checklist || {};
@@ -943,22 +929,38 @@
         new bootstrap.Modal(document.getElementById('lostModal')).show();
     }
 
-    // View button handler
-    $(document).on('click', '[data-action="view"]', function (e) {
+    // View button handler (fetch detail before opening)
+    $(document).on('click', '[data-action="view"]', async function (e) {
         e.preventDefault();
+
+        // Which DT row was clicked?
         const $tr = $(this).closest('tr');
-        const tryOpen = (dt) => {
-            if (!dt) return false;
-            const rowData = dt.row($tr).data();
-            if (rowData) {
-                openProjectModalFromData(rowData);
-                return true;
-            }
-            return false;
-        };
-        if (tryOpen($('#tblBidding').DataTable())) return;
-        if (tryOpen($('#tblInhand').DataTable())) return;
-        if (tryOpen($('#tblLost').DataTable())) return;
+        const tryGetRow = (dt) => (dt ? dt.row($tr).data() : null);
+
+        let row =
+            tryGetRow($('#tblBidding').DataTable()) ||
+            tryGetRow($('#tblInhand').DataTable()) ||
+            tryGetRow($('#tblLost').DataTable());
+
+        if (!row || !row.id) return;
+
+        // Pull richer details for this project
+        let detail = null;
+        try {
+            const res = await fetch(`/projects/${row.id}`, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (res.ok) detail = await res.json();
+        } catch (err) {
+            console.warn('Detail fetch failed', err);
+        }
+
+        // Merge the detail into the row (detail wins where present)
+        if (detail) row = hydrateRowWithDetail(row, detail);
+
+        // Open using your existing renderer
+        openProjectModalFromData(row);
     });
 
     // Resize columns when switching tabs
@@ -978,16 +980,27 @@
     document.getElementById('searchInhand')?.addEventListener('input', e => dtIn && dtIn.search(e.target.value).draw());
     document.getElementById('searchLost')?.addEventListener('input', e => dtLost && dtLost.search(e.target.value).draw());
 
+
+    function getDT(sel) {
+        return $.fn.dataTable.isDataTable(sel) ? $(sel).DataTable() : null;
+    }
     // Family chips → refresh DT + KPI + Forecast
-    document.getElementById('familyChips')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('button[data-family]');
-        if (!btn) return;
-        [...e.currentTarget.querySelectorAll('button')].forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentFamily = btn.getAttribute('data-family') || '';
-        if (dtBid) dtBid.ajax.reload(null, false);
-        if (dtIn) dtIn.ajax.reload(null, false);
-        if (dtLost) dtLost.ajax.reload(null, false);
+    $(document).on('click', '#familyChips [data-family]', function (e) {
+        e.preventDefault();
+
+        // Visual state
+        $('#familyChips [data-family]').removeClass('active');
+        this.classList.add('active');
+
+        // Update the filter used by both KPIs and tables
+        currentFamily = this.getAttribute('data-family') || '';
+
+        // Reload each table (only if initialized)
+        getDT('#tblBidding')?.ajax.reload(null, false);
+        getDT('#tblInhand')?.ajax.reload(null, false);
+        getDT('#tblLost')?.ajax.reload(null, false);
+
+        // (Optional) refresh charts too
         loadKpis();
         loadForecast();
     });
@@ -1037,6 +1050,32 @@
         await loadKpis();
         await loadForecast();
     })();
+
+
+
+    function hydrateRowWithDetail(row, d) {
+        // Map detail keys → the shape your modal code expects
+        return {
+            ...row,
+            name:           d.projectName     ?? row.name,
+            client:         d.clientName      ?? row.client,
+            location:       d.projectLocation ?? row.location,
+            area:           d.area            ?? row.area,
+            quotationNo:    d.quotationNo     ?? row.quotationNo,
+            quotationDate:  d.quotationDate   ?? row.quotationDate,  // NEW
+            action1:        d.action1         ?? row.action1,        // NEW
+            ataiProducts:   d.ataiProducts    ?? row.ataiProducts,
+            quotationValue: d.quotationValue  ?? row.quotationValue,
+            status:         d.status          ?? row.status,
+            checklist:      d.checklist       ?? row.checklist,
+            comments:       d.comments        ?? row.comments,
+            // optional extras if you want them later
+            dateRec:        d.dateRec         ?? row.dateRec,
+            clientReference:d.clientReference ?? row.clientReference,
+            projectType:    d.projectType     ?? row.projectType,
+            salesperson:    d.salesperson     ?? row.salesperson,
+        };
+    }
 </script>
 </body>
 </html>

@@ -57,11 +57,11 @@
           <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}" href="{{ route('projects.index') }}">Projects</a>
         </li>
 
-        @hasanyrole('sales|sales_eastern|sales_central|sales_western')
+{{--        @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
           <li class="nav-item">
             <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}" href="{{ route('estimation.index') }}">Estimation</a>
           </li>
-        @endhasanyrole
+{{--        @endhasanyrole--}}
 
         @hasanyrole('gm|admin')
           <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.index') }}">Sales Orders</a></li>

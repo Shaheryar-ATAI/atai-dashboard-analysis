@@ -1,122 +1,101 @@
 <?php
 
 namespace App\Http\Controllers;
-use App\Support\RegionScope;
+
+use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Yajra\DataTables\Facades\DataTables;
 
-/**
- * Yajra endpoint for Projects tables (Bidding / In-Hand / Lost).
- * Accepts the following query params:
- *  - status: 'bidding' | 'inhand' | 'lost'   (per tab)
- *  - family: '', 'ductwork', 'dampers', 'sound', 'accessories' (chip filter)
- *  - year:   YYYY                               (top-left filter)
- *  - region: 'Eastern'|'Central'|'Western'      (top-left filter)
- *
- * Assumed columns in `projects` table:
- *  id, name, client, location, area, quotation_no, atai_products, quotation_value, status,
- *  quotation_date (or created_at for date fallback).
- */
 class ProjectsDatatableController extends Controller
 {
+    public function data(Request $req)
+    {
+        $user   = $req->user();
+        $draw   = (int) $req->input('draw', 1);
+        $start  = (int) $req->input('start', 0);
+        $length = (int) $req->input('length', 10);
 
-   public function data(Request $r)
-{
-    $status = strtolower((string) $r->input('status'));   // bidding|inhand|lost
-    $family = (string) $r->input('family');               // '', 'ductwork','dampers','sound','accessories'
-    $year   = $r->integer('year');
-    $dateFrom = $r->query('date_from');
-    $dateTo   = $r->query('date_to');
-    $month    = $r->integer('month');
-    $regionParam = (string) $r->input('region');          // from UI (only used for GM/Admin)
+        // Base (scoped)
+        $base = Project::query()
+            ->forUserRegion($user)                                   // <— scope
+            ->status($req->input('status'))                          // <— scope
+            ->search(data_get($req->input('search'), 'value', ''));  // <— scope
 
-    // 🔐 Get effective region from RBAC (sales => fixed; gm/admin => null)
-    $effectiveRegion = RegionScope::apply($r);
+        // Optional filter params your JS already sends
+        if ($region = $req->input('region')) {
+            $base->where('area', $region);
+        }
+        if ($from = $req->input('date_from')) {
+            $base->whereDate('quotation_date', '>=', $from);
+        }
+        if ($to = $req->input('date_to')) {
+            $base->whereDate('quotation_date', '<=', $to);
+        }
+        if (!$from && !$to) {
+            if ($y = $req->input('year'))  $base->whereYear('quotation_date', $y);
+            if ($m = $req->input('month')) $base->whereMonth('quotation_date', $m);
+        }
 
-    $tbl = DB::table('projects');
+        // Counts
+        $recordsTotal    = Project::query()->forUserRegion($user)->count();
+        $recordsFiltered = (clone $base)->count();
 
-    $dateExpr = "COALESCE(STR_TO_DATE(quotation_date, '%Y-%m-%d'), STR_TO_DATE(quotation_date, '%d-%m-%Y'), created_at)";
+        // Ordering map (index -> DB column)
+        $orderColIndex = (int) data_get($req->input('order'), '0.column', 0);
+        $orderDir      = data_get($req->input('order'), '0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
+        $orderable = [
+            0  => 'id',
+            1  => 'project_name',
+            2  => 'client_name',
+            3  => 'project_location',
+            4  => 'area',
+            5  => 'quotation_no',
+            6  => 'atai_products',
+            7  => 'quotation_date',
+            8  => 'action1',
+            9  => 'quotation_value',
+            10 => 'status',
+        ];
+        $orderCol = $orderable[$orderColIndex] ?? 'id';
 
-    // ----- Base filters (status/year)
-    if ($status === 'bidding') {
-        $tbl->where('status', 'bidding');
-    } elseif ($status === 'inhand' || $status === 'in-hand') {
-        $tbl->where('status', 'inhand');
-    } elseif ($status === 'lost') {
-        $tbl->where('status', 'lost');
+        $rows = (clone $base)
+            ->orderBy($orderCol, $orderDir)
+            ->skip($start)->take($length)
+            ->get();
+
+        // Small HTML helpers (your JS expects these HTML fields)
+        $areaBadge = fn(?string $a) =>
+        $a ? '<span class="badge area-badge area-'.e($a).'">'.e(strtoupper($a)).'</span>' : '—';
+
+        $statusBadge = fn(?string $s) =>
+        $s ? '<span class="badge bg-warning-subtle text-dark fw-bold">'.e(strtoupper($s)).'</span>' : '—';
+
+        $fmtSar = fn($n) => 'SAR '.number_format((float) $n, 0);
+
+        $data = $rows->map(function (Project $p) use ($areaBadge, $statusBadge, $fmtSar) {
+            return [
+                'id'                 => $p->id,
+                'name'               => $p->canonical_name,
+                'client'             => $p->canonical_client,
+                'location'           => $p->canonical_location,
+                'area_badge'         => $areaBadge($p->area),
+                'quotation_no'       => $p->quotation_no,
+                'atai_products'      => $p->atai_products,
+                'quotation_date'     => $p->quotation_date_ymd,
+                'action1'            => $p->action1,
+                'quotation_value_fmt'=> $fmtSar($p->canonical_value),
+                'status_badge'       => $statusBadge($p->status),
+                'actions'            => '<button class="btn btn-sm btn-outline-success" data-action="view" data-id="'.$p->id.'">View</button>',
+            ];
+        });
+        $sum = (clone $base)->sum(DB::raw('COALESCE(quotation_value, price)'));
+
+        return response()->json([
+            'draw'                 => $draw,
+            'recordsTotal'         => $recordsTotal,
+            'recordsFiltered'      => $recordsFiltered,
+            'data'                 => $data,
+            'sum_quotation_value'  => (float) $sum,
+        ]);
     }
-
-    // Replace the existing year filter with this:
-    if ($dateFrom || $dateTo) {
-        $from = $dateFrom ?: '1900-01-01';
-        $to   = $dateTo   ?: '2999-12-31';
-        $tbl->whereRaw("$dateExpr BETWEEN ? AND ?", [$from, $to]);
-    } elseif ($month) {
-        $yyyy = $year ?: date('Y');
-        $start = sprintf('%04d-%02d-01', $yyyy, $month);
-        $tbl->whereRaw("$dateExpr BETWEEN ? AND LAST_DAY(?)", [$start, $start]);
-    } elseif ($year) {
-        $tbl->whereRaw("YEAR($dateExpr) = ?", [$year]);
-    }
-
-    // ✅ REGION ENFORCEMENT (area column in your DB)
-    if (!empty($effectiveRegion)) {
-        // Sales users: force their own area (ignore any ?region from UI)
-        $tbl->where('area', $effectiveRegion);
-    } elseif (!empty($regionParam)) {
-        // GM/Admin: allow UI region filter if provided
-        $tbl->where('area', $regionParam);
-    }
-
-    if ($family) {
-        $tbl->where('atai_products', 'like', '%' . $family . '%');
-    }
-
-    // Precompute sum AFTER all filters applied
-    $sumFiltered = (clone $tbl)->sum('quotation_value');
-
-    $q = $tbl->select([
-        'id',
-        'name',
-        'client',
-        'location',
-        'area',               // <— area is the region field in your DB
-        'quotation_no',
-        'atai_products',
-        'quotation_value',
-        'status',
-    ]);
-
-    return DataTables::of($q)
-        ->addColumn('area_badge', function ($row) {
-            $area = $row->area ?: '-';
-            $cls  = 'area-' . preg_replace('/[^A-Za-z]/', '', $area);
-            return '<span class="badge area-badge ' . e($cls) . '">' . e(strtoupper($area)) . '</span>';
-        })
-        ->addColumn('quotation_value_fmt', function ($row) {
-            $v = (float) ($row->quotation_value ?? 0);
-            return 'SAR ' . number_format($v, 0);
-        })
-        ->addColumn('status_badge', function ($row) {
-            $s    = strtolower((string) $row->status);
-            $text = strtoupper($s ?: '-');
-            $cls  = match ($s) {
-                'bidding' => 'bg-warning text-dark',
-                'inhand', 'in-hand' => 'bg-success',
-                'lost'    => 'bg-danger',
-                default   => 'bg-secondary',
-            };
-            return '<span class="badge ' . $cls . '">' . e($text) . '</span>';
-        })
-        ->addColumn('actions', function ($row) {
-            return '<button type="button" class="btn btn-sm btn-outline-primary" data-action="view" data-id="' .
-                   e($row->id) . '">View</button>';
-        })
-        ->rawColumns(['area_badge', 'status_badge', 'actions'])
-        ->with('sum_quotation_value', (float) $sumFiltered)
-        ->make(true);
 }
-
-}
-

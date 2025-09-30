@@ -8,7 +8,8 @@
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.css" rel="stylesheet">
-
+    <link rel="stylesheet"
+          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
   <style>
     .chip-group .btn { border-radius: 999px; }
     .chip-group .btn.active { background: var(--bs-primary); color: #fff; }
@@ -22,53 +23,67 @@
   </style>
 </head>
 <body>
-<nav class="navbar bg-body-tertiary border-bottom">
-  <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="{{ route('performance.index') }}">ATAI</a>
-   
-  </div>
+
+@php $u = auth()->user(); @endphp
+<nav class="navbar navbar-atai navbar-expand-lg">
+    <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center" href="{{ route('projects.index') }}">
+            <img src="{{ asset('images/atai-logo.png') }}" alt="ATAI" class="brand-logo me-2">
+            <span class="brand-word">ATAI</span>
+        </a>
+
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                {{-- Always visible --}}
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
+                       href="{{ route('projects.index') }}">Projects</a>
+                </li>
+
+                {{-- Sales roles only --}}
+                {{--                @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
+                       href="{{ route('estimation.index') }}">Estimation</a>
+                </li>
+                {{--                @endhasanyrole--}}
+
+                {{-- GM/Admin only --}}
+                @hasanyrole('gm|admin')
+                <li class="nav-item"><a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
+                                        href="{{ route('salesorders.index') }}">Sales Orders</a></li>
+                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.index') ? 'active' : '' }}"
+                                        href="{{ route('performance.index') }}">Performance report</a></li>
+                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
+                                        href="{{ route('performance.area') }}">Area summary</a></li>
+                <li class="nav-item"><a
+                        class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active' : '' }}"
+                        href="{{ route('performance.salesman') }}">SalesMan summary</a></li>
+                <li class="nav-item"><a
+                        class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
+                        href="{{ route('performance.product') }}">Product summary</a></li>
+                <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                                        href="{{ route('powerbi.jump') }}">Power BI Dashboard</a></li>
+                @endhasanyrole
+            </ul>
+
+            <div class="navbar-text me-2">
+                Logged in as <strong>{{ $u->name ?? '' }}</strong>
+                @if(!empty($u->region))
+                    · <small>{{ $u->region }}</small>
+                @endif
+            </div>
+
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <button class="btn btn-logout btn-sm">Logout</button>
+            </form>
+        </div>
+    </div>
 </nav>
 
-<main class="container py-4">
-<ul class="nav nav-pills gap-2 flex-wrap">
-  <li class="nav-item">
-    <a class="nav-link @if(request()->routeIs('projects.*')) active @endif"
-       href="{{ route('projects.index') }}" aria-current="{{ request()->routeIs('projects.*') ? 'page' : '' }}">
-       Projects
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link @if(request()->routeIs('salesorders.*')) active @endif"
-       href="{{ route('salesorders.index') }}">
-       Sales Orders
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link @if(request()->routeIs('performance.index')) active @endif"
-       href="{{ route('performance.index') }}">Performance report</a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link @if(request()->routeIs('performance.area')) active @endif"
-       href="{{ route('performance.area') }}">Area summary</a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link @if(request()->routeIs('performance.salesman')) active @endif"
-       href="{{ route('performance.salesman') }}">SalesMan summary</a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link @if(request()->routeIs('performance.products')) active @endif"
-       href="{{ route('performance.products') }}">Product summary</a>
-  </li>
- <!-- <li class="nav-item">
-    <a class="nav-link @if(request()->routeIs('performance.products')) active @endif"
-       href="{{ route('performance.products') }}">Dashboard</a>
-  </li> -->
-   <li class="nav-item">
-    <a class="nav-link @if(request()->routeIs('powerbi.jump')) active @endif"
-      href="{{ route('powerbi.jump') }}" target="_blank">
-  Power BI Dashboard</a>
-  </li>
-</ul>
+<main class="container-fluid py-4">
+
 
 
 

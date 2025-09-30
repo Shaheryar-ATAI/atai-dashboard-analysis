@@ -2,123 +2,123 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;
+use App\Models\Project;   // <- make sure this import exists
 use Illuminate\Http\Request;
 
 class ProjectController extends Controller
 {
-
-
     public function index()
     {
-        // require login to view this page (route middleware shown in step 3)
-        $user = auth()->user();
-
-        return view('projects.index', [
-            'user' => $user,            // <- pass it explicitly
-        ]);
+        return view('projects.index', ['user' => auth()->user()]);
     }
 
-
+    /**
+     * Lightweight JSON list (keeps your original shape).
+     */
     public function list(Request $req)
     {
         $user = $req->user();
-        $q = Project::query()->with('salesperson:id,name');
 
-        // Region scoping (policy-level enforced in detail, but filter list here too)
-        if (!$user->hasRole(['gm', 'manager'])) {
-            $q->where('area', $user->region);
-        }
+        $projects = Project::query()
+            ->with('salesperson:id,name')
+            ->forUserRegion($user)
+            ->status($req->query('status'))
+            ->search($req->query('search'))
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (Project $p) {
+                $pct = $p->status === 'bidding' ? $p->progressPercent() : 100;
 
-        if ($status = $req->query('status')) {
-            $q->where('status', $status);
-        }
+                return [
+                    'id'               => $p->id,
+                    'name'             => $p->canonical_name,
+                    'client'           => $p->canonical_client,
+                    'location'         => $p->canonical_location,
+                    'area'             => $p->area,
 
-        if ($search = trim($req->query('search', ''))) {
-            $q->where(function ($qq) use ($search) {
-                $qq->where('name', 'like', "%$search%")
-                    ->orWhere('client', 'like', "%$search%")
-                    ->orWhere('location', 'like', "%$search%")
-                    ->orWhere('area', 'like', "%$search%");
+                    'quotation_no'     => $p->quotation_no,
+                    'atai_products'    => $p->atai_products,
+                    'quotation_date'   => $p->quotation_date_ymd,
+                    'action1'          => $p->action1,
+                    'quotation_value'  => $p->canonical_value,
+
+                    'price'            => $p->canonical_value,
+                    'currency'         => 'SAR',
+
+                    'status'           => $p->status,
+                    'progress'         => $pct,
+                    'salesperson'      => $p->salesperson?->name ?? $p->salesman,
+                ];
             });
-        }
-
-        $projects = $q->orderBy('id', 'desc')->get()->map(function ($p) {
-            // lightweight progress (for list rows)
-            $pct = $p->status === 'bidding' ? $p->progressPercent() : 100;
-            return [
-                'id' => $p->id,
-                'name' => $p->name,
-                'client' => $p->client,
-                'location' => $p->location,
-                'area' => $p->area,
-                'price' => (float)$p->price,
-                'currency' => 'SAR',
-                'status' => $p->status,
-                'progress' => $pct,
-                'salesperson' => $p->salesperson?->name,
-            ];
-        });
 
         return response()->json($projects);
     }
 
+    /**
+     * Detail for modal (no checklistItems relation).
+     */
     public function detail(Project $project, Request $req)
     {
-        $this->authorize('view', $project);
+        // $this->authorize('view', $project);
+        $project->loadMissing('salesperson:id,name');
 
-        $project->load(['salesperson:id,name', 'checklistItems' => function ($q) {
-            $q->orderBy('key');
-        }]);
-
-        // Flatten checklist to {key: bool}
-        $checklist = [];
-        foreach (['inquiry_verified', 'quotation_submitted', 'client_approval', 'po_received'] as $k) {
-            $checklist[$k] = (bool)optional($project->checklistItems->firstWhere('key', $k))->completed;
-        }
-
-        return [
-            'id' => $project->id,
-            'name' => $project->name,
-            'client' => $project->client,
-            'location' => $project->location,
-            'area' => $project->area,
-            'price' => (float)$project->price,
-            'currency' => 'SAR',
-            'status' => $project->status,
-            'salesperson' => $project->salesperson?->name,
-            'comments' => $project->comments,
-            // Inquiry fields (optional, will show '—' in UI if null)
-            'dateRec' => $project->date_received ?? null,
-            'clientName' => $project->client,
-            'projectName' => $project->name,
-            'quotationNo' => $project->quotation_no ?? null,
-            'clientReference' => $project->client_reference ?? null,
-            'ataiProducts' => $project->atai_products ?? null,
-            'action1' => $project->action_1 ?? null,
-            'country' => $project->country ?? 'KSA',
-            'quotationDate' => $project->quotation_date ?? null,
-            'quotationValue' => $project->quotation_value ?? $project->price,
-            'projectLocation' => $project->project_location ?? $project->location,
-            'projectType' => $project->project_type ?? null,
-            'checklist' => $checklist,
+        $checklist = [
+            'mep_contractor_appointed' => (bool) $project->mep_contractor_appointed,
+            'boq_quoted'               => (bool) $project->boq_quoted,
+            'boq_submitted'            => (bool) $project->boq_submitted,
+            'priced_at_discount'       => (bool) $project->priced_at_discount,
         ];
+
+        return response()->json([
+            'id'              => $project->id,
+            'projectName'     => $project->canonical_name,
+            'clientName'      => $project->canonical_client,
+            'projectLocation' => $project->canonical_location,
+            'area'            => $project->area,
+
+            // pricing: prefer quotation_value, fall back to price
+            'quotationValue'  => (float) ($project->quotation_value ?? $project->price ?? 0),
+
+            'quotationNo'     => $project->quotation_no,
+            'quotationDate'   => $project->quotation_date_ymd,
+            'ataiProducts'    => $project->atai_products,
+
+            // Estimator name lives in action1 column
+            'estimator'       => $project->action1,
+
+            'status'          => $project->status,
+            'salesperson'     => $project->salesperson?->name ?? $project->salesman,
+            'comments'        => $project->comments,
+
+            // Show date received
+            'dateRec'         => optional($project->date_rec)->format('Y-m-d'),
+
+            'clientReference' => $project->client_reference,
+            'projectType'     => $project->project_type,
+
+            'checklist'       => $checklist,
+        ]);
     }
 
     public function showJson($id)
     {
-        $p = \App\Models\Project::findOrFail($id);
-        // Return exactly what renderModal() expects (name, status, price, area, location, client, checklist?, comments?)
+        $p = Project::findOrFail($id);
+
         return response()->json([
-            'id' => $p->id,
-            'name' => $p->name,
-            'client' => $p->client,
-            'location' => $p->location,
-            'area' => $p->area,
-            'price' => $p->quotation_value,
-            'status' => $p->status,
-            'checklist' => $p->checklist ?? [],
-            'comments' => $p->comments ?? '',
+            'id'        => $p->id,
+            'name'      => $p->canonical_name,
+            'client'    => $p->canonical_client,
+            'location'  => $p->canonical_location,
+            'area'      => $p->area,
+            'price'     => $p->canonical_value,
+            'status'    => $p->status,
+            'checklist' => [
+                'mep_contractor_appointed' => (bool) $p->mep_contractor_appointed,
+                'boq_quoted'               => (bool) $p->boq_quoted,
+                'boq_submitted'            => (bool) $p->boq_submitted,
+                'priced_at_discount'       => (bool) $p->priced_at_discount,
+            ],
+            'comments'  => $p->comments ?? '',
         ]);
     }
 }
