@@ -35,7 +35,7 @@
                 {{-- Always visible --}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
-                       href="{{ route('projects.index') }}">Projects</a>
+                       href="{{ route('projects.index') }}">Inquiries</a>
                 </li>
 
                 {{-- Sales roles only --}}
@@ -60,6 +60,8 @@
                 <li class="nav-item"><a
                         class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
                         href="{{ route('performance.product') }}">Product summary</a></li>
+                <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                                        href="{{ route('powerbi.jump') }}">Accounts Summary</a></li>
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
                                         href="{{ route('powerbi.jump') }}">Power BI Dashboard</a></li>
                 @endhasanyrole
@@ -132,7 +134,33 @@
   <span id="sumPo"  class="badge-total text-bg-info  badge-total">Total PO: SAR 0</span>
   <span id="sumVat" class="badge-total text-bg-primary badge-total">Total with VAT: SAR 0</span>
 </div>
-
+    {{-- ===== FORECAST KPI (Highcharts) ===== --}}
+    <div class="row g-3 mt-2" id="forecastRow" style="display:none">
+        <div class="col-12">
+            <div class="card kpi-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                        <div>
+                            <h6 class="mb-1">Sales Forecast Dashboard</h6>
+                            <div class="text-secondary small">From forecast table (filters & role applied)</div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <span id="fcBadgeScope" class="badge-total text-bg-secondary">All Salesmen</span>
+                            <span id="fcBadgeValue" class="badge-total text-bg-primary">Forecast Total: SAR 0</span>
+                        </div>
+                    </div>
+                    <div class="row mt-3 g-3">
+                        <div class="col-md-6">
+                            <div id="fcBarByArea" class="hc"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <div id="fcBarBySalesman" class="hc"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 <div class="table-responsive">
   <table class="table table-striped w-100" id="tblSales">
     <thead>
@@ -261,6 +289,101 @@ async function loadKpis(){
 
 document.getElementById('kpiApply').addEventListener('click', loadKpis);
 loadKpis(); // initial
+
+
+/* =============================================================================
+ *  FORECAST CHARTS
+ * ============================================================================= */
+const fmtSAR = n => 'SAR ' + fmt(n);
+
+async function loadForecast() {
+    // show the row container
+    const row = document.getElementById('forecastRow');
+    if (row) row.style.display = '';
+
+    // Use the existing filters on THIS page
+    const year   = document.getElementById('kpiYear')?.value || '';
+    const region = document.getElementById('kpiRegion')?.value || '';
+
+    // Build request to /forecast/kpis
+    const url = new URL("{{ route('forecast.kpis') }}", window.location.origin);
+    if (year)   url.searchParams.set('year', year);
+    if (region) url.searchParams.set('area', region);   // API expects "area"
+
+    let data = { area: [], salesman: [], total_value: 0 };
+    try {
+        const res = await fetch(url, {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        if (res.ok) data = await res.json();
+        else console.error('forecast.kpis', await res.text());
+    } catch (e) {
+        console.warn('Forecast fetch failed', e);
+    }
+
+    // Badges
+    const scopeLabel = region ? region : 'All Regions';
+    const scopeEl = document.getElementById('fcBadgeScope');
+    if (scopeEl) scopeEl.textContent = scopeLabel;
+    const totalEl = document.getElementById('fcBadgeValue');
+    if (totalEl) totalEl.textContent = 'Forecast Total: ' + fmtSAR(Number(data.total_value || 0));
+
+    // Highcharts base
+    const baseHC = {
+        chart:  { height: 260, spacing: [8,8,8,8] },
+        credits:{ enabled: false },
+        legend: { enabled: false },
+        tooltip:{ pointFormat: 'SAR {point.y:,.0f}' },
+        plotOptions: {
+            column: {
+                dataLabels: {
+                    enabled: true,
+                    formatter() { return 'SAR ' + (this.y ?? 0).toLocaleString(); }
+                }
+            }
+        }
+    };
+
+    // Forecast by Area
+    if (document.getElementById('fcBarByArea')) {
+        Highcharts.chart('fcBarByArea', Highcharts.merge(baseHC, {
+            title: { text: 'Forecast by Area (SAR)' },
+            xAxis: { categories: (data.area || []).map(a => a.area || '—') },
+            yAxis: { title: { text: 'SAR' } },
+            series: [{
+                type: 'column',
+                name: 'Forecast',
+                data: (data.area || []).map(a => Number(a.sum_value || 0))
+            }]
+        }));
+    }
+
+    // Forecast by Salesman — show if we have data (no GM/Admin flag on this page)
+    const salesWrap = document.getElementById('fcBarBySalesman');
+    if (salesWrap) {
+        const s = Array.isArray(data.salesman) ? data.salesman : [];
+        if (s.length) {
+            Highcharts.chart('fcBarBySalesman', Highcharts.merge(baseHC, {
+                title: { text: 'Forecast by Salesman (SAR)' + (region ? ` — ${region}` : '') },
+                xAxis: { categories: s.map(x => x.salesman || '—'), labels: { rotation: -30 } },
+                yAxis: { title: { text: 'SAR' } },
+                series: [{ type: 'column', name: 'Forecast', data: s.map(x => Number(x.sum_value || 0)) }]
+            }));
+        } else {
+            salesWrap.innerHTML = '<div class="text-secondary small">No salesman data.</div>';
+        }
+    }
+}
+
+// Call it initially and whenever you hit the KPI Update button
+document.getElementById('kpiApply')?.addEventListener('click', () => {
+    loadKpis();
+    loadForecast();
+});
+// Initial load
+loadForecast();
+
 </script>
 </body>
 </html>

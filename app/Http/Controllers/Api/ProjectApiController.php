@@ -14,39 +14,144 @@ class ProjectApiController extends Controller
      * Highcharts data (and total) used on the dashboard.
      * GET /api/kpis?family=ductwork&area=Eastern&year=2025
      */
-    public function kpis(Request $r)
+    public function kpis(Request $req)
     {
-        [$base] = $this->baseQuery($r);
-        $regionParam = (string) $r->input('region');
-        // Aggregate by area (bar)
-        $areaAgg = (clone $base)
-            ->selectRaw('area,
-                     COUNT(*) AS cnt,
-                     SUM(COALESCE(quotation_value, price, 0)) AS sum_value')
+        $user = $req->user();
+        $q = Project::query();
+
+        // Region scoping for non GM/Admin
+        if (!($user->hasAnyRole(['gm','admin'])) && !empty($user->region)) {
+            $q->where('area', $user->region);
+        }
+
+        // Use a *string* for the business date expression; reuse everywhere
+        $dateExprSql = "COALESCE(quotation_date, date_rec, created_at)";
+
+        // Filters (use whereRaw to avoid interpolating Expression objects)
+        if ($y = $req->integer('year'))   { $q->whereRaw("YEAR($dateExprSql) = ?", [$y]); }
+        if ($m = $req->integer('month'))  { $q->whereRaw("MONTH($dateExprSql) = ?", [$m]); }
+        if ($df = $req->date('date_from')){ $q->whereRaw("$dateExprSql >= ?", [$df]); }
+        if ($dt = $req->date('date_to'))  { $q->whereRaw("$dateExprSql <= ?", [$dt]); }
+
+        // Product family filter
+        if ($fam = (string) $req->input('family')) {
+            $q->where('atai_products', 'like', "%{$fam}%");
+        }
+
+        $base = (clone $q);
+
+        // Pie: value by status
+        $byStatus = (clone $base)
+            ->selectRaw("
+            LOWER(status) as status,
+            SUM(COALESCE(quotation_value, price, 0)) as sum_value
+        ")
+            ->groupBy('status')
+            ->get();
+
+        // Area vs status (counts)
+        $rowsArea = (clone $base)
+            ->selectRaw("
+            COALESCE(area, '—') as area,
+            SUM(CASE WHEN LOWER(status) IN ('inhand','in-hand') THEN 1 ELSE 0 END) as inhand_cnt,
+            SUM(CASE WHEN LOWER(status) = 'bidding' THEN 1 ELSE 0 END) as bidding_cnt
+        ")
             ->groupBy('area')
             ->orderBy('area')
             ->get();
 
-        // Aggregate by status (pie)
-        $statusAgg = (clone $base)
-            ->select('status', DB::raw('SUM(COALESCE(quotation_value, price, 0)) AS sum_value'))
-            ->groupBy('status')
+        $order = ['Eastern','Central','Western'];
+        $map   = collect($rowsArea)->keyBy('area');
+        $cats  = collect($order);
+        $extra = $map->keys()->diff($cats);
+        $categories = $cats->merge($extra)->values()->all();
+
+        $seriesInhand  = [];
+        $seriesBidding = [];
+        foreach ($categories as $a) {
+            $r = $map->get($a);
+            $seriesInhand[]  = (int)($r->inhand_cnt  ?? 0);
+            $seriesBidding[] = (int)($r->bidding_cnt ?? 0);
+        }
+
+        // ----- Monthly clustered (Eastern/Central/Western), using business date -----
+        // Determine a continuous month range for the x-axis
+        if ($df && $dt) {
+            $start = Carbon::parse($df)->startOfMonth();
+            $end   = Carbon::parse($dt)->endOfMonth();
+        } elseif ($y) {
+            $start = Carbon::create($y, 1, 1)->startOfMonth();
+            $end   = Carbon::create($y, 12, 1)->endOfMonth();
+        } else {
+            $start = now()->startOfYear();
+            $end   = now()->endOfYear();
+        }
+
+        $monthlyRows = (clone $base)
+            ->selectRaw("
+            DATE_FORMAT($dateExprSql, '%Y-%m') as ym,
+            COALESCE(area, '—') as area,
+            COUNT(*) as cnt
+        ")
+            ->whereRaw("$dateExprSql BETWEEN ? AND ?", [
+                $start->toDateString(), $end->toDateString()
+            ])
+            ->groupBy('ym','area')
+            ->orderBy('ym')
             ->get();
 
-        // Totals
+        // Build continuous month categories
+        $months = [];
+        for ($c = $start->copy(); $c <= $end; $c->addMonth()) {
+            $months[] = $c->format('Y-m');
+        }
+
+        // Ensure all areas present (including any unexpected ones)
+        $areas = ['Eastern','Central','Western'];
+        $extraAreas = $monthlyRows->pluck('area')->unique()->diff($areas)->values()->all();
+        $areas = array_values(array_unique(array_merge($areas, $extraAreas)));
+
+        // index [ym][area] => cnt
+        $idx = [];
+        foreach ($monthlyRows as $r) {
+            $idx[$r->ym][$r->area] = (int) $r->cnt;
+        }
+
+        $seriesMonthly = [];
+        foreach ($areas as $a) {
+            $data = [];
+            foreach ($months as $ym) {
+                $data[] = $idx[$ym][$a] ?? 0;
+            }
+            $seriesMonthly[] = ['name' => $a, 'data' => $data];
+        }
+
         $totalCount = (clone $base)->count();
-        $totalValue = (float) (clone $base)
-            ->selectRaw('SUM(COALESCE(quotation_value, price, 0)) AS t')
-            ->value('t');
+        $totalValue = (clone $base)
+            ->selectRaw('SUM(COALESCE(quotation_value, price, 0)) as total_value')
+            ->value('total_value') ?? 0;
 
         return response()->json([
-            'area'         => $areaAgg,
-            'status'       => $statusAgg,
-            'total_count'  => (int) $totalCount,
-            'total_value'  => (float) $totalValue,
-            'region_scope' => $r->attributes->get('region_scope', 'ALL'),
+            'total_count' => $totalCount,
+            'total_value' => (float) $totalValue,
+
+            'status' => $byStatus,
+
+            'area_status' => [
+                'categories' => $categories,
+                'series' => [
+                    ['name' => 'In-Hand', 'data' => $seriesInhand],
+                    ['name' => 'Bidding', 'data' => $seriesBidding],
+                ],
+            ],
+
+            'monthly_area' => [
+                'categories' => $months,
+                'series'     => $seriesMonthly,
+            ],
         ]);
     }
+
 
     /**
      * Single project for the modal.

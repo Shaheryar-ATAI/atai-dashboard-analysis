@@ -30,7 +30,7 @@
                 {{-- Always visible --}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
-                       href="{{ route('projects.index') }}">Projects</a>
+                       href="{{ route('projects.index') }}">Inquiries</a>
                 </li>
 
                 {{-- Sales roles only --}}
@@ -55,6 +55,8 @@
                 <li class="nav-item"><a
                         class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
                         href="{{ route('performance.product') }}">Product summary</a></li>
+                <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                                        href="{{ route('powerbi.jump') }}">Accounts Summary</a></li>
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
                                         href="{{ route('powerbi.jump') }}">Power BI Dashboard</a></li>
                 @endhasanyrole

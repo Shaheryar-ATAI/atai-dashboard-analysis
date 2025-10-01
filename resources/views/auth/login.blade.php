@@ -51,8 +51,8 @@
 
     /* Logo avatar */
     .logo-avatar {
-      width: 84px;
-      height: 84px;
+      width: 120px;
+      height: 120px;
       border-radius: 50%;
       display: grid;
       place-items: center;
@@ -61,7 +61,9 @@
       border: 1px solid rgba(0,0,0,.06);
       box-shadow: 0 8px 24px rgba(149,197,61,.18);
     }
-    .logo-avatar img { width: 64px; height: 64px; object-fit: contain; }
+    .logo-avatar img { width: 120px;
+        height: 120px;
+    object-fit: contain; }
 
     .text-atai { color: var(--atai-deep) !important; }
 

@@ -79,7 +79,7 @@
                 {{-- Always visible --}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
-                       href="{{ route('projects.index') }}">Projects</a>
+                       href="{{ route('projects.index') }}">Inquiries</a>
                 </li>
 
                 {{-- Sales roles only --}}
@@ -104,6 +104,8 @@
                 <li class="nav-item"><a
                         class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
                         href="{{ route('performance.product') }}">Product summary</a></li>
+                <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                                        href="{{ route('powerbi.jump') }}">Accounts Summary</a></li>
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
                                         href="{{ route('powerbi.jump') }}">Power BI Dashboard</a></li>
                 @endhasanyrole
@@ -205,34 +207,36 @@
             </div>
         </div>
     </div>
-
-    {{-- ===== FORECAST KPI (Highcharts) ===== --}}
-    <div class="row g-3 mt-2" id="forecastRow" style="display:none">
-        <div class="col-12">
-            <div class="card kpi-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-                        <div>
-                            <h6 class="mb-1">Sales Forecast Dashboard</h6>
-                            <div class="text-secondary small">From forecast table (filters & role applied)</div>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <span id="fcBadgeScope" class="badge-total text-bg-secondary">All Salesmen</span>
-                            <span id="fcBadgeValue" class="badge-total text-bg-primary">Forecast Total: SAR 0</span>
-                        </div>
-                    </div>
-                    <div class="row mt-3 g-3">
-                        <div class="col-md-6">
-                            <div id="fcBarByArea" class="hc"></div>
-                        </div>
-                        <div class="col-md-6">
-                            <div id="fcBarBySalesman" class="hc"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="col-12 mt-3">
+        <div id="barMonthlyByArea" class="hc"></div>
     </div>
+{{--    --}}{{-- ===== FORECAST KPI (Highcharts) ===== --}}
+{{--    <div class="row g-3 mt-2" id="forecastRow" style="display:none">--}}
+{{--        <div class="col-12">--}}
+{{--            <div class="card kpi-card">--}}
+{{--                <div class="card-body">--}}
+{{--                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">--}}
+{{--                        <div>--}}
+{{--                            <h6 class="mb-1">Sales Forecast Dashboard</h6>--}}
+{{--                            <div class="text-secondary small">From forecast table (filters & role applied)</div>--}}
+{{--                        </div>--}}
+{{--                        <div class="d-flex gap-2">--}}
+{{--                            <span id="fcBadgeScope" class="badge-total text-bg-secondary">All Salesmen</span>--}}
+{{--                            <span id="fcBadgeValue" class="badge-total text-bg-primary">Forecast Total: SAR 0</span>--}}
+{{--                        </div>--}}
+{{--                    </div>--}}
+{{--                    <div class="row mt-3 g-3">--}}
+{{--                        <div class="col-md-6">--}}
+{{--                            <div id="fcBarByArea" class="hc"></div>--}}
+{{--                        </div>--}}
+{{--                        <div class="col-md-6">--}}
+{{--                            <div id="fcBarBySalesman" class="hc"></div>--}}
+{{--                        </div>--}}
+{{--                    </div>--}}
+{{--                </div>--}}
+{{--            </div>--}}
+{{--        </div>--}}
+{{--    </div>--}}
 
     {{-- ===== Family filter chips (All / Ductwork / Dampers / Sound / Accessories) ===== --}}
 
@@ -511,6 +515,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         crossorigin="anonymous"></script>
 <script src="https://code.highcharts.com/highcharts.js"></script>
+<script src="https://code.highcharts.com/modules/no-data-to-display.js"></script>
 <script>
     /* =============================================================================
      *  CONFIG & HELPERS
@@ -527,9 +532,9 @@
     }).format(Number(n || 0));
 
     // global state (no window.*)
-    let PROJ_YEAR = '';
+    let PROJ_YEAR   = '';
     let PROJ_REGION = '';
-    let ATAI_ME = null;
+    let ATAI_ME     = null;
     let CAN_VIEW_ALL = false;
     let currentFamily = ''; // '', 'ductwork','dampers','sound','accessories'
 
@@ -540,17 +545,17 @@
         const row = document.getElementById('kpiRow');
         if (row) row.style.display = '';
 
-        const yearSel = document.querySelector('#projYear');
-        const monthSel = document.querySelector('#monthSelect');
+        const yearSel   = document.querySelector('#projYear');
+        const monthSel  = document.querySelector('#monthSelect');
         const dateFromI = document.querySelector('#dateFrom');
-        const dateToI = document.querySelector('#dateTo');
+        const dateToI   = document.querySelector('#dateTo');
         const regionSel = document.querySelector('#projRegion');
 
-        const year = yearSel?.value || PROJ_YEAR || '';
-        const month = monthSel?.value || '';
-        const df = dateFromI?.value || '';
-        const dt = dateToI?.value || '';
-        const family = currentFamily || '';
+        const year   = yearSel?.value   || PROJ_YEAR || '';
+        const month  = monthSel?.value  || '';
+        const df     = dateFromI?.value || '';
+        const dt     = dateToI?.value   || '';
+        const family = currentFamily    || '';
         const region = regionSel?.value || PROJ_REGION || '';
 
         const url = new URL("{{ route('projects.kpis') }}", window.location.origin);
@@ -558,151 +563,112 @@
         if (dt) url.searchParams.set('date_to', dt);
         if (!df && !dt) {
             if (month) url.searchParams.set('month', month);
-            if (year) url.searchParams.set('year', year);
+            if (year)  url.searchParams.set('year', year);
         }
         if (family) url.searchParams.set('family', family);
         if (region) url.searchParams.set('area', region);
 
-        let resp = {area: [], status: [], total_value: 0, total_count: 0};
+        let resp = { area: [], status: [], total_value: 0, total_count: 0 };
         try {
-            const res = await fetch(url, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}});
+            const res = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             if (res.ok) resp = await res.json();
         } catch (e) {
             console.warn('KPI fetch failed', e);
         }
 
         document.getElementById('kpiBadgeProjects').textContent = 'Projects: ' + Number(resp.total_count || 0).toLocaleString();
-        document.getElementById('kpiBadgeValue').textContent = 'Total Value: ' + fmtSAR(Number(resp.total_value || 0));
+        document.getElementById('kpiBadgeValue').textContent    = 'Total Value: ' + fmtSAR(Number(resp.total_value || 0));
 
         const baseHC = {
-            chart: {height: 260, spacing: [8, 8, 8, 8]},
-            credits: {enabled: false},
-            legend: {enabled: false},
+            chart: { height: 260, spacing: [8, 8, 8, 8] },
+            credits: { enabled: false },
+            legend: { enabled: false },
             plotOptions: {
-                column: {
-                    dataLabels: {
-                        enabled: true, formatter() {
-                            return (this.y ?? 0).toLocaleString();
-                        }
-                    }
-                }
+                column: { dataLabels: { enabled: true, formatter(){ return (this.y ?? 0).toLocaleString(); } } }
             }
         };
 
-        // Bar: Projects by Area (with value in tooltip)
+        // Bar: Inquiries/Projects by Area (clustered Inhand vs Bidding)
+        const areaStatus = resp.area_status || { categories: [], series: [] };
         if (document.getElementById('barByArea')) {
-            Highcharts.chart('barByArea', Highcharts.merge(baseHC, {
-                title: {text: 'Inquiries by Area'},
-                xAxis: {categories: (resp.area || []).map(a => a.area || '—')},
-                yAxis: {title: {text: 'Count'}},
-                tooltip: {pointFormat: '<b>{point.y:,.0f}</b> Projects<br/>Value: SAR {point.value:,.0f}'},
-                series: [{
-                    type: 'column', name: 'Projects',
-                    data: (resp.area || []).map(a => ({y: Number(a.cnt || 0), value: Number(a.sum_value || 0)}))
-                }]
-            }));
+            Highcharts.chart('barByArea', {
+                chart: { type: 'column', height: 260, spacing: [8,8,8,8] },
+                title: { text: 'Inquiries by Area' },
+                credits: { enabled: false },
+                xAxis: { categories: areaStatus.categories },
+                yAxis: { title: { text: 'Count' } },
+                legend: { enabled: true },
+                tooltip: {
+                    shared: true,
+                    pointFormat: '<span style="color:{point.color}">●</span> {series.name}: <b>{point.y}</b><br/>'
+                },
+                plotOptions: { column: { dataLabels: { enabled: true } } },
+                series: areaStatus.series
+            });
         }
 
         // Pie: Value by Status
-        if (document.getElementById('pieByStatus')) {
-            Highcharts.chart('pieByStatus', Highcharts.merge(baseHC, {
-                title: {text: 'Value by Status (SAR)'},
-                tooltip: {pointFormat: '<b>{point.percentage:.1f}%</b> (SAR {point.y:,.0f})'},
-                plotOptions: {pie: {dataLabels: {enabled: true, format: '{point.name}: {point.percentage:.1f}%'}}},
-                series: [{
+        const pieEl = document.getElementById('pieByStatus');
+        if (pieEl) {
+            const statusArr = Array.isArray(resp.status) ? resp.status : [];
+            const hasPie = statusArr.some(s => Number(s.sum_value) > 0);
+
+            const chart = Highcharts.chart('pieByStatus', Highcharts.merge(baseHC, {
+                chart: { height: 260, spacing: [8,8,8,8] },
+                title: { text: 'Value by Status (SAR)' },
+                credits: { enabled: false },
+                series: hasPie ? [{
                     type: 'pie',
-                    data: (resp.status || []).map(s => ({
-                        name: (String(s.status || '') || '—').toUpperCase(),
-                        y: Number(s.sum_value || 0)
-                    }))
-                }]
+                    data: statusArr.map(s => ({ name: String(s.status || '—').toUpperCase(), y: Number(s.sum_value || 0) }))
+                }] : []
             }));
-        }
-    }
 
-    /* =============================================================================
-     *  FORECAST CHARTS
-     * ============================================================================= */
-    async function loadForecast() {
-        const row = document.getElementById('forecastRow');
-        if (row) row.style.display = '';
-
-        const year = document.querySelector('#projYear')?.value || '';
-        const month = document.querySelector('#monthSelect')?.value || '';
-        const df = document.querySelector('#dateFrom')?.value || '';
-        const dt = document.querySelector('#dateTo')?.value || '';
-        const region = document.querySelector('#projRegion')?.value || '';
-        const family = currentFamily || '';
-
-        const scopeLabel = CAN_VIEW_ALL ? (document.querySelector('#salesmanInput')?.value?.trim() || 'All Salesmen')
-            : (ATAI_ME?.name || 'My Forecast');
-        const badgeScope = document.getElementById('fcBadgeScope');
-        if (badgeScope) badgeScope.textContent = scopeLabel;
-
-        const url = new URL("{{ route('forecast.kpis') }}", window.location.origin);
-        if (df) url.searchParams.set('date_from', df);
-        if (dt) url.searchParams.set('date_to', dt);
-        if (!df && !dt) {
-            if (month) url.searchParams.set('month', month);
-            if (year) url.searchParams.set('year', year);
-        }
-        if (family) url.searchParams.set('family', family);
-        if (region) url.searchParams.set('area', region);
-        const salesman = document.querySelector('#salesmanInput')?.value?.trim();
-        if (CAN_VIEW_ALL && salesman) url.searchParams.set('salesman', salesman);
-
-        let data = {area: [], salesman: [], total_value: 0};
-        try {
-            const res = await fetch(url, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}});
-            if (res.ok) data = await res.json();
-        } catch (e) {
-            console.warn('Forecast fetch failed', e);
+            if (!hasPie && Highcharts.Chart.prototype.showNoData) chart.showNoData();
         }
 
-        document.getElementById('fcBadgeValue').textContent = 'Forecast Total: ' + fmtSAR(Number(data.total_value || 0));
+        // MONTHLY CLUSTERED BAR (Eastern/Central/Western)
+        const monthlyEl = document.getElementById('barMonthlyByArea');
+        if (monthlyEl) {
+            const monthly = resp.monthly_area || { categories: [], series: [] };
+            const hasMonthly = (monthly.series||[]).some(s => (s.data||[]).some(v => Number(v) > 0));
 
-        const baseHC = {
-            chart: {height: 260, spacing: [8, 8, 8, 8]},
-            credits: {enabled: false},
-            legend: {enabled: false},
-            tooltip: {pointFormat: 'SAR {point.y:,.0f}'},
-            plotOptions: {
-                column: {
-                    dataLabels: {
-                        enabled: true, formatter() {
-                            return 'SAR ' + (this.y ?? 0).toLocaleString();
+            const chart = Highcharts.chart('barMonthlyByArea', Highcharts.merge(baseHC, {
+                chart: { type: 'column' },
+                title: { text: 'Inquiries by Month & Area' },
+                xAxis: {
+                    categories: monthly.categories || [],
+                    labels: {
+                        formatter(){
+                            const [Y,M] = String(this.value||'').split('-');
+                            if (!Y || !M) return this.value || '';
+                            const d = new Date(+Y, +M-1, 1);
+                            return d.toLocaleString('en', { month:'short', year:'2-digit' });
                         }
                     }
-                }
-            }
-        };
-
-        // BAR: Forecast by Area
-        if (document.getElementById('fcBarByArea')) {
-            Highcharts.chart('fcBarByArea', Highcharts.merge(baseHC, {
-                title: {text: 'Forecast by Area (SAR)'},
-                xAxis: {categories: (data.area || []).map(a => a.area || '—')},
-                yAxis: {title: {text: 'SAR'}},
-                series: [{type: 'column', name: 'Forecast', data: (data.area || []).map(a => Number(a.sum_value || 0))}]
+                },
+                yAxis: { title: { text: 'Count' } },
+                legend: { enabled: true },
+                tooltip: {
+                    shared: true,
+                    headerFormat: '<b>{point.key}</b><br/>',
+                    pointFormat: '<span style="color:{point.color}">●</span> {series.name}: <b>{point.y:,.0f}</b><br/>'
+                },
+                plotOptions: {
+                    column: {
+                        grouping: true,
+                        groupPadding: 0.15,
+                        pointPadding: 0.05,
+                        dataLabels: { enabled: true, formatter(){ return (this.y ?? 0).toLocaleString(); } }
+                    }
+                },
+                series: (monthly.series||[]).map(s => ({ type:'column', name:s.name, data:s.data || [] })),
+                lang: { noData: 'No monthly data.' },
+                noData: { style: { fontSize:'12px', color:'#6c757d' } }
             }));
-        }
 
-        // BAR: Salesmen (only when GM/Admin selected a region)
-        const contSales = document.getElementById('fcBarBySalesman');
-        if (contSales) {
-            const showSalesmen = CAN_VIEW_ALL && region && (data.salesman || []).length;
-            if (showSalesmen) {
-                Highcharts.chart('fcBarBySalesman', Highcharts.merge(baseHC, {
-                    title: {text: `Forecast by Salesman (SAR) — ${region}`},
-                    xAxis: {categories: data.salesman.map(s => s.salesman || '—'), labels: {rotation: -30}},
-                    yAxis: {title: {text: 'SAR'}},
-                    series: [{type: 'column', name: 'Forecast', data: data.salesman.map(s => Number(s.sum_value || 0))}]
-                }));
-            } else {
-                contSales.innerHTML = '<div class="text-secondary small">Select a region to see Salesman breakdown.</div>';
-            }
+            if (!hasMonthly && Highcharts.Chart.prototype.showNoData) chart.showNoData();
         }
-    }
+    } // <-- END loadKpis()
 
     /* =============================================================================
      *  DATA TABLES (3 tabs)
@@ -710,18 +676,12 @@
     const projectColumns = [
         {data: 'id', name: 'id', width: '64px'},
         {data: 'name', name: 'name'},
-        {data: 'client', name: 'client',},
+        {data: 'client', name: 'client'},
         {data: 'location', name: 'location'},
         {data: 'area_badge', name: 'area', orderable: true, searchable: false},
         {data: 'quotation_no', name: 'quotation_no'},
         {data: 'atai_products', name: 'atai_products'},
-        {
-            data: 'quotation_value_fmt',
-            name: 'quotation_value',
-            orderable: true,
-            searchable: false,
-            className: 'text-end'
-        },
+        {data: 'quotation_value_fmt', name: 'quotation_value', orderable: true, searchable: false, className: 'text-end'},
         {data: 'status_badge', name: 'status', orderable: true, searchable: false},
         {data: 'actions', orderable: false, searchable: false, className: 'text-end'}
     ];
@@ -733,46 +693,44 @@
         const table = $table.DataTable({
             processing: true,
             serverSide: true,
-            order: [[0, 'desc']],
+            order: [[0,'desc']],
             ajax: {
                 url: DT_URL,
-                headers: {'X-Requested-With': 'XMLHttpRequest'},
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
                 dataSrc: (json) => json.data || [],
                 data: (d) => {
                     d.status = status;
-                    d.family = currentFamily || '';   // <-- this is what the backend reads
-
+                    d.family = currentFamily || '';
                     const year   = document.querySelector('#projYear')?.value || '';
                     const month  = document.querySelector('#monthSelect')?.value || '';
                     const dFrom  = document.querySelector('#dateFrom')?.value || '';
                     const dTo    = document.querySelector('#dateTo')?.value || '';
                     const region = document.querySelector('#projRegion')?.value || '';
-
                     if (dFrom) d.date_from = dFrom;
                     if (dTo)   d.date_to   = dTo;
                     if (!dFrom && !dTo) {
                         if (month) d.month = month;
                         if (year)  d.year  = year;
                     }
-                    if (region) d.region = region; // if your controller expects "region"
+                    if (region) d.region = region;
                 }
             },
             columns: projectColumns,
-            language: {search: "Global search:", lengthMenu: "Show _MENU_"},
-            drawCallback: function () {
+            language: { search: "Global search:", lengthMenu: "Show _MENU_" },
+            drawCallback: function() {
                 const json = this.api().ajax.json() || {};
-                const sum = Number(json.sum_quotation_value || 0);
-                const el = document.querySelector(sumSelector);
+                const sum  = Number(json.sum_quotation_value || 0);
+                const el   = document.querySelector(sumSelector);
                 if (el) el.textContent = 'Total: ' + fmtSAR(sum);
             }
         });
 
         // Per-column filters
         $filterRow.find('th').each(function (i) {
-            const $in = $(this).find('input');
+            const $in  = $(this).find('input');
             const $sel = $(this).find('select');
-            if ($in.length) $in.on('keyup change', () => table.column(i).search($in.val()).draw());
-            if ($sel.length) $sel.on('change', () => table.column(i).search($sel.val()).draw());
+            if ($in.length)  $in.on('keyup change', () => table.column(i).search($in.val()).draw());
+            if ($sel.length) $sel.on('change',      () => table.column(i).search($sel.val()).draw());
         });
 
         return table;
@@ -780,17 +738,17 @@
 
     // Modals: simple hooks (details/checklists wiring kept)
     const checklistBidding = [
-        {key: "mep_contractor_appointed", label: "MEP Contractor appointed"},
-        {key: "boq_quoted", label: "BOQ  quoted"},
-        {key: "boq_submitted", label: "BOQ submitted & quoted"},
-        {key: "priced_at_discount", label: "Priced at discount"},
+        {key:"mep_contractor_appointed", label:"MEP Contractor appointed"},
+        {key:"boq_quoted",               label:"BOQ  quoted"},
+        {key:"boq_submitted",            label:"BOQ submitted & quoted"},
+        {key:"priced_at_discount",       label:"Priced at discount"},
     ];
     const checklistInhand = [
-        {key: "submittal_approved", label: "Consultant approved — Submittal approved", weight: 25},
-        {key: "sample_approved", label: "Consultant approved — Sample approved", weight: 25},
-        {key: "commercial_terms_agreed", label: "Commercial terms / Payment terms agreed", weight: 50},
-        {key: "no_approval_or_terms", label: "No consultant approval or commercial terms agreed", weight: 0},
-        {key: "discount_offered_as_standard", label: "Discount offered as per standard", weight: 0},
+        {key:"submittal_approved",       label:"Consultant approved — Submittal approved", weight:25},
+        {key:"sample_approved",          label:"Consultant approved — Sample approved",     weight:25},
+        {key:"commercial_terms_agreed",  label:"Commercial terms / Payment terms agreed",   weight:50},
+        {key:"no_approval_or_terms",     label:"No consultant approval or commercial terms agreed", weight:0},
+        {key:"discount_offered_as_standard", label:"Discount offered as per standard",      weight:0},
     ];
 
     function renderChecklist(containerId, list, prefix, values = {}) {
@@ -801,10 +759,10 @@
             const id = `${prefix}_${item.key}`;
             const checked = !!values[item.key];
             cont.insertAdjacentHTML('beforeend', `
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="${id}" ${checked ? 'checked' : ''}>
-          <label class="form-check-label" for="${id}">${item.label}</label>
-        </div>`);
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="${id}" ${checked ? 'checked' : ''}>
+        <label class="form-check-label" for="${id}">${item.label}</label>
+      </div>`);
         });
     }
 
@@ -812,7 +770,7 @@
         if (kind === 'bidding') {
             const keys = checklistBidding.map(i => i.key);
             const done = keys.filter(k => document.getElementById(`bid_${k}`)?.checked).length;
-            const pct = keys.length ? Math.round(done / keys.length * 100) : 0;
+            const pct  = keys.length ? Math.round(done/keys.length*100) : 0;
             document.getElementById('biddingProgressPct').textContent = pct + '%';
             const bar = document.getElementById('biddingProgressBar');
             bar.style.width = pct + '%';
@@ -839,74 +797,51 @@
     });
 
     function normalizeRow(row) {
-        const qVal =
-            row.quotationValue ?? row.quotation_value ?? row.price ?? 0;
-
+        const qVal = row.quotationValue ?? row.quotation_value ?? row.price ?? 0;
         return {
             id: row.id,
-            // names
-            name:           row.name           ?? row.projectName        ?? '-',
-            client:         row.client         ?? row.clientName         ?? '-',
-            location:       row.location       ?? row.projectLocation    ?? '-',
-            area:           row.area           ?? '-',
-
-            // numbers / money
+            name:         row.name           ?? row.projectName        ?? '-',
+            client:       row.client         ?? row.clientName         ?? '-',
+            location:     row.location       ?? row.projectLocation    ?? '-',
+            area:         row.area           ?? '-',
             quotationValue: Number(qVal),
-
-            // identifiers / misc
-            quotationNo:    row.quotationNo    ?? row.quotation_no       ?? '-',
-            ataiProducts:   row.ataiProducts   ?? row.atai_products      ?? '-',
-
-            // new fields you want shown
-            quotationDate:  row.quotationDate  ?? row.quotation_date     ?? null,
-            estimator:      row.estimator      ?? row.action1            ?? null,
-            dateRec:        row.dateRec        ?? row.date_rec           ?? null,
-
-            // status & meta
+            quotationNo:  row.quotationNo    ?? row.quotation_no       ?? '-',
+            ataiProducts: row.ataiProducts   ?? row.atai_products      ?? '-',
+            quotationDate: row.quotationDate ?? row.quotation_date     ?? null,
+            estimator:     row.estimator     ?? row.action1            ?? null,
+            dateRec:       row.dateRec       ?? row.date_rec           ?? null,
             status: String(row.status ?? '').toLowerCase(),
             checklist: row.checklist ?? {},
             comments:  row.comments  ?? '',
         };
     }
+
     function fillDetails(dlId, p) {
         const dl = document.getElementById(dlId);
         if (!dl) return;
-
         const rows = [
             ['Project', p.name],
             ['Client', p.client],
             ['Location', p.location],
             ['Area', p.area || '—'],
             ['Quotation No', p.quotationNo || '—'],
-
-            // NEW: Quotation Date if present
             ...(p.quotationDate ? [['Quotation Date', p.quotationDate]] : []),
-
-            // NEW: Date Received if present
-            ...(p.dateRec ? [['Date Received', p.dateRec]] : []),
-
+            ...(p.dateRec ?        [['Date Received', p.dateRec]]       : []),
             ['ATAI Products', p.ataiProducts || '—'],
-
-            // NEW: Estimator from action1
             ...(p.estimator ? [['Estimator', p.estimator]] : []),
-
-            // Price from quotationValue (numeric)
             ['Price', fmtSAR(Number(p.quotationValue || 0))],
-
             ['Status', String(p.status || '').toUpperCase()],
         ];
-
-        dl.innerHTML = rows
-            .map(([label, val]) =>
-                `<dt class="col-5 text-muted">${label}</dt><dd class="col-7">${val ?? '—'}</dd>`
-            )
-            .join('');
+        dl.innerHTML = rows.map(([label, val]) =>
+            `<dt class="col-5 text-muted">${label}</dt><dd class="col-7">${val ?? '—'}</dd>`).join('');
     }
+
     function openProjectModalFromData(row) {
         const p = normalizeRow(row);
         const values = p.checklist || {};
         let kind = 'bidding';
-        if (p.status === 'inhand' || p.status === 'in-hand') kind = 'inhand'; else if (p.status === 'lost') kind = 'lost';
+        if (p.status === 'inhand' || p.status === 'in-hand') kind = 'inhand';
+        else if (p.status === 'lost') kind = 'lost';
 
         if (kind === 'bidding') {
             document.getElementById('biddingModalLabel').textContent = p.name || 'Project';
@@ -932,34 +867,21 @@
     // View button handler (fetch detail before opening)
     $(document).on('click', '[data-action="view"]', async function (e) {
         e.preventDefault();
-
-        // Which DT row was clicked?
         const $tr = $(this).closest('tr');
         const tryGetRow = (dt) => (dt ? dt.row($tr).data() : null);
-
         let row =
             tryGetRow($('#tblBidding').DataTable()) ||
             tryGetRow($('#tblInhand').DataTable()) ||
             tryGetRow($('#tblLost').DataTable());
-
         if (!row || !row.id) return;
 
-        // Pull richer details for this project
         let detail = null;
         try {
-            const res = await fetch(`/projects/${row.id}`, {
-                credentials: 'same-origin',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
+            const res = await fetch(`/projects/${row.id}`, { credentials:'same-origin', headers:{ 'X-Requested-With':'XMLHttpRequest' } });
             if (res.ok) detail = await res.json();
-        } catch (err) {
-            console.warn('Detail fetch failed', err);
-        }
+        } catch (err) { console.warn('Detail fetch failed', err); }
 
-        // Merge the detail into the row (detail wins where present)
         if (detail) row = hydrateRowWithDetail(row, detail);
-
-        // Open using your existing renderer
         openProjectModalFromData(row);
     });
 
@@ -967,8 +889,8 @@
     document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(btn => {
         btn.addEventListener('shown.bs.tab', () => {
             setTimeout(() => {
-                if (dtBid) dtBid.columns.adjust();
-                if (dtIn) dtIn.columns.adjust();
+                if (dtBid)  dtBid.columns.adjust();
+                if (dtIn)   dtIn.columns.adjust();
                 if (dtLost) dtLost.columns.adjust();
             }, 50);
         });
@@ -976,56 +898,40 @@
 
     // Global search
     let dtBid, dtIn, dtLost;
-    document.getElementById('searchBidding')?.addEventListener('input', e => dtBid && dtBid.search(e.target.value).draw());
-    document.getElementById('searchInhand')?.addEventListener('input', e => dtIn && dtIn.search(e.target.value).draw());
-    document.getElementById('searchLost')?.addEventListener('input', e => dtLost && dtLost.search(e.target.value).draw());
+    document.getElementById('searchBidding')?.addEventListener('input', e => dtBid  && dtBid.search(e.target.value).draw());
+    document.getElementById('searchInhand')?.addEventListener('input', e => dtIn   && dtIn.search(e.target.value).draw());
+    document.getElementById('searchLost')  ?.addEventListener('input', e => dtLost && dtLost.search(e.target.value).draw());
 
+    function getDT(sel){ return $.fn.dataTable.isDataTable(sel) ? $(sel).DataTable() : null; }
 
-    function getDT(sel) {
-        return $.fn.dataTable.isDataTable(sel) ? $(sel).DataTable() : null;
-    }
-    // Family chips → refresh DT + KPI + Forecast
+    // Family chips → refresh DT + KPI
     $(document).on('click', '#familyChips [data-family]', function (e) {
         e.preventDefault();
-
-        // Visual state
         $('#familyChips [data-family]').removeClass('active');
         this.classList.add('active');
-
-        // Update the filter used by both KPIs and tables
         currentFamily = this.getAttribute('data-family') || '';
-
-        // Reload each table (only if initialized)
         getDT('#tblBidding')?.ajax.reload(null, false);
         getDT('#tblInhand')?.ajax.reload(null, false);
         getDT('#tblLost')?.ajax.reload(null, false);
-
-        // (Optional) refresh charts too
         loadKpis();
-        loadForecast();
     });
 
     // Apply filters
     document.getElementById('projApply')?.addEventListener('click', () => {
-        PROJ_YEAR = document.getElementById('projYear')?.value || '';
+        PROJ_YEAR   = document.getElementById('projYear')?.value || '';
         PROJ_REGION = CAN_VIEW_ALL ? (document.getElementById('projRegion')?.value || '') : '';
         loadKpis();
-        loadForecast();
-        if (dtBid) dtBid.ajax.reload(null, false);
-        if (dtIn) dtIn.ajax.reload(null, false);
+        if (dtBid)  dtBid.ajax.reload(null, false);
+        if (dtIn)   dtIn.ajax.reload(null, false);
         if (dtLost) dtLost.ajax.reload(null, false);
     });
-
-    // Salesman input triggers forecast reload for GM/Admin
-    document.getElementById('salesmanInput')?.addEventListener('change', loadForecast);
 
     /* =============================================================================
      *  BOOT
      * ============================================================================= */
     (async function boot() {
-        // 1) Get signed-in profile
         try {
-            const res = await fetch('/me', {credentials: 'same-origin'});
+            const res = await fetch('/me', { credentials:'same-origin' });
             if (!res.ok) throw new Error('Not authenticated');
             ATAI_ME = await res.json();
         } catch {
@@ -1033,7 +939,6 @@
             return;
         }
 
-        // 2) permissions
         CAN_VIEW_ALL = !!(ATAI_ME?.canViewAll);
         if (!CAN_VIEW_ALL) {
             document.getElementById('projRegionWrap')?.classList.add('d-none');
@@ -1041,41 +946,35 @@
             document.getElementById('salesmanWrap')?.classList.remove('d-none');
         }
 
-        // 3) init DataTables
-        dtBid = initProjectsTable('#tblBidding', 'bidding', '#sumBidding');
-        dtIn = initProjectsTable('#tblInhand', 'inhand', '#sumInhand');
-        dtLost = initProjectsTable('#tblLost', 'lost', '#sumLost');
+        dtBid  = initProjectsTable('#tblBidding', 'bidding', '#sumBidding');
+        dtIn   = initProjectsTable('#tblInhand', 'inhand', '#sumInhand');
+        dtLost = initProjectsTable('#tblLost', 'lost',   '#sumLost');
 
-        // 4) load charts
         await loadKpis();
-        await loadForecast();
     })();
 
-
-
     function hydrateRowWithDetail(row, d) {
-        // Map detail keys → the shape your modal code expects
         return {
             ...row,
-            name:           d.projectName     ?? row.name,
-            client:         d.clientName      ?? row.client,
-            location:       d.projectLocation ?? row.location,
-            area:           d.area            ?? row.area,
-            quotationNo:    d.quotationNo     ?? row.quotationNo,
-            quotationDate:  d.quotationDate   ?? row.quotationDate,  // NEW
-            action1:        d.action1         ?? row.action1,        // NEW
-            ataiProducts:   d.ataiProducts    ?? row.ataiProducts,
-            quotationValue: d.quotationValue  ?? row.quotationValue,
-            status:         d.status          ?? row.status,
-            checklist:      d.checklist       ?? row.checklist,
-            comments:       d.comments        ?? row.comments,
-            // optional extras if you want them later
-            dateRec:        d.dateRec         ?? row.dateRec,
-            clientReference:d.clientReference ?? row.clientReference,
-            projectType:    d.projectType     ?? row.projectType,
-            salesperson:    d.salesperson     ?? row.salesperson,
+            name:            d.projectName     ?? row.name,
+            client:          d.clientName      ?? row.client,
+            location:        d.projectLocation ?? row.location,
+            area:            d.area            ?? row.area,
+            quotationNo:     d.quotationNo     ?? row.quotationNo,
+            quotationDate:   d.quotationDate   ?? row.quotationDate,
+            action1:         d.action1         ?? row.action1,
+            ataiProducts:    d.ataiProducts    ?? row.ataiProducts,
+            quotationValue:  d.quotationValue  ?? row.quotationValue,
+            status:          d.status          ?? row.status,
+            checklist:       d.checklist       ?? row.checklist,
+            comments:        d.comments        ?? row.comments,
+            dateRec:         d.dateRec         ?? row.dateRec,
+            clientReference: d.clientReference ?? row.clientReference,
+            projectType:     d.projectType     ?? row.projectType,
+            salesperson:     d.salesperson     ?? row.salesperson,
         };
     }
 </script>
+
 </body>
 </html>
