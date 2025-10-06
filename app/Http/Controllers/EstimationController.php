@@ -48,12 +48,16 @@ class EstimationController extends Controller
     /**
      * Helper: returns the COALESCE(date_rec, created_at) expression for date filtering.
      */
-    protected function dateExpr()
+    protected function dateExprRaw()
     {
-        // Use date_rec when present, otherwise created_at.
         return DB::raw("COALESCE(p.date_rec, p.created_at)");
     }
 
+// Plain SQL string (use inside selectRaw/whereRaw string templates)
+    protected function dateExprSql(): string
+    {
+        return "COALESCE(p.date_rec, p.created_at)";
+    }
     /**
      * Build the base query with all the current filters applied.
      *
@@ -68,27 +72,28 @@ class EstimationController extends Controller
      */
     protected function base(Request $request)
     {
-        $dateCol = $this->dateExpr();
+        $dateCol = $this->dateExprRaw();  // <— keep Expression here
 
         $q = DB::table('projects as p')
-            ->whereIn('p.status', ['Bidding', 'inhand']); // "estimation phase"
+            ->whereRaw("
+            CASE
+              WHEN UPPER(TRIM(p.status)) IN ('BIDDING','OPEN','SUBMITTED','PENDING','QUOTE','QUOTED','RFQ','INQUIRY','ENQUIRY') THEN 'Bidding'
+              WHEN UPPER(TRIM(p.status)) IN ('IN HAND','IN-HAND','INHAND','ACCEPTED','WON','ORDER','ORDER IN HAND','IH') THEN 'In-Hand'
+              ELSE 'Other'
+            END <> 'Other'
+        ");
 
-        // Estimator filter (action1)
         if ($estimator = trim((string) $request->query('estimator', ''))) {
             $q->where('p.action1', $estimator);
         }
 
-        // Year / Month filters
         if ($year = $request->query('year')) {
             $q->whereYear($dateCol, (int) $year);
-
-            // Month only makes sense with a year
             if ($month = $request->query('month')) {
                 $q->whereMonth($dateCol, (int) $month);
             }
         }
 
-        // Date range filters (can be used for week selections etc.)
         if ($from = $request->query('from')) {
             $q->whereDate($dateCol, '>=', $from);
         }
@@ -98,6 +103,7 @@ class EstimationController extends Controller
 
         return $q;
     }
+
 
     /* --------------------------------------------------------------------
      | KPIs (cards & charts)
@@ -114,113 +120,220 @@ class EstimationController extends Controller
      * - regionSeries{categories[], data[]}  : region count series
      * - productSeries{categories[], data[]} : product count series (top 10)
      */
-public function kpis(Request $request)
-{
-    // Base filtered query (by estimator, year, month, from, to) and status in Estimation phase
-    $base = $this->base($request);
+    public function kpis(Request $request)
+    {
+        // Base filtered query (estimator/year/month/from/to; statuses in estimation phase)
+        $base = $this->base($request);
 
-    // Total value for whatever is selected right now
-    $totals = (clone $base)
-        ->selectRaw('COALESCE(SUM(p.quotation_value),0) AS value')
-        ->first();
+        // Total value for whatever is selected right now
+        $totals = (clone $base)
+            ->selectRaw('COALESCE(SUM(p.quotation_value),0) AS value')
+            ->first();
 
-    $estimator = trim($request->query('estimator', ''));
+        $estimator = trim((string)$request->query('estimator', ''));
 
-    if ($estimator === '') {
-        // ---- ALL mode: show share by estimator (value)
-        $estimatorRows = (clone $base)
-            ->selectRaw('COALESCE(p.action1,"Unknown") AS estimator, COALESCE(SUM(p.quotation_value),0) AS val')
-            ->groupBy('p.action1')
+        /* ------------------------ Month window ------------------------ */
+        // We will use a *SQL string* for the date expression everywhere below
+        $dateColSql = "COALESCE(p.date_rec, p.created_at)";
+
+        $y  = (int) ($request->query('year') ?: 0);
+        $m  = (int) ($request->query('month') ?: 0);
+        $df = $request->query('from');
+        $dt = $request->query('to');
+
+        if ($df || $dt) {
+            $start = \Carbon\Carbon::parse($df ?: now()->startOfYear())->startOfMonth();
+            $end   = \Carbon\Carbon::parse($dt ?: now()->endOfYear())->endOfMonth();
+        } elseif ($m && $y) {
+            $start = \Carbon\Carbon::create($y, $m, 1)->startOfMonth();
+            $end   = (clone $start)->endOfMonth();
+        } elseif ($y) {
+            $start = \Carbon\Carbon::create($y, 1, 1)->startOfMonth();
+            $end   = \Carbon\Carbon::create($y, 12, 1)->endOfMonth();
+        } else {
+            $start = now()->startOfYear();
+            $end   = now()->endOfYear();
+        }
+
+        // Build YYYY-MM keys + pretty labels
+        $months = [];
+        $labels = [];
+        for ($cur = $start->copy(); $cur <= $end; $cur->addMonth()) {
+            $months[] = $cur->format('Y-m');
+            $labels[] = $cur->format('M y'); // e.g., "Jan 25"
+        }
+        $ymIndex = array_flip($months);  // '2025-01' => 0, ...
+
+        /* ---------------- Monthly Value by Area (3 series) ---------------- */
+        // Prepare arrays for each region (all zeros initially)
+        $dataEastern = array_fill(0, count($months), 0.0);
+        $dataCentral = array_fill(0, count($months), 0.0);
+        $dataWestern = array_fill(0, count($months), 0.0);
+
+        $monthlyRows = (clone $base)
+            ->selectRaw("DATE_FORMAT($dateColSql, '%Y-%m') AS ym")
+            ->selectRaw("LOWER(TRIM(p.area)) AS area_l")
+            ->selectRaw("COALESCE(SUM(p.quotation_value),0) AS val")
+            ->whereRaw("$dateColSql BETWEEN ? AND ?", [$start->toDateString(), $end->toDateString()])
+            ->groupBy('ym','area_l')
+            ->orderBy('ym')
+            ->get();
+
+        foreach ($monthlyRows as $r) {
+            if (!isset($ymIndex[$r->ym])) continue;
+            $i = $ymIndex[$r->ym];
+            $v = (float)$r->val;
+
+            switch ($r->area_l) {
+                case 'eastern': $dataEastern[$i] = $v; break;
+                case 'central': $dataCentral[$i] = $v; break;
+                case 'western': $dataWestern[$i] = $v; break;
+                // ignore other/unknown regions in this 3-bar view
+            }
+        }
+        $totalsTrend = [];
+        for ($i = 0; $i < count($months); $i++) {
+            $totalsTrend[$i] = (float)$dataEastern[$i] + (float)$dataCentral[$i] + (float)$dataWestern[$i];
+        }
+
+        // Columns (bars) + per-region trends (splines)
+        $monthlyRegion = [
+            'categories' => $labels,   // ["Jan 25", "Feb 25", ...]
+            'series' => [
+                // --- Bars (keep legend visible) ---
+                [
+                    'name' => 'Eastern',
+                    'type' => 'column',
+                    'data' => $dataEastern,
+                    'zIndex' => 1,
+                ],
+                [
+                    'name' => 'Central',
+                    'type' => 'column',
+                    'data' => $dataCentral,
+                    'zIndex' => 1,
+                ],
+                [
+                    'name' => 'Western',
+                    'type' => 'column',
+                    'data' => $dataWestern,
+                    'zIndex' => 1,
+                ],
+
+                // --- Splines (one per region), linked to the bar just before it ---
+                // Eastern trend
+                [
+                    'type'         => 'spline',
+                    'data'         => $dataEastern,
+                    'linkedTo'     => ':previous',    // links to Eastern bar (legend stays single)
+                    'showInLegend' => false,
+                    'marker'       => ['enabled' => false],
+                    'zIndex'       => 5,
+                    // Optional: make the line stand out a bit
+                    'lineWidth'    => 2,
+                    'dashStyle'    => 'ShortDot',
+                ],
+                // Central trend
+                [
+                    'type'         => 'spline',
+                    'data'         => $dataCentral,
+                    'linkedTo'     => ':previous',
+                    'showInLegend' => false,
+                    'marker'       => ['enabled' => false],
+                    'zIndex'       => 5,
+                    'lineWidth'    => 2,
+                    'dashStyle'    => 'ShortDot',
+                ],
+                // Western trend
+                [
+                    'type'         => 'spline',
+                    'data'         => $dataWestern,
+                    'linkedTo'     => ':previous',
+                    'showInLegend' => false,
+                    'marker'       => ['enabled' => false],
+                    'zIndex'       => 5,
+                    'lineWidth'    => 2,
+                    'dashStyle'    => 'ShortDot',
+                ],
+            ],
+        ];
+
+        /* ---------------- Region/Product (value, not count) ---------------- */
+        $regionRows = (clone $base)
+            ->selectRaw('COALESCE(p.area,"Unknown") AS region')
+            ->selectRaw('COALESCE(SUM(p.quotation_value),0) AS val')
+            ->groupBy('p.area')
             ->orderByDesc('val')
             ->get();
 
-        $estimatorPie = $estimatorRows->map(fn($r) => [
-            'name' => $r->estimator,
-            'y'    => (float) $r->val,
-        ]);
-
-        // Region & Product (counts)
-        $regionRows = (clone $base)
-            ->selectRaw('COALESCE(p.area,"Unknown") AS region, COUNT(*) AS cnt')
-            ->groupBy('p.area')
-            ->orderByDesc('cnt')
-            ->get();
-
         $productRows = (clone $base)
-            ->selectRaw('COALESCE(p.atai_products,"Unknown") AS product, COUNT(*) AS cnt')
+            ->selectRaw('COALESCE(p.atai_products,"Unknown") AS product')
+            ->selectRaw('COALESCE(SUM(p.quotation_value),0) AS val')
             ->groupBy('p.atai_products')
-            ->orderByDesc('cnt')
+            ->orderByDesc('val')
             ->limit(10)
             ->get();
 
-        return response()->json([
-            'mode'          => 'all',
+        // Shared parts of response
+        $common = [
             'totals'        => ['value' => (float) ($totals->value ?? 0)],
-            'estimatorPie'  => $estimatorPie,
+            'monthlyRegion' => $monthlyRegion,
             'regionSeries'  => [
                 'categories' => $regionRows->pluck('region'),
-                'data'       => $regionRows->pluck('cnt')->map(fn($v)=>(int)$v),
+                'values'     => $regionRows->pluck('val')->map(fn($v)=>(float)$v),
             ],
             'productSeries' => [
                 'categories' => $productRows->pluck('product'),
-                'data'       => $productRows->pluck('cnt')->map(fn($v)=>(int)$v),
+                'values'     => $productRows->pluck('val')->map(fn($v)=>(float)$v),
             ],
-        ]);
-    }
+        ];
 
-    // ---- SINGLE mode: show status split (Bidding vs In-Hand) for that estimator
-    $rows = (clone $base)
-        ->selectRaw("
+        /* -------------------- Mode-specific (pie) -------------------- */
+        if ($estimator === '') {
+            // ALL mode: share by estimator (value)
+            $estimatorRows = (clone $base)
+                ->selectRaw('COALESCE(p.action1,"Unknown") AS estimator')
+                ->selectRaw('COALESCE(SUM(p.quotation_value),0) AS val')
+                ->groupBy('p.action1')
+                ->orderByDesc('val')
+                ->get();
+
+            $estimatorPie = $estimatorRows->map(fn($r) => [
+                'name' => $r->estimator,
+                'y'    => (float) $r->val,
+            ]);
+
+            return response()->json(array_merge($common, [
+                'mode'         => 'all',
+                'estimatorPie' => $estimatorPie,
+            ]));
+        }
+
+        // SINGLE mode: Bidding vs In-Hand for that estimator
+        $rows = (clone $base)
+            ->selectRaw("
             CASE
                 WHEN UPPER(p.status) IN ('IN HAND','IN-HAND','INHAND') THEN 'In-Hand'
                 ELSE 'Bidding'
-            END AS status,
-            COUNT(*) AS cnt,
-            COALESCE(SUM(p.quotation_value),0) AS val
+            END AS status
         ")
-        ->groupBy('status')
-        ->get()
-        ->keyBy('status');
+            ->selectRaw('COUNT(*) AS cnt')
+            ->selectRaw('COALESCE(SUM(p.quotation_value),0) AS val')
+            ->groupBy('status')
+            ->get()
+            ->keyBy('status');
 
-    $biddingCnt = (int) ($rows['Bidding']->cnt ?? 0);
-    $biddingVal = (float) ($rows['Bidding']->val ?? 0);
+        $statusPie = [
+            ['name' => 'Bidding', 'y' => (int) ($rows['Bidding']->cnt ?? 0), 'value' => (float) ($rows['Bidding']->val ?? 0)],
+            ['name' => 'In-Hand', 'y' => (int) ($rows['In-Hand']->cnt ?? 0), 'value' => (float) ($rows['In-Hand']->val ?? 0)],
+        ];
 
-    $inhandCnt  = (int) ($rows['In-Hand']->cnt ?? 0);
-    $inhandVal  = (float) ($rows['In-Hand']->val ?? 0);
+        return response()->json(array_merge($common, [
+            'mode'      => 'single',
+            'statusPie' => $statusPie,
+        ]));
+    }
 
-    $statusPie = [
-        ['name' => 'Bidding', 'y' => $biddingCnt, 'value' => $biddingVal],
-        ['name' => 'In-Hand', 'y' => $inhandCnt,  'value' => $inhandVal],
-    ];
-
-    // Region & Product (counts) with same filters
-    $regionRows = (clone $base)
-        ->selectRaw('COALESCE(p.area,"Unknown") AS region, COUNT(*) AS cnt')
-        ->groupBy('p.area')
-        ->orderByDesc('cnt')
-        ->get();
-
-    $productRows = (clone $base)
-        ->selectRaw('COALESCE(p.atai_products,"Unknown") AS product, COUNT(*) AS cnt')
-        ->groupBy('p.atai_products')
-        ->orderByDesc('cnt')
-        ->limit(10)
-        ->get();
-
-    return response()->json([
-        'mode'          => 'single',
-        'totals'        => ['value' => (float) ($totals->value ?? 0)],
-        'statusPie'     => $statusPie,
-        'regionSeries'  => [
-            'categories' => $regionRows->pluck('region'),
-            'data'       => $regionRows->pluck('cnt')->map(fn($v)=>(int)$v),
-        ],
-        'productSeries' => [
-            'categories' => $productRows->pluck('product'),
-            'data'       => $productRows->pluck('cnt')->map(fn($v)=>(int)$v),
-        ],
-    ]);
-}
     /* --------------------------------------------------------------------
      | DataTables (server-side)
      |---------------------------------------------------------------------*/

@@ -81,4 +81,15 @@ class PageController extends Controller
             'user' => $user,
         ]);
     }
+
+    // Inquiries Log page (DataTable only)
+    public function inquiriesLog(Request $r)
+    {
+
+        // Pass the signed-in name to the navbar button (your blade expects $user)
+        $user = Auth::user()?->name ?? 'User';
+        return view('projects.inquiriesLog', [
+            'user' => $user,
+        ]); // resources/views/projects/inquiries_log.blade.php
+    }
 }

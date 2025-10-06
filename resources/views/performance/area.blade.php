@@ -44,8 +44,8 @@
                 @hasanyrole('gm|admin')
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
                                         href="{{ route('salesorders.index') }}">Sales Orders</a></li>
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.index') ? 'active' : '' }}"
-                                        href="{{ route('performance.index') }}">Performance report</a></li>
+{{--                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.index') ? 'active' : '' }}"--}}
+{{--                                        href="{{ route('performance.index') }}">Performance report</a></li>--}}
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
                                         href="{{ route('performance.area') }}">Area summary</a></li>
                 <li class="nav-item"><a

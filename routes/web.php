@@ -12,7 +12,7 @@ use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\EstimationController;
 use App\Http\Controllers\Api\ProjectApiController;
 use App\Http\Controllers\Api\ForecastApiController;
-
+use App\Http\Controllers\SalesOrderManagerController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -79,20 +79,27 @@ Route::middleware('web')->group(function () {
          * =================================================================== */
 
         // Pages
-        Route::get('/projects', [PageController::class, 'projects'])->name('projects.index');
+        // KPI page (charts)
+        Route::get('/projects', [PageController::class, 'projects'])
+            ->name('projects.index');   // <— new name
 
-        // IMPORTANT: Put specific paths BEFORE numeric {project}
-        // DataTables JSON for the tables
-        Route::get('/projects/datatable', [ProjectsDatatableController::class, 'data'])
+        // Inquiries Log page (table only)
+                Route::get('/inquiries', [PageController::class, 'inquiriesLog'])
+                    ->name('inquiries.index'); // <— new page for DataTable
+
+        // DataTables JSON endpoint (unchanged)
+                Route::get('/projects/datatable', [ProjectsDatatableController::class, 'data'])
             ->name('projects.datatable');
 
-        // Project detail JSON used by the modal
         Route::get('/projects/{project}', [ProjectController::class, 'detail'])
             ->whereNumber('project') // avoid catching 'datatable', etc.
             ->name('projects.detail');
 
         // Global KPIs for projects page (path is /kpis by design; keep it)
         Route::get('/kpis', [ProjectApiController::class, 'kpis'])->name('projects.kpis');
+
+
+
 
         /* ===================================================================
          | FORECAST (APIs consumed by projects page)
@@ -115,6 +122,26 @@ Route::middleware('web')->group(function () {
             Route::get('/datatable/product', [EstimationController::class, 'datatableProduct'])->name('datatable.product');
         });
 
+
+
+
+
+        // -------- Sales Orders (Regional / Sales Manager view) --------
+        // LOG (this view)
+        Route::get('/sales-orders/manager', [SalesOrderManagerController::class, 'index'])
+            ->name('salesorders.manager.index');
+
+// 2️⃣ DataTable AJAX JSON endpoint
+        Route::get('/sales-orders/manager/datatable', [SalesOrderManagerController::class, 'datatable'])
+            ->name('salesorders.manager.datatable');
+
+// 3️⃣ KPIs JSON endpoint (used for charts)
+        Route::get('/sales-orders/manager/kpis', [SalesOrderManagerController::class, 'kpis'])
+            ->name('salesorders.manager.kpis');
+
+// 4️⃣ Optional KPI Page (visual dashboard page)
+        Route::view('/sales-orders/manager/kpi', 'sales_orders.manager.manager_kpi')
+            ->name('salesorders.manager.kpi');
         /* ===================================================================
          | GM / ADMIN ONLY
          * =================================================================== */
@@ -155,6 +182,22 @@ Route::middleware('web')->group(function () {
             Route::get('/sales-orders', [SalesOrderController::class, 'index'])->name('salesorders.index');
             Route::get('/sales-orders/datatable', [SalesOrderController::class, 'datatableLog'])->name('salesorders.datatable');
             Route::get('/sales-orders/kpis', [SalesOrderController::class, 'kpis'])->name('salesorders.kpis');
+            Route::get('/sales-orders/territory-mix', [\App\Http\Controllers\SalesOrderController::class, 'territorySales'])
+                ->name('sales-orders.territory-sales');
+
+
+
+
+
+            Route::get('/projects/territory-mix', [\App\Http\Controllers\SalesOrderController::class, 'territoryInquiries'])
+                ->name('projects.territory-inquiries');
+
+
+
+
+
+
+
 
             // -------- Power BI (external) --------
             Route::get('/powerbi', function () {
