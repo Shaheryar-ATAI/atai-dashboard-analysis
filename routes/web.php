@@ -78,25 +78,60 @@ Route::middleware('web')->group(function () {
          | (kept as separate endpoints but grouped visually)
          * =================================================================== */
 
-        // Pages
+        // Pages project
         // KPI page (charts)
-        Route::get('/projects', [PageController::class, 'projects'])
-            ->name('projects.index');   // <— new name
+//        Route::get('/projects', [PageController::class, 'projects'])
+//            ->name('projects.index');   // <— new name
+//
+//        // Inquiries Log page (table only)
+//                Route::get('/projectslog', [PageController::class, 'inquiriesLog'])
+//                    ->name('inquiries.index'); // <— new page for DataTable
+//
+//        // DataTables JSON endpoint (unchanged)
+//                Route::get('/projects/datatable', [ProjectsDatatableController::class, 'data'])
+//            ->name('projects.datatable');
+//
+//        Route::get('/projects/{project}', [ProjectController::class, 'detail'])
+//            ->whereNumber('project') // avoid catching 'datatable', etc.
+//            ->name('projects.detail');
+//
+//        // Global KPIs for projects page (path is /kpis by design; keep it)
+//        Route::get('/kpis', [ProjectApiController::class, 'kpis'])->name('projects.kpis');
+//
+////        Route::get('/projects/{project}', [ProjectController::class,'show'])->name('projects.show');
+//        Route::post('/projects/{project}',[ProjectController::class,'update'])->name('projects.update');
 
-        // Inquiries Log page (table only)
-                Route::get('/inquiries', [PageController::class, 'inquiriesLog'])
-                    ->name('inquiries.index'); // <— new page for DataTable
 
-        // DataTables JSON endpoint (unchanged)
-                Route::get('/projects/datatable', [ProjectsDatatableController::class, 'data'])
-            ->name('projects.datatable');
 
-        Route::get('/projects/{project}', [ProjectController::class, 'detail'])
-            ->whereNumber('project') // avoid catching 'datatable', etc.
+// --- Projects (Quotation Log) ---
+        Route::get('/projects', [\App\Http\Controllers\PageController::class, 'projects'])
+            ->name('projects.index');
+
+        Route::get('/projectslog', [\App\Http\Controllers\PageController::class, 'inquiriesLog'])
+            ->name('inquiries.index');
+
+// DataTables JSON endpoint (used by your view JS)
+        Route::get(
+            '/projects/datatable',
+            [\App\Http\Controllers\ProjectsDatatableController::class, 'data']
+        )->name('projects.datatable');
+
+// Detail for modal
+        Route::get('/projects/{project}', [\App\Http\Controllers\ProjectController::class, 'detail'])
+            ->whereNumber('project')
             ->name('projects.detail');
 
-        // Global KPIs for projects page (path is /kpis by design; keep it)
-        Route::get('/kpis', [ProjectApiController::class, 'kpis'])->name('projects.kpis');
+// Totals/KPIs (leave as-is if your page uses it elsewhere)
+        Route::get('/kpis', [\App\Http\Controllers\Api\ProjectApiController::class, 'kpis'])
+            ->name('projects.kpis');
+
+// Update (save)
+        Route::post('/projects/{project}', [\App\Http\Controllers\ProjectController::class, 'update'])
+            ->name('projects.update');
+
+
+
+
 
 
 

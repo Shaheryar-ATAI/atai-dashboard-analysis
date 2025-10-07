@@ -195,7 +195,7 @@ a:hover{ color:var(--bs-link-hover-color) !important; }
 .text-bg-primary.badge-total small{ color:#e0f2fe; }
 .text-bg-primary.badge-total strong{ color:#fff; }
 
-.text-bg-info.badge-total{ background:linear-gradient(135deg, #98c4b8, #98c4b8); color:#fff; }
+.text-bg-info.badge-total{     background: #bdbdbd !important;}
 .text-bg-info.badge-total small{ color:#d1fae5; }
 .text-bg-info.badge-total strong{ color:#fff; }
 
@@ -453,3 +453,16 @@ a:hover{ color:var(--bs-link-hover-color) !important; }
 .mix-ok    .mix-main{ color:var(--ok); }
 .mix-watch .mix-main{ color:var(--watch); }
 .mix-flag  .mix-main{ color:var(--flag); }
+
+
+.hc-badge {
+    background: #3b5bfd;        /* purple */
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 6px 14px rgba(0,0,0,.08);
+    white-space: nowrap;
+}
+.hc-badge.hc-badge-green { background:#19c39c; }

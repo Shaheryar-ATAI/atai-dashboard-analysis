@@ -2,86 +2,88 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Project extends Model
 {
-    // Relationships
-    public function salesperson()
-    {
-        return $this->belongsTo(User::class, 'salesman_id');
-    }
+    use HasFactory, SoftDeletes;
 
-    /* -------------------------
-     | Canonical accessors
-     |--------------------------*/
+    /** Real DB columns so imports & upserts are safe */
+    protected $fillable = [
+        'project_name',
+        'client_name',
+        'project_location',
+        'area',
+        'quotation_no',
+        'atai_products',
+        'value_with_vat',
+        'quotation_value',
+        'status_current',
+        'status',
+        'last_comment',
+        'quotation_date',
+        'date_rec',
+        'action1',
+        'salesperson',
+        'salesman',
+    ];
+
+    protected $casts = [
+        'quotation_date' => 'date',
+        'date_rec'       => 'date',
+        'value_with_vat' => 'float',
+        'quotation_value'=> 'float',
+    ];
+
+    /* ---------- Canonical helpers (used by details & fallbacks) ---------- */
     public function getCanonicalNameAttribute(): ?string
     {
-        return $this->project_name ?: $this->name;
+        return $this->project_name ?: null;
     }
-
     public function getCanonicalClientAttribute(): ?string
     {
-        return $this->client_name ?: $this->client;
+        return $this->client_name ?: null;
     }
-
     public function getCanonicalLocationAttribute(): ?string
     {
-        return $this->project_location ?: $this->location;
+        return $this->project_location ?: null;
     }
-
-    /** Prefer quotation_value, fall back to price */
     public function getCanonicalValueAttribute(): float
     {
-        return (float) ($this->quotation_value ?? $this->price ?? 0);
+        return (float) ($this->value_with_vat ?? $this->quotation_value ?? 0);
     }
-
-    /** Safe date string for UI */
     public function getQuotationDateYmdAttribute(): ?string
     {
         return optional($this->quotation_date)->format('Y-m-d');
     }
 
-    /* -------------------------
-     | Scopes
-     |--------------------------*/
+    /* ------------------------- Scopes ------------------------- */
     /** Limit to user’s region unless GM/Admin */
     public function scopeForUserRegion(Builder $q, $user): Builder
     {
-        if (!(method_exists($user, 'hasRole') && $user->hasRole(['gm', 'admin'])) && !empty($user->region)) {
+        $isManager = method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['gm','admin']);
+        if (!$isManager && !empty($user->region)) {
             $q->where('area', $user->region);
         }
         return $q;
     }
 
-    public function scopeStatus(Builder $q, ?string $status): Builder
-    {
-        return $status ? $q->where('status', $status) : $q;
-    }
-
+    /** Global search used by DataTables */
     public function scopeSearch(Builder $q, ?string $term): Builder
     {
-        $s = trim((string) $term);
+        $s = trim((string)$term);
         if ($s === '') return $q;
 
-        return $q->where(function ($qq) use ($s) {
-            $qq->where('project_name', 'like', "%{$s}%")
-                ->orWhere('name', 'like', "%{$s}%")
+        return $q->where(function ($w) use ($s) {
+            $w->where('project_name', 'like', "%{$s}%")
                 ->orWhere('client_name', 'like', "%{$s}%")
-                ->orWhere('client', 'like', "%{$s}%")
                 ->orWhere('project_location', 'like', "%{$s}%")
-                ->orWhere('location', 'like', "%{$s}%")
                 ->orWhere('area', 'like', "%{$s}%")
                 ->orWhere('quotation_no', 'like', "%{$s}%")
                 ->orWhere('atai_products', 'like', "%{$s}%");
         });
-    }
-
-    /** Your existing helper used in the list */
-    public function progressPercent(): int
-    {
-        // keep your real logic here; fallback 0
-        return (int) ($this->attributes['progress_percent'] ?? 0);
     }
 }

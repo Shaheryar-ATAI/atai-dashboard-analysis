@@ -312,7 +312,7 @@ class ProjectApiController extends Controller
         // =====================================================================
         // NEW: Monthly stacked VALUES by Status + Target Attainment % (line)
         // =====================================================================
-        $target = (float) ($req->input('monthly_target', 20000000)); // 20M default
+        $target = (float) ($req->input('monthly_target', 20000000)); // 20M default$target = (float) ($req->input('monthly_target', 20000000)); // 20M default
 
         // Sum VALUE not count
         $valRows = (clone $base)
@@ -354,7 +354,7 @@ class ProjectApiController extends Controller
 
         $monthlyValueWithTarget = [
             'categories' => $months,
-            'target_value' => 9000000,
+            'target_value' => 20000000,
             'series' => [
                 ['type'=>'column','name'=>'In-Hand (SAR)','stack'=>'Value','data'=>$colInHand],
                 ['type'=>'column','name'=>'Bidding (SAR)','stack'=>'Value','data'=>$colBidding],

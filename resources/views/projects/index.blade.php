@@ -225,8 +225,22 @@
     {{--        <div class="col-12 mt-3">--}}
     {{--            <div id="barMonthlyByArea" class="hc"></div>--}}
     {{--        </div>--}}
+    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
+        <span id="fcBadgeValue" class="badge-total text-bg-primary">Forecast Total: SAR 0</span>
+        <span id="fcBadgeConv" class="badge-total text-bg-info">Conversion Rate: 0%</span>
+    </div>
 
-    <div id="barMonthlyValueTarget" class="hc" style="height:350px"></div>
+    <div id="barMonthlyValueTarget" class="hc" style="height:400px"></div>
+
+
+
+
+
+
+
+
+
+
     {{--    --}}{{-- ===== FORECAST KPI (Highcharts) ===== --}}
     {{--    <div class="row g-3 mt-2" id="forecastRow" style="display:none">--}}
     {{--        <div class="col-12">--}}
@@ -321,6 +335,17 @@
                     headers: {'X-Requested-With': 'XMLHttpRequest'}
                 });
                 if (res.ok) resp = await res.json();
+                const payload = resp.monthly_value_status_with_target || {};
+                // prefer the scalar the API used for the chart; fallback to 20M
+                const targetValue = Number(payload.target_value ?? 20000000);
+
+                // In-Hand total for conversion rate
+                const colIH = (payload.series || []).find(s => /in-hand/i.test(s.name)) || { data: [] };
+                const totalInhandValue = (colIH.data || []).reduce((sum, v) => sum + Number(v || 0), 0);
+
+            // Update badges
+                updateForecastBadges(targetValue, totalInhandValue);
+
             } catch (e) {
                 console.warn('KPI fetch failed', e);
             }
@@ -380,12 +405,18 @@
                             column: {
                                 dataLabels: {
                                     enabled: true,
-                                    // two-line label: first = count, second = SAR value
+                                    rotation: -90,            // vertical
+                                    align: 'center',
+                                    verticalAlign: 'bottom',  // position above the bar
+                                    inside: false,
+                                    y: -6,                    // nudge up a bit
                                     formatter: function () {
-                                        const sar = this.point && typeof this.point.sar !== 'undefined' ? this.point.sar : 0;
-                                        return `${this.y}\n${fmtSAR(sar)}`;
+                                        const sar = (this.point && typeof this.point.sar !== 'undefined') ? this.point.sar : 0;
+                                        // Use Highcharts format if available, or your own fmtSAR
+                                        return 'SAR ' + Highcharts.numberFormat(Number(sar), 0);
+                                        // or: return fmtSAR(sar);
                                     },
-                                    style: {textOutline: 'none', fontWeight: '600'},
+                                    style: { textOutline: 'none', fontWeight: '600', fontSize: '14px', color: '#000' },
                                     crop: false,
                                     overflow: 'none'
                                 },
@@ -425,92 +456,92 @@
                         },
                         series: [{name: 'Value', data}],
                         lang: {noData: 'No status values.'},
-                        noData: {style: {fontSize: '12px', color: '#6c757d'}}
+                        noData: {style: {fontSize: '14px', color: '#6c757d'}}
                     }));
 
                     if (!hasData && Highcharts.Chart.prototype.showNoData) chart.showNoData();
                 }
             }
 
-            // -----------------------------
-            // Monthly: Grouped (Area) + Stacked (Status). Fallback to simple monthly.
-            // -----------------------------
-            {
-                const el = document.getElementById('barMonthlyByArea');
-                if (el) {
-                    const val = resp.monthly_area_status_value || {categories: [], series: []};
-                    const fallback = resp.monthly_area_status || {categories: [], series: []}; // counts fallback
-
-                    const rawCats = (val.categories && val.series?.length) ? val.categories : (fallback.categories || []);
-                    const series = (val.series && val.series.length) ? val.series : (fallback.series || []);
-
-                    const monthLabel = (ym) => {
-                        if (!ym || ym.indexOf('-') < 0) return ym || '';
-                        const [y, m] = ym.split('-').map(Number);
-                        const d = new Date(y, (m || 1) - 1, 1);
-                        return d.toLocaleString('en', {month: 'short'}) + ' ' + String(y).slice(-2);
-                    };
-                    const categories = rawCats.map(monthLabel);
-
-                    // SAR formatter
-                    const fmtSARshort = (n) => {
-                        const x = Number(n || 0);
-                        if (Math.abs(x) >= 1_000_000) return `SAR ${(x / 1_000_000).toFixed(1)}M`;
-                        if (Math.abs(x) >= 1_000) return `SAR ${(x / 1_000).toFixed(0)}k`;
-                        return `SAR ${x.toFixed(0)}`;
-                    };
-
-                    const hasData = (series || []).some(s => (s.data || []).some(v => Number(v) > 0));
-
-                    Highcharts.chart(el, {
-                        chart: {type: 'column'},
-                        title: {text: 'Inquiries Value by Month • Area (stacked by Status)'},
-                        credits: {enabled: false},
-                        xAxis: {categories},
-                        yAxis: {
-                            min: 0,
-                            title: {text: 'Value (SAR)'},
-                            stackLabels: {
-                                enabled: true,
-                                formatter: function () {
-                                    return fmtSARshort(this.total);
-                                }
-                            }
-                        },
-                        legend: {align: 'center'}, // only 3 items (In-Hand/Bidding/Lost) via linkedTo
-                        plotOptions: {
-                            column: {
-                                stacking: 'normal',
-                                borderWidth: 0,
-                                dataLabels: {
-                                    enabled: true,
-                                    formatter: function () {
-                                        const v = Number(this.y || 0);
-                                        return v > 0 ? fmtSARshort(v) : '';
-                                    }
-                                },
-                                // Make groups compact and clearly separated per month
-                                pointPadding: 0.05,
-                                groupPadding: 0.18
-                            }
-                        },
-                        tooltip: {
-                            shared: false,
-                            formatter: function () {
-                                // Linked series are "Area – Status"
-                                if (this.series.name.includes(' – ')) {
-                                    const [area, status] = this.series.name.split(' – ');
-                                    return `<b>${this.x}</b><br/>Area: <b>${area}</b><br/>Status: <b>${status}</b><br/>Value: <b>${fmtSARshort(this.y)}</b>`;
-                                }
-                                return `<b>${this.x}</b><br/>Status: <b>${this.series.name}</b>`;
-                            }
-                        },
-                        series
-                    });
-
-                    if (!hasData && Highcharts.Chart.prototype.showNoData) Highcharts.chart(el).showNoData();
-                }
-            }
+            // // -----------------------------
+            // // Monthly: Grouped (Area) + Stacked (Status). Fallback to simple monthly.
+            // // -----------------------------
+            // {
+            //     const el = document.getElementById('barMonthlyByArea');
+            //     if (el) {
+            //         const val = resp.monthly_area_status_value || {categories: [], series: []};
+            //         const fallback = resp.monthly_area_status || {categories: [], series: []}; // counts fallback
+            //
+            //         const rawCats = (val.categories && val.series?.length) ? val.categories : (fallback.categories || []);
+            //         const series = (val.series && val.series.length) ? val.series : (fallback.series || []);
+            //
+            //         const monthLabel = (ym) => {
+            //             if (!ym || ym.indexOf('-') < 0) return ym || '';
+            //             const [y, m] = ym.split('-').map(Number);
+            //             const d = new Date(y, (m || 1) - 1, 1);
+            //             return d.toLocaleString('en', {month: 'short'}) + ' ' + String(y).slice(-2);
+            //         };
+            //         const categories = rawCats.map(monthLabel);
+            //
+            //         // SAR formatter
+            //         const fmtSARshort = (n) => {
+            //             const x = Number(n || 0);
+            //             if (Math.abs(x) >= 1_000_000) return `SAR ${(x / 1_000_000).toFixed(1)}M`;
+            //             if (Math.abs(x) >= 1_000) return `SAR ${(x / 1_000).toFixed(0)}k`;
+            //             return `SAR ${x.toFixed(0)}`;
+            //         };
+            //
+            //         const hasData = (series || []).some(s => (s.data || []).some(v => Number(v) > 0));
+            //
+            //         Highcharts.chart(el, {
+            //             chart: {type: 'column'},
+            //             title: {text: 'Inquiries Value by Month • Area (stacked by Status)'},
+            //             credits: {enabled: false},
+            //             xAxis: {categories},
+            //             yAxis: {
+            //                 min: 0,
+            //                 title: {text: 'Value (SAR)'},
+            //                 stackLabels: {
+            //                     enabled: true,
+            //                     formatter: function () {
+            //                         return fmtSARshort(this.total);
+            //                     }
+            //                 }
+            //             },
+            //             legend: {align: 'center'}, // only 3 items (In-Hand/Bidding/Lost) via linkedTo
+            //             plotOptions: {
+            //                 column: {
+            //                     stacking: 'normal',
+            //                     borderWidth: 0,
+            //                     dataLabels: {
+            //                         enabled: true,
+            //                         formatter: function () {
+            //                             const v = Number(this.y || 0);
+            //                             return v > 0 ? fmtSARshort(v) : '';
+            //                         }
+            //                     },
+            //                     // Make groups compact and clearly separated per month
+            //                     pointPadding: 0.05,
+            //                     groupPadding: 0.18
+            //                 }
+            //             },
+            //             tooltip: {
+            //                 shared: false,
+            //                 formatter: function () {
+            //                     // Linked series are "Area – Status"
+            //                     if (this.series.name.includes(' – ')) {
+            //                         const [area, status] = this.series.name.split(' – ');
+            //                         return `<b>${this.x}</b><br/>Area: <b>${area}</b><br/>Status: <b>${status}</b><br/>Value: <b>${fmtSARshort(this.y)}</b>`;
+            //                     }
+            //                     return `<b>${this.x}</b><br/>Status: <b>${this.series.name}</b>`;
+            //                 }
+            //             },
+            //
+            //         });
+            //
+            //         if (!hasData && Highcharts.Chart.prototype.showNoData) Highcharts.chart(el).showNoData();
+            //     }
+            // }
 
             // -----------------------------
 // Monthly Value vs Target — grouped columns + two % lines
@@ -560,7 +591,12 @@
                         chart: {zoomType: 'x'},
                         title: {text: 'Monthly Value — In-Hand / Bidding / Lost + Target & MoM %'},
                         credits: {enabled: false},
-                        xAxis: {categories: cats},
+                        xAxis: {categories: cats, tickInterval: 1,
+                            minPadding: 0.1,   // adds left padding
+                            maxPadding: 0.1,   // adds right padding
+                            labels: {
+                                rotation: 0
+                            }},
                         yAxis: [{
                             title: {text: 'Value (SAR)'}, min: 0,
                             labels: {
@@ -576,7 +612,7 @@
                             column: {
                                 grouping: true, // clustered (NOT stacked)
                                 borderWidth: 0,
-                                pointPadding: 0.05,
+                                pointPadding: 0.1,
                                 groupPadding: 0.18,
                                 dataLabels: {
                                     enabled: true,
@@ -609,9 +645,36 @@
                         },
                         series: [
                             // 3 grouped columns on SAR axis
-                            {type: 'column', name: 'In-Hand (SAR)', data: colIH.data || []},
-                            {type: 'column', name: 'Bidding (SAR)', data: colBD.data || []},
-                            {type: 'column', name: 'Lost (SAR)', data: colLT.data || []},
+                            {type: 'column', name: 'In-Hand (SAR)', data: colIH.data || [],stack: 'Value',  dataLabels: {
+                                    enabled: true,
+                                    rotation: -90,
+                                    align: 'center',
+                                    verticalAlign: 'bottom',
+                                    inside: false,
+                                    y: -4,
+                                    format: 'SAR {y:,.0f}',
+                                    style: { fontSize: '14px', color: '#000', fontWeight: 'bold' }
+                                }},
+                            {type: 'column', name: 'Bidding (SAR)', data: colBD.data || [],stack: 'Value',  dataLabels: {
+                                    enabled: true,
+                                    rotation: -90,
+                                    align: 'center',
+                                    verticalAlign: 'bottom',
+                                    inside: false,
+                                    y: -4,
+                                    format: 'SAR {y:,.0f}',
+                                    style: { fontSize: '14px', color: '#000' }
+                                }},
+                            {type: 'column', name: 'Lost (SAR)', data: colLT.data || [],stack: 'Value',  dataLabels: {
+                                    enabled: true,
+                                    rotation: -90,
+                                    align: 'center',
+                                    verticalAlign: 'bottom',
+                                    inside: false,
+                                    y: -4,
+                                    format: 'SAR {y:,.0f}',
+                                    style: { fontSize: '14px', color: '#000', fontWeight: 'bold' }
+                                }},
                             // % lines on right axis
                             {
                                 type: 'spline',
@@ -619,14 +682,6 @@
                                 yAxis: 1,
                                 data: targetPct,
                                 // OPTIONAL: color: '#2ca02c' // green like the mock
-                            },
-                            {
-                                type: 'spline',
-                                name: 'MoM % change',
-                                yAxis: 1,
-                                data: momPct,
-                                dashStyle: 'ShortDot',
-                                // OPTIONAL: color: '#f2c14e' // yellow like the mock
                             }
                         ]
                     });
@@ -685,7 +740,45 @@
         })();
 
 
+        async function saveProject(projectId){
+            const payload = {
+                comments: document.querySelector('#comments').value || '',
+                checklist: {
+                    mep_contractor_appointed: document.querySelector('#chk_mep')?.checked ?? false,
+                    boq_quoted:               document.querySelector('#chk_boq_quoted')?.checked ?? false,
+                    boq_submitted:            document.querySelector('#chk_boq_submitted')?.checked ?? false,
+                    priced_at_discount:       document.querySelector('#chk_discount')?.checked ?? false,
+                }
+                // Optional: status if user explicitly picked it on UI
+                // status: document.querySelector('#statusSelect')?.value || null,
+            };
 
+            const res = await fetch(`/projects/${projectId}`, {
+                method:'POST',
+                headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]').content},
+                body: JSON.stringify(payload)
+            });
+
+            const json = await res.json();
+            if(json?.ok){
+                // update row in DataTable and close modal
+                // dt.row(rowIndex).data(json.project).draw(false);
+                // show toast with json.project.checklist_progress + json.project.status
+            }
+        }
+
+
+        function updateForecastBadges(totalForecast, totalInhand) {
+            const fcBadge = document.getElementById('fcBadgeValue');
+            const convBadge = document.getElementById('fcBadgeConv');
+
+            const forecastVal = Number(totalForecast || 0);
+            const inhandVal   = Number(totalInhand || 0);
+            const rate = forecastVal > 0 ? (inhandVal / forecastVal) * 100 : 0;
+
+            if (fcBadge)  fcBadge.textContent  = 'Forecast Total: ' + fmtSAR(forecastVal);
+            if (convBadge) convBadge.textContent = 'Conversion Rate: ' + rate.toFixed(1) + '%';
+        }
 
     </script>
 

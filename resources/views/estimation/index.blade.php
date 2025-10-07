@@ -324,19 +324,28 @@
                         },
                         plotOptions: {
                             column: {
-                                // no stacking -> grouped columns automatically
-                                pointPadding: 0.08,     // space inside each column group
-                                groupPadding: 0.14,     // space between groups (months)
+                                pointPadding: 0.08,      // space inside each column group
+                                groupPadding: 0.14,      // space between groups (months)
                                 borderWidth: 0,
                                 dataLabels: {
                                     enabled: true,
-                                    crop: true,
+                                    crop: false,
                                     overflow: 'none',
+                                    rotation: -90,            // ✅ rotate text vertically
+                                    align: 'center',          // ✅ center-align on the bar
+                                    verticalAlign: 'bottom',  // ✅ position above bar
+                                    inside: false,            // ✅ keep it above, not inside
+                                    y: -6,                    // ✅ small offset upward
                                     formatter: function () {
                                         // only show labels for reasonably big values to avoid clutter
                                         return this.y >= 2_000_000 ? fmtCompactSAR(this.y) : null;
                                     },
-                                    style: { textOutline: 'none', fontWeight: 600 }
+                                    style: {
+                                        textOutline: 'none',
+                                        fontWeight: 600,
+                                        color: '#000',          // optional for readability
+                                        fontSize: '10px'
+                                    }
                                 }
                             }
                         },

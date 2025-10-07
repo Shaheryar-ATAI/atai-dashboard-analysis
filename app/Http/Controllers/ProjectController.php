@@ -2,123 +2,326 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;   // <- make sure this import exists
+use App\Models\Project;
+use App\Models\ProjectChecklistState;
+use App\Models\ProjectNote;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ProjectController extends Controller
 {
-    public function index()
-    {
-        return view('projects.index', ['user' => auth()->user()]);
-    }
+    use AuthorizesRequests, ValidatesRequests;
 
-    /**
-     * Lightweight JSON list (keeps your original shape).
-     */
-    public function list(Request $req)
-    {
-        $user = $req->user();
-
-        $projects = Project::query()
-            ->with('salesperson:id,name')
-            ->forUserRegion($user)
-            ->status($req->query('status'))
-            ->search($req->query('search'))
-            ->orderByDesc('id')
-            ->get()
-            ->map(function (Project $p) {
-                $pct = $p->status === 'bidding' ? $p->progressPercent() : 100;
-
-                return [
-                    'id'               => $p->id,
-                    'name'             => $p->canonical_name,
-                    'client'           => $p->canonical_client,
-                    'location'         => $p->canonical_location,
-                    'area'             => $p->area,
-
-                    'quotation_no'     => $p->quotation_no,
-                    'atai_products'    => $p->atai_products,
-                    'quotation_date'   => $p->quotation_date_ymd,
-                    'action1'          => $p->action1,
-                    'quotation_value'  => $p->canonical_value,
-
-                    'price'            => $p->canonical_value,
-                    'currency'         => 'SAR',
-
-                    'status'           => $p->status,
-                    'progress'         => $pct,
-                    'salesperson'      => $p->salesperson?->name ?? $p->salesman,
-                ];
-            });
-
-        return response()->json($projects);
-    }
-
-    /**
-     * Detail for modal (no checklistItems relation).
-     */
     public function detail(Project $project, Request $req)
     {
-        // $this->authorize('view', $project);
-        $project->loadMissing('salesperson:id,name');
-
-        $checklist = [
-            'mep_contractor_appointed' => (bool) $project->mep_contractor_appointed,
-            'boq_quoted'               => (bool) $project->boq_quoted,
-            'boq_submitted'            => (bool) $project->boq_submitted,
-            'priced_at_discount'       => (bool) $project->priced_at_discount,
+        $data = [
+            'id' => $project->id,
+            'projectName' => $project->canonical_name,
+            'clientName' => $project->canonical_client,
+            'projectLocation' => $project->canonical_location,
+            'area' => $project->area,
+            'quotationValue' => $project->canonical_value,
+            'quotationNo' => $project->quotation_no,
+            'quotationDate' => $project->quotation_date_ymd,
+            'ataiProducts' => $project->atai_products,
+            'estimator' => $project->action1 ?? null,
+            'status' => $project->status_current ?? $project->status,
+            'salesperson' => $project->salesperson ?? $project->salesman,
+            'dateRec' => optional($project->date_rec)->format('Y-m-d'),
+            'clientReference' => $project->client_reference,
+            'projectType' => $project->project_type,
         ];
 
+        $loadPhase = function (string $phase) use ($project) {
+            $rows = DB::table('project_checklist_states')
+                ->where('project_id', $project->id)
+                ->where('phase', $phase)
+                ->get(['item_key', 'checked', 'progress']);
+            $map = [];
+            $progress = 0;
+            foreach ($rows as $r) {
+                $map[$r->item_key] = (bool)$r->checked;
+                $progress = max($progress, (int)($r->progress ?? 0));
+            }
+            return [$map, $progress];
+        };
+
+        [$bidMap, $bidProg] = $loadPhase('BIDDING');
+        [$ihMap, $ihProg] = $loadPhase('INHAND');
+
+        // notes
+        $notes = DB::table('project_notes')
+            ->where('project_id', $project->id)
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get(['id', 'note', 'created_by', 'created_at']);
+
+        // ✅ progress history (we’ll insert into this table on every change)
+        $history = DB::table('project_status_history')
+            ->leftJoin('users', 'users.id', '=', 'project_status_history.changed_by')
+            ->where('project_status_history.project_id', $project->id)
+            ->orderByDesc('project_status_history.created_at')
+            ->limit(100)
+            ->get([
+                'project_status_history.phase',
+                'project_status_history.progress',
+                'project_status_history.created_at',
+                DB::raw('COALESCE(users.name, project_status_history.changed_by) as by_name'),
+            ]);
+
+        return response()->json(array_merge($data, [
+            'checklistBidding' => $bidMap,
+            'biddingProgress' => $bidProg,
+            'checklistInhand' => $ihMap,
+            'inhandProgress' => $ihProg,
+            'notes' => $notes,
+            'progressHistory' => $history,
+        ]));
+    }
+
+
+    public function update(Request $request, Project $project)
+    {
+        $this->authorize('update', $project);
+
+        $action = (string) $request->string('action');
+
+        if ($action === 'checklist_bidding') {
+            return $this->saveBiddingChecklist($request, $project);
+        }
+
+        if ($action === 'checklist_inhand') {
+            return $this->saveInhandChecklist($request, $project);
+        }
+
+        if ($action === 'add_note') {
+            return $this->addProjectNote($request, $project);
+        }
+
+        // === NEW: change status (In-Hand -> Lost / PO-received, etc.) ===
+        if ($action === 'update_status') {
+            // accept various spellings and map to canonical status used in DB/UI
+            $map = [
+                'bidding'        => 'Bidding',
+                'open'           => 'Bidding',
+                'submitted'      => 'Bidding',
+                'inhand'         => 'In-Hand',
+                'in-hand'        => 'In-Hand',
+                'in hand'        => 'In-Hand',
+                'won'            => 'In-Hand',
+                'order'          => 'In-Hand',
+                'order in hand'  => 'In-Hand',
+                'lost'           => 'Lost',
+                'po'             => 'PO-received',
+                'po received'    => 'PO-received',
+                'po-received'    => 'PO-received',
+                'po recieved'    => 'PO-received', // forgive the typo
+            ];
+
+            $raw = strtolower(trim((string) $request->input('to_status')));
+            $to  = $map[$raw] ?? null;
+
+            if (!$to) {
+                return response()->json(['ok' => false, 'message' => 'Invalid status'], 422);
+            }
+
+            $from = $project->status;
+
+            // update project
+            $project->status = $to;
+            // if you store both, keep them in sync
+            if ($project->isFillable('status_current') || \Schema::hasColumn($project->getTable(), 'status_current')) {
+                $project->status_current = $to;
+            }
+            $project->save();
+
+            // write a history row (make sure these columns exist in your table)
+            try {
+                \DB::table('project_status_history')->insert([
+                    'project_id' => $project->id,
+                    'phase'      => strtoupper($to),     // e.g., BIDDING / IN-HAND / PO-RECEIVED / LOST
+                    'from_status'=> $from,
+                    'to_status'  => $to,                 // prevents the 1364 error you saw
+                    'progress'   => 100,                 // adjust if you track actual percentage
+                    'changed_by' => optional($request->user())->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                // Optional: log but don't fail the response
+                \Log::warning('Failed to insert status history', ['e' => $e->getMessage()]);
+            }
+
+            return response()->json(['ok' => true]);
+        }
+
+        return response()->json(['ok' => false, 'message' => 'Unknown action'], 422);
+    }
+
+
+    protected function saveBiddingChecklist(Request $request, Project $project)
+    {
+        $items = [
+            'mep_contractor_appointed' => $request->boolean('mep_contractor_appointed'),
+            'boq_quoted' => $request->boolean('boq_quoted'),
+            'boq_submitted' => $request->boolean('boq_submitted'),
+            'priced_at_discount' => $request->boolean('priced_at_discount'),
+        ];
+
+        $table = 'project_checklist_states';
+        $phase = 'BIDDING';
+        $uid = $request->user()->id;
+        $checkCol = 'checked'; // your table uses `checked`
+
+        // Compute progress (simple average of 4 items)
+        $total = count($items);
+        $done = collect($items)->filter()->count();
+        $progress = (int)floor(($done / max($total, 1)) * 100);
+
+        DB::transaction(function () use ($project, $items, $uid, $table, $checkCol, $phase, $progress) {
+            foreach ($items as $itemKey => $checked) {
+                DB::table($table)->updateOrInsert(
+                    [
+                        'project_id' => $project->id,
+                        'phase' => $phase,
+                        'item_key' => $itemKey,
+                    ],
+                    [
+                        $checkCol => $checked ? 1 : 0,
+                        'updated_by' => $uid,
+                        'progress' => $progress,
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ]
+                );
+            }
+            DB::table($table)
+                ->where('project_id', $project->id)
+                ->where('phase', $phase)
+                ->update(['progress' => $progress, 'updated_at' => now()]);
+        });
+        $this->logProgressChange($project->id, 'BIDDING', $progress, $request->user()->id);
         return response()->json([
-            'id'              => $project->id,
-            'projectName'     => $project->canonical_name,
-            'clientName'      => $project->canonical_client,
-            'projectLocation' => $project->canonical_location,
-            'area'            => $project->area,
-
-            // pricing: prefer quotation_value, fall back to price
-            'quotationValue'  => (float) ($project->quotation_value ?? $project->price ?? 0),
-
-            'quotationNo'     => $project->quotation_no,
-            'quotationDate'   => $project->quotation_date_ymd,
-            'ataiProducts'    => $project->atai_products,
-
-            // Estimator name lives in action1 column
-            'estimator'       => $project->action1,
-
-            'status'          => $project->status,
-            'salesperson'     => $project->salesperson?->name ?? $project->salesman,
-            'comments'        => $project->comments,
-
-            // Show date received
-            'dateRec'         => optional($project->date_rec)->format('Y-m-d'),
-
-            'clientReference' => $project->client_reference,
-            'projectType'     => $project->project_type,
-
-            'checklist'       => $checklist,
+            'ok' => true,
+            'message' => 'Bidding checklist saved.',
+            'progress' => $progress,
+            'state' => $items,
         ]);
     }
 
-    public function showJson($id)
+
+    protected function saveInhandChecklist(Request $request, Project $project)
     {
-        $p = Project::findOrFail($id);
+        // Define In-Hand checklist items and their weights (percent)
+        $defs = [
+            'submittal_approved' => 25,
+            'sample_approved' => 25,
+            'commercial_terms_agreed' => 50,
+            'no_approval_or_terms' => 0,
+            'discount_offered_as_standard' => 0,
+        ];
+
+        // Normalize incoming booleans
+        $items = [];
+        foreach ($defs as $key => $w) {
+            $items[$key] = $request->boolean($key);
+        }
+
+        $table = 'project_checklist_states';
+        $phase = 'INHAND';
+        $uid = $request->user()->id;
+
+        // Your table has `checked` (per your screenshot)
+        $checkCol = 'checked';
+
+        // Compute weighted progress
+        $progress = 0;
+        foreach ($items as $k => $v) {
+            if ($v) $progress += ($defs[$k] ?? 0);
+        }
+        $progress = max(0, min(100, (int)round($progress)));
+
+        DB::transaction(function () use ($project, $items, $uid, $table, $checkCol, $phase, $progress) {
+            foreach ($items as $itemKey => $checked) {
+                DB::table($table)->updateOrInsert(
+                    [
+                        'project_id' => $project->id,
+                        'phase' => $phase,
+                        'item_key' => $itemKey,
+                    ],
+                    [
+                        $checkCol => $checked ? 1 : 0,
+                        'updated_by' => $uid,
+                        'progress' => $progress,
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ]
+                );
+            }
+
+            // ensure all INHAND rows carry the latest progress
+            DB::table($table)
+                ->where('project_id', $project->id)
+                ->where('phase', $phase)
+                ->update(['progress' => $progress, 'updated_at' => now()]);
+        });
+        // or for In-Hand:
+        $this->logProgressChange($project->id, 'INHAND', $progress, $request->user()->id);
 
         return response()->json([
-            'id'        => $p->id,
-            'name'      => $p->canonical_name,
-            'client'    => $p->canonical_client,
-            'location'  => $p->canonical_location,
-            'area'      => $p->area,
-            'price'     => $p->canonical_value,
-            'status'    => $p->status,
-            'checklist' => [
-                'mep_contractor_appointed' => (bool) $p->mep_contractor_appointed,
-                'boq_quoted'               => (bool) $p->boq_quoted,
-                'boq_submitted'            => (bool) $p->boq_submitted,
-                'priced_at_discount'       => (bool) $p->priced_at_discount,
-            ],
-            'comments'  => $p->comments ?? '',
+            'ok' => true,
+            'message' => 'In-Hand checklist saved.',
+            'progress' => $progress,
+            'state' => $items,
         ]);
+    }
+
+
+    protected function addProjectNote(Request $request, Project $project)
+    {
+        $data = $request->validate([
+            'note' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $note = DB::transaction(function () use ($project, $data, $request) {
+            return ProjectNote::create([
+                'project_id' => $project->id,
+                'note' => trim($data['note']),
+                'created_by' => $request->user()->id,
+            ]);
+        });
+
+        return response()->json([
+            'ok' => true,
+            'msg' => 'Note added.',
+            'id' => $note->id,
+            'note' => $note->note,
+            'when' => $note->created_at?->toDateTimeString(),
+            'by' => $request->user()->name ?? 'You',
+        ]);
+    }
+
+    protected function logProgressChange(int $projectId, string $phase, int $progress, int $userId): void
+    {
+        // only insert when it actually changed
+        $last = DB::table('project_status_history')
+            ->where('project_id', $projectId)
+            ->where('phase', $phase)
+            ->orderByDesc('id')
+            ->value('progress');
+
+        if ($last === null || (int)$last !== (int)$progress) {
+            DB::table('project_status_history')->insert([
+                'project_id' => $projectId,
+                'phase' => $phase,
+                'progress' => $progress,
+                'changed_by' => $userId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 }

@@ -14,12 +14,15 @@ class ProjectsDatatableController extends Controller
         $draw   = (int) $req->input('draw', 1);
         $start  = (int) $req->input('start', 0);
         $length = (int) $req->input('length', 10);
+// add this variant list once so it's easy to tweak later
+        $poReceivedList = "'po-received','po received','po_received','po-recieved','po recieved','po_recieved','po'";
 
-        $statusCase = "
+            $statusCase = "
       CASE
         WHEN LOWER(TRIM(status)) IN ('in-hand','in hand','inhand','accepted','won','order','order in hand','ih') THEN 'In-Hand'
         WHEN LOWER(TRIM(status)) IN ('bidding','open','submitted','pending','quote','quoted','rfq','inquiry','enquiry') THEN 'Bidding'
         WHEN LOWER(TRIM(status)) IN ('lost','rejected','cancelled','canceled','closed lost','declined','not awarded') THEN 'Lost'
+        WHEN LOWER(TRIM(status)) IN ($poReceivedList) THEN 'PO-Received'
         ELSE 'Other'
       END
     ";
@@ -39,8 +42,22 @@ class ProjectsDatatableController extends Controller
         // ---- Status filter: expect status_norm from the client ----
         $statusNorm = $req->input('status_norm');
         if (!$statusNorm && $req->filled('status')) {
-            $map = ['bidding'=>'Bidding','inhand'=>'In-Hand','in-hand'=>'In-Hand','lost'=>'Lost'];
-            $statusNorm = $map[strtolower(trim($req->input('status')))] ?? null;
+            $s = strtolower(trim($req->input('status')));
+            $map = [
+                'bidding'      => 'Bidding',
+                'inhand'       => 'In-Hand',
+                'in-hand'      => 'In-Hand',
+                'lost'         => 'Lost',
+                // PO received aliases
+                'po'           => 'PO-Received',
+                'po-received'  => 'PO-Received',
+                'poreceived'   => 'PO-Received',
+                'po_received'  => 'PO-Received',
+                'po-recieved'  => 'PO-Received',   // common misspelling
+                'po recieved'  => 'PO-Received',
+                'po_recieved'  => 'PO-Received',
+            ];
+            $statusNorm = $map[$s] ?? null;
         }
         if ($statusNorm) {
             $base->whereRaw("($statusCase) = ?", [$statusNorm]);
@@ -115,7 +132,7 @@ class ProjectsDatatableController extends Controller
 
         // Row builder
         $areaBadge = fn(?string $a) =>
-        $a ? '<span class="badge area-badge area-'.e($a).'">'.e(strtoupper($a)).'</span>' : '—';
+        $a ? '<span class="badge area-badge area-'.e($a).'" style="color:black">'.e(strtoupper($a)).'</span>' : '—';
 
         $statusBadge = fn(?string $s) =>
         $s ? '<span class="badge bg-warning-subtle text-dark fw-bold">'.e(strtoupper($s)).'</span>' : '—';
