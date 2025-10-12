@@ -40,12 +40,14 @@
         <div class="collapse navbar-collapse">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
+                    <a class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}"
                        href="{{ route('projects.index') }}">Quotation KPI</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
-                       href="{{ route('inquiries.index') }}">Quotation Log</a>
+                    <a class="nav-link {{ request()->routeIs(['inquiries.index']) ? 'active' : '' }}"
+                       href="{{ route('inquiries.index') }}">
+                        Quotation Log
+                    </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.kpi') ? 'active' : '' }}"
@@ -99,17 +101,12 @@
         <input id="fTo" type="date" class="form-control form-control-sm" style="width:auto">
         <button id="btnApply" class="btn btn-primary btn-sm">Update</button>
 
-        <div class="d-flex gap-2">
-{{--        --}}
-{{--        <span class="badge rounded-pill text-bg-success badge-total" id="badgeCount">Orders: 0</span>--}}
-{{--        <span class="ms-auto badge rounded-pill text-bg-primary badge-total" id="badgeTotal">Total: SAR 0</span>--}}
 
-
+    </div>
+    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
         <span id="badgeCount" class="badge-total text-bg-info">Total Sales-Order No.: 0</span>
         <span id="badgeTotal" class="badge-total text-bg-primary">Total Sales-Order Value: SAR 0</span>
-        </div>
     </div>
-
     <div class="d-flex justify-content-end mb-2">
         <div id="familyChips" class="btn-group pill-chips" role="group" aria-label="Families"></div>
     </div>
@@ -120,7 +117,7 @@
         <div class="col-12 col-xl-6">
             <div class="card kpi-card">
                 <div class="card-body">
-                    <div class="fw-semibold mb-2">Orders by Area (stacked by Status)</div>
+                    <div class="fw-semibold mb-2">Orders Value Comparison</div>
                     <div id="hcArea" class="hc"></div>
                 </div>
             </div>
@@ -137,10 +134,9 @@
         <div class="col-12">
             <div class="card kpi-card">
                 <div class="card-body">
-                    <div class="fw-semibold mb-2">Monthly Value — Accepted / Pre-Acceptance / Waiting / Rejected + MoM
-                        %
-                    </div>
+                    <div class="fw-semibold mb-2"> </div>
                     <div id="hcMonthly" class="hc"></div>
+                    <div id="barPoValueByArea" class="hc"></div>
                 </div>
             </div>
         </div>
@@ -163,34 +159,39 @@
         // Normalize DB/product labels to our display labels
         function normalizeFamily(name = '') {
             const n = String(name).trim().toLowerCase();
-            if (['ductwork','ductworks','round duct','round ducts'].includes(n)) return 'Ductwork';
-            if (['damper','dampers','fire/smoke dampers','fire /smoke dampers'].includes(n)) return 'Dampers';
-            if (['sound attenuator','sound attenuators','sound attenuator(s)'].includes(n)) return 'Sound Attenuators';
-            if (['accessory','accessories'].includes(n)) return 'Accessories';
+            if (['ductwork', 'ductworks', 'round duct', 'round ducts'].includes(n)) return 'Ductwork';
+            if (['damper', 'dampers', 'fire/smoke dampers', 'fire /smoke dampers'].includes(n)) return 'Dampers';
+            if (['sound attenuator', 'sound attenuators', 'sound attenuator(s)'].includes(n)) return 'Sound Attenuators';
+            if (['accessory', 'accessories'].includes(n)) return 'Accessories';
             return '';
         }
 
         // Map display label back to DB-facing value (if your DB uses slightly different forms, edit here)
         function displayToDbFamily(display = '') {
             switch (display) {
-                case 'Ductwork':          return 'Ductwork';
-                case 'Dampers':           return 'Dampers';
-                case 'Sound Attenuators': return 'Sound Attenuators';
-                case 'Accessories':       return 'Accessories';
-                default:                  return '';
+                case 'Ductwork':
+                    return 'Ductwork';
+                case 'Dampers':
+                    return 'Dampers';
+                case 'Sound Attenuators':
+                    return 'Sound Attenuators';
+                case 'Accessories':
+                    return 'Accessories';
+                default:
+                    return '';
             }
         }
 
         // Build filters for the API call
         function filters() {
             const f = {
-                year  : $('#fYear').val()  || '',
-                month : $('#fMonth').val() || '',
-                from  : $('#fFrom').val()  || '',
-                to    : $('#fTo').val()    || ''
+                year: $('#fYear').val() || '',
+                month: $('#fMonth').val() || '',
+                from: $('#fFrom').val() || '',
+                to: $('#fTo').val() || ''
             };
             const fam = displayToDbFamily(currentFamily);
-            if (fam)    f.family = fam;
+            if (fam) f.family = fam;
             if (currentStatus) f.status = currentStatus; // Accepted / Pre-Acceptance / Waiting / Rejected
             return f;
         }
@@ -201,9 +202,9 @@
             if (!el) return;
 
             const html = [
-                `<button type="button" class="btn btn-sm ${!activeVal ? 'btn-primary':'btn-outline-primary'}" data-val="">All</button>`,
+                `<button type="button" class="btn btn-sm ${!activeVal ? 'btn-primary' : 'btn-outline-primary'}" data-val="">All</button>`,
                 ...items.map(name =>
-                    `<button type="button" class="btn btn-sm ${activeVal===name ? 'btn-primary':'btn-outline-primary'}" data-val="${name}">${name}</button>`
+                    `<button type="button" class="btn btn-sm ${activeVal === name ? 'btn-primary' : 'btn-outline-primary'}" data-val="${name}">${name}</button>`
                 )
             ].join('');
             el.innerHTML = html;
@@ -211,15 +212,15 @@
             el.onclick = (e) => {
                 const btn = e.target.closest('button[data-val]');
                 if (!btn) return;
-                el.querySelectorAll('button').forEach(b => b.classList.replace('btn-primary','btn-outline-primary'));
-                btn.classList.replace('btn-outline-primary','btn-primary');
+                el.querySelectorAll('button').forEach(b => b.classList.replace('btn-primary', 'btn-outline-primary'));
+                btn.classList.replace('btn-outline-primary', 'btn-primary');
                 onChange(btn.getAttribute('data-val') || '');
             };
         }
 
         async function loadKPIs() {
             const qs = new URLSearchParams(filters()).toString();
-            const res = await fetch(`{{ route('salesorders.manager.kpis') }}?${qs}`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+            const res = await fetch(`{{ route('salesorders.manager.kpis') }}?${qs}`, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
             const payload = res.ok ? await res.json() : {};
 
             // Badges
@@ -242,7 +243,7 @@
             // ----- STATUS chips (Accepted / Pre-Acceptance / Waiting / Rejected) -----
             const statusList = Array.isArray(payload?.statuses) && payload.statuses.length
                 ? payload.statuses
-                : ['Accepted','Pre-Acceptance','Waiting','Rejected'];
+                : ['Accepted', 'Pre-Acceptance', 'Waiting', 'Rejected'];
 
             buildChips('statusChips', statusList, currentStatus, (val) => {
                 currentStatus = val;            // exact status text
@@ -250,83 +251,175 @@
             });
 
             // ----- Chart 1: Area + Status (you were rendering multiMonthly here; keep as you had) -----
-            (function(){
-                const catsIso   = payload.multiMonthly?.categories || [];
-                const catsNice  = catsIso.map(ym => {
-                    const [y,m] = String(ym||'').split('-');
+            (function () {
+                const catsIso = payload.multiMonthly?.categories || [];
+                const catsNice = catsIso.map(ym => {
+                    const [y, m] = String(ym || '').split('-');
                     if (!y || !m) return ym || '';
-                    return new Date(Number(y), Number(m)-1, 1).toLocaleString('en',{month:'short'}) + ' ' + String(y).slice(-2);
+                    return new Date(Number(y), Number(m) - 1, 1).toLocaleString('en', {month: 'short'}) + ' ' + String(y).slice(-2);
                 });
-                const barSeries  = payload.multiMonthly?.bars  || [];
+                const barSeries = payload.multiMonthly?.bars || [];
                 const lineSeries = payload.multiMonthly?.lines || [];
 
                 Highcharts.chart('hcArea', {
-                    chart: { backgroundColor:'transparent' },
-                    title: { text:null },
-                    xAxis: { categories: catsNice },
-                    yAxis: [{ title:{ text:'Value (SAR)' }, min:0, labels:{ formatter(){ return fmtSAR(this.value); }}}],
+                    chart: {backgroundColor: 'transparent'},
+                    title: {text: null},
+                    xAxis: {categories: catsNice},
+                    yAxis: [{
+                        title: {text: 'Value (SAR)'},
+                        min: 0,
+                        labels: {
+                            formatter() {
+                                return fmtSAR(this.value);
+                            }
+                        }
+                    }],
                     tooltip: {
-                        shared:true,
-                        formatter(){
+                        shared: true,
+                        useHTML: true,
+                        formatter() {
                             return `<b>${this.x}</b><br/>` + this.points.map(p =>
-                                `<span style="color:${p.color}">\u25CF</span> ${p.series.name}: <b>${p.series.type==='spline' ? p.y.toLocaleString() : fmtSAR(p.y)}</b>`
+                                `<span style="color:${p.color}">\u25CF</span> ${p.series.name}: <b>${
+                                    p.series.type === 'spline' ? p.y.toLocaleString() : fmtSAR(p.y)
+                                }</b>`
                             ).join('<br/>');
                         }
                     },
                     plotOptions: {
-                        column: { grouping:true, groupPadding:0.12, pointPadding:0.02,
-                            dataLabels:{ enabled:true, formatter(){ return this.y ? fmtSAR(this.y) : '' } } },
-                        spline: { marker:{enabled:false}, dataLabels:{ enabled:true, formatter(){ return this.y.toLocaleString(); } } }
+                        column: {
+                            grouping: true,
+                            groupPadding: 0.12,
+                            pointPadding: 0.02,
+                            dataLabels: {
+                                enabled: true,
+                                rotation: -90,               // vertical text
+                                align: 'center',
+                                verticalAlign: 'bottom',
+                                inside: false,
+                                y: -8,
+                                style: {
+                                    fontWeight: '600',
+                                    fontSize: '11px',
+                                    textOutline: 'none'
+                                },
+                                formatter() {
+                                    return this.y ? fmtCompactSAR(this.y) : '';
+                                }
+                            }
+                        },
+                        spline: {
+                            marker: {enabled: false},
+                            dataLabels: {
+                                enabled: true,
+                                style: {
+                                    fontWeight: '600',
+                                    fontSize: '11px',
+                                    textOutline: 'none'
+                                },
+                                formatter() {
+                                    return fmtCompactSAR(this.y);
+                                }
+                            }
+                        }
                     },
                     series: [...barSeries, ...lineSeries],
-                    credits: { enabled:false }
+                    credits: {enabled: false}
                 });
             })();
 
+            function fmtCompactSAR(val) {
+                if (val == null || isNaN(val)) return '';
+                if (Math.abs(val) >= 1_000_000_000) return (val / 1_000_000_000).toFixed(1).replace(/\.0$/, '') + 'B';
+                if (Math.abs(val) >= 1_000_000) return (val / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+                if (Math.abs(val) >= 1_000) return (val / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+                return val.toLocaleString();
+            }
+
+// optional: percent formatter with one decimal, trims .0
+            function fmtPct(v) {
+                if (v == null || isNaN(v)) return '';
+                return Number(v).toFixed(1).replace(/\.0$/, '') + '%';
+            }
+
             // ----- Chart 2: Status Pie (value) -----
             Highcharts.chart('hcStatus', {
-                chart: { type:'pie', backgroundColor:'transparent' },
-                title: { text:null },
-                tooltip: { pointFormatter(){ return `<b>${fmtSAR(this.y)}</b>`; } },
-                plotOptions: { pie: { dataLabels:{ enabled:true, format:'{point.name}: {point.percentage:.1f}%' } } },
-                series: [{ name:'Value', data: payload.statusPie || [] }],
-                credits: { enabled:false }
+                chart: {type: 'pie', backgroundColor: 'transparent'},
+                title: {text: null},
+                tooltip: {
+                    pointFormatter() {
+                        return `<b>${fmtSAR(this.y)}</b>`;
+                    }
+                },
+                plotOptions: {pie: {dataLabels: {enabled: true, format: '{point.name}: {point.percentage:.1f}%'}}},
+                series: [{name: 'Value', data: payload.statusPie || []}],
+                credits: {enabled: false}
             });
 
             // ----- Chart 3: Monthly value + MoM % -----
             const cats = payload.monthly?.categories || [];
             const vals = payload.monthly?.values || [];
-            const mom  = vals.map((v,i)=> i===0 || !vals[i-1] ? 0 : Math.round(((v-vals[i-1])/vals[i-1])*10000)/100);
+            const mom = vals.map((v, i) => i === 0 || !vals[i - 1] ? 0 : Math.round(((v - vals[i - 1]) / vals[i - 1]) * 10000) / 100);
 
             Highcharts.chart('hcMonthly', {
-                title: { text:null },
-                xAxis: { categories: cats.map(ym => {
-                        const [y,m] = (ym||'').split('-');
-                        return (y && m) ? new Date(y, m-1, 1).toLocaleString('en',{month:'short'}) + ' ' + String(y).slice(-2) : ym;
-                    })},
+                chart: { backgroundColor: 'transparent'},
+                title: {
+                    text: 'Sales Order Monthly Comparison',
+                    align: 'left',            // optional: align left, center, or right
+                    style: {
+                        fontWeight: '600',
+                        fontSize: '14px',
+                        color: '#222'          // adjust for dark/light theme
+                    },
+                    margin: 10                // optional spacing below title
+                },
+                xAxis: {
+                    categories: cats.map(ym => {
+                        const [y, m] = (ym || '').split('-');
+                        return (y && m)
+                            ? new Date(y, m - 1, 1).toLocaleString('en', { month: 'short' }) + ' ' + String(y).slice(-2)
+                            : ym;
+                    })
+                },
                 yAxis: [{
-                    title: { text:'Value (SAR)' }, min:0,
-                    labels: { formatter(){ return fmtSAR(this.value); } }
-                },{
-                    title: { text:'Percent (%)' }, opposite:true, min:0
+                    title: { text: 'Value (SAR)' }, min: 0,
+                    labels: { formatter() { return fmtCompactSAR(this.value); } }
+                }, {
+                    title: { text: 'Percent (%)' }, opposite: true, min: 0,
+                    labels: { formatter() { return fmtPct(this.value); } }
                 }],
                 tooltip: {
-                    shared:false,
-                    formatter(){
-                        return this.series.yAxis.opposite
-                            ? `<b>${this.x}</b><br/>${this.series.name}: <b>${this.y}%</b>`
-                            : `<b>${this.x}</b><br/>${this.series.name}: <b>${fmtSAR(this.y)}</b>`;
+                    shared: false,
+                    useHTML: true,
+                    formatter() {
+                        const x = `<b>${this.x}</b><br/>`;
+                        if (this.series.yAxis.opposite) {
+                            return x + `${this.series.name}: <b>${fmtPct(this.y)}</b>`;
+                        }
+                        return x + `${this.series.name}: <b>${fmtCompactSAR(this.y)}</b>`;
                     }
                 },
                 plotOptions: {
-                    column: { dataLabels:{ enabled:true, formatter(){ return this.y ? fmtSAR(this.y) : '' } } },
-                    spline: { marker:{enabled:false}, dataLabels:{ enabled:true, formatter(){ return `${this.y}%`; } } }
+                    column: {
+                        dataLabels: {
+                            enabled: true,
+                            style: { fontWeight: '600', fontSize: '11px', textOutline: 'none' },
+                            formatter() { return this.y ? fmtCompactSAR(this.y) : ''; }
+                        }
+                    },
+                    spline: {
+                        marker: { enabled: false },
+                        dataLabels: {
+                            enabled: true,
+                            style: { fontWeight: '600', fontSize: '11px', textOutline: 'none' },
+                            formatter() { return fmtPct(this.y); }
+                        }
+                    }
                 },
                 series: [
-                    { type:'column', name:'Value (SAR)', data: vals },
-                    { type:'spline', name:'MoM %', yAxis:1, data: mom, dashStyle:'ShortDot' }
+                    { type: 'column', name: 'Value (SAR)', data: vals },
+                    { type: 'spline', name: 'MoM %', yAxis: 1, data: mom, dashStyle: 'ShortDot' }
                 ],
-                credits: { enabled:false }
+                credits: { enabled: false }
             });
         }
 

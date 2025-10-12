@@ -46,11 +46,11 @@
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 {{-- Always visible --}}
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
+                    <a class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}"
                        href="{{ route('projects.index') }}">Quotation KPI</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
+                    <a class="nav-link {{ request()->routeIs('inquiriesLog') ? 'active' : '' }}"
                        href="{{ route('inquiries.index') }}">Quotation Log</a>
                 </li>
                 <li class="nav-item">

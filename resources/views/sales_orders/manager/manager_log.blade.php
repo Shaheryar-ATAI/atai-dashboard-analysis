@@ -32,12 +32,14 @@
         <div class="collapse navbar-collapse">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
+                    <a class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}"
                        href="{{ route('projects.index') }}">Quotation KPI</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
-                       href="{{ route('inquiries.index') }}">Quotation Log</a>
+                    <a class="nav-link {{ request()->routeIs(['inquiries.index']) ? 'active' : '' }}"
+                       href="{{ route('inquiries.index') }}">
+                        Quotation Log
+                    </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.kpi') ? 'active' : '' }}"
@@ -94,19 +96,24 @@
 
         <button id="btnApply" class="btn btn-primary btn-sm">Update</button>
 
-        <div class="ms-auto d-flex gap-2">
-            <span id="badgeCount"  class="badge-total text-bg-info">Total Sales-Order No: 0</span>
-            <span id="badgeValue"  class="badge-total text-bg-primary">Total Sales-Order Value: SAR 0</span>
-        </div>
-    </div>
 
+    </div>
+    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
+        <span id="badgeCount"  class="badge-total text-bg-info">Total Sales-Order No: 0</span>
+        <span id="badgeValue"  class="badge-total text-bg-primary">Total Sales-Order Value: SAR 0</span>
+    </div>
     {{-- Family chips --}}
-    <div class="d-flex gap-2 mb-2 flex-wrap" id="familyChips">
-        <button class="btn btn-sm btn-outline-primary btn-chip active" data-family="">All</button>
-        <button class="btn btn-sm btn-outline-primary btn-chip" data-family="Ductwork">Ductwork</button>
-        <button class="btn btn-sm btn-outline-primary btn-chip" data-family="Dampers">Dampers</button>
-        <button class="btn btn-sm btn-outline-primary btn-chip" data-family="Sound Attenuators">Sound Attenuators</button>
-        <button class="btn btn-sm btn-outline-primary btn-chip" data-family="Accessories">Accessories</button>
+    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
+        <div id="familyChips" class="btn-group" role="group" aria-label="Product family">
+            <button type="button" class="btn btn-sm btn-outline-primary active" data-family="">All</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-family="ductwork">Ductwork
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-family="dampers">Dampers</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-family="sound">Sound Attenuators
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-family="accessories">Accessories
+            </button>
+        </div>
     </div>
 
     {{-- Status tabs --}}
@@ -174,14 +181,13 @@
     const $to    = $('#fTo');
 
     // Family chips
-    $('#familyChips').on('click', '.btn-chip', function(){
-        $('#familyChips .btn-chip').removeClass('active');
+    $('#familyChips').on('click', '[data-family]', function(){
+        $('#familyChips [data-family]').removeClass('active');
         $(this).addClass('active');
         currentFamily = $(this).data('family') || '';
         dt.ajax.reload(null,false);
         refreshTotals();
     });
-
     // Status tabs
     $('#statusTabs').on('click', 'button[data-status]', function(){
         $('#statusTabs .nav-link').removeClass('active');

@@ -1,4 +1,4 @@
-{{-- resources/views/projects/index.blade.php --}}
+`{{-- resources/views/projects/index.blade.php --}}
     <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
 <head>
@@ -12,36 +12,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>ATAI Projects — Live</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-          crossorigin="anonymous">
-    <link rel="stylesheet"
-          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
 
     <style>
-
-
         /* Make header filter row look light */
-        table.dataTable thead tr.filters th {
-            background: var(--bs-tertiary-bg);
-        }
-
+        table.dataTable thead tr.filters th { background: var(--bs-tertiary-bg); }
         table.dataTable thead .form-control-sm, table.dataTable thead .form-select-sm {
             height: calc(1.5em + .5rem + 2px);
         }
-
         /* Keep action column content to the right */
-        #tblBidding td:last-child, #tblInhand td:last-child, #tblLost td:last-child {
-            text-align: end;
-        }
-
+        #tblBidding td:last-child, #tblInhand td:last-child, #tblLost td:last-child, #tblPOreceived td:last-child { text-align: end; }
         /* Chart cards – compact like Sales Orders dashboard */
-        .kpi-card .hc {
-            height: 260px;
-        }
-
-        .kpi-card .card-body {
-            padding: .75rem 1rem;
-        }
+        .kpi-card .hc { height: 260px; }
+        .kpi-card .card-body { padding: .75rem 1rem; }
     </style>
 </head>
 <body>
@@ -58,12 +42,15 @@
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 {{-- Always visible --}}
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.kpi') ? 'active' : '' }}"
+                    <a class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}"
                        href="{{ route('projects.index') }}">Quotation KPI</a>
                 </li>
+
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.') ? 'active' : '' }}"
-                       href="{{ route('inquiries.index') }}">Quotation Log</a>
+                    <a class="nav-link {{ request()->routeIs(['inquiries.index']) ? 'active' : '' }}"
+                       href="{{ route('inquiries.index') }}">
+                        Quotation Log
+                    </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.kpi') ? 'active' : '' }}"
@@ -78,28 +65,23 @@
                         Sales Order Log
                     </a>
                 </li>
+
                 {{-- Sales roles only --}}
-                {{--                @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">Estimation</a>
                 </li>
-                {{--                @endhasanyrole--}}
 
                 {{-- GM/Admin only --}}
                 @hasanyrole('gm|admin')
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
                                         href="{{ route('salesorders.index') }}">Sales Orders</a></li>
-                {{--                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.index') ? 'active' : '' }}"--}}
-                {{--                                        href="{{ route('performance.index') }}">Performance report</a></li>--}}
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
                                         href="{{ route('performance.area') }}">Area summary</a></li>
-                <li class="nav-item"><a
-                        class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active' : '' }}"
-                        href="{{ route('performance.salesman') }}">SalesMan summary</a></li>
-                <li class="nav-item"><a
-                        class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
-                        href="{{ route('performance.product') }}">Product summary</a></li>
+                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active' : '' }}"
+                                        href="{{ route('performance.salesman') }}">SalesMan summary</a></li>
+                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
+                                        href="{{ route('performance.product') }}">Product summary</a></li>
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
                                         href="{{ route('powerbi.jump') }}">Accounts Summary</a></li>
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
@@ -134,13 +116,13 @@
             </select>
 
             <span id="projRegionWrap">
-                      <select id="projRegion" class="form-select form-select-sm" style="width:auto">
-                        <option value="">All Region</option>
-                        <option value="Eastern">Eastern</option>
-                        <option value="Central">Central</option>
-                        <option value="Western">Western</option>
-                      </select>
-                    </span>
+                <select id="projRegion" class="form-select form-select-sm" style="width:auto">
+                    <option value="">All Region</option>
+                    <option value="Eastern">Eastern</option>
+                    <option value="Central">Central</option>
+                    <option value="Western">Western</option>
+                </select>
+            </span>
 
             <div class="d-flex gap-2 align-items-center">
                 {{-- Month select --}}
@@ -152,189 +134,179 @@
                 </select>
 
                 {{-- OR date range (overrides year/month if used) --}}
-                <input type="date" id="dateFrom" class="form-control form-control-sm" style="width:auto"
-                       placeholder="From">
-                <input type="date" id="dateTo" class="form-control form-control-sm" style="width:auto"
-                       placeholder="To">
+                <input type="date" id="dateFrom" class="form-control form-control-sm" style="width:auto" placeholder="From">
+                <input type="date" id="dateTo" class="form-control form-control-sm" style="width:auto" placeholder="To">
 
                 {{-- GM/Admin: optional free-text salesman filter for forecast --}}
                 <span id="salesmanWrap" class="d-none">
-                        <input type="text" id="salesmanInput" class="form-control form-control-sm" style="width:14rem"
-                               placeholder="Salesman (GM/Admin)">
-                                 </span>
+                    <input type="text" id="salesmanInput" class="form-control form-control-sm" style="width:14rem"
+                           placeholder="Salesman (GM/Admin)">
+                </span>
 
                 <button class="btn btn-sm btn-primary" id="projApply">Update</button>
             </div>
         </div>
+
         <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
-            <div id="familyChips" class="btn-group" role="group" aria-label="Product family">
-                <button type="button" class="btn btn-sm btn-outline-primary active" data-family="">All</button>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-family="ductwork">Ductwork
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-family="dampers">Dampers</button>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-family="sound">Sound Attenuators
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-family="accessories">Accessories
-                </button>
+            <span id="kpiBadgeProjects" class="badge-total text-bg-info">Total Quotations No. : 0</span>
+            <span id="kpiBadgeValue" class="badge-total text-bg-primary">Total Quotations Value: SAR 0</span>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
+        <div id="familyChips" class="btn-group" role="group" aria-label="Product family">
+            <button type="button" class="btn btn-sm btn-outline-primary active" data-family="">All</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-family="ductwork">Ductwork</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-family="dampers">Dampers</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-family="sound">Sound Attenuators</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-family="accessories">Accessories</button>
+        </div>
+    </div>
+
+    {{-- ===== TABS (Bidding / In-Hand / Lost / PO received) ===== --}}
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-target="#bidding" data-bs-toggle="tab" type="button" role="tab">Bidding</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-target="#inhand" data-bs-toggle="tab" type="button" role="tab">In-Hand</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-target="#lost" data-bs-toggle="tab" type="button" role="tab">Lost</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-target="#POreceived" data-bs-toggle="tab" type="button" role="tab">PO received</button>
+        </li>
+    </ul>
+
+    <div class="tab-content border-start border-end border-bottom p-3 rounded-bottom">
+        {{-- ---------- BIDDING TAB ---------- --}}
+        <div class="tab-pane fade show active" id="bidding" role="tabpanel" tabindex="0">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <div class="input-group w-auto">
+                    <span class="input-group-text">Search</span>
+                    <input id="searchBidding" type="text" class="form-control" placeholder="Project, client, location…">
+                </div>
+                <span id="sumBidding" class="badge-total text-bg-primary">Total: SAR 0</span>
             </div>
-            <div class="d-flex gap-2">
-                <span id="kpiBadgeProjects" class="badge-total text-bg-info">Total Quotations No. : 0</span>
-                <span id="kpiBadgeValue" class="badge-total text-bg-primary">Total Quotations Value: SAR 0</span>
+
+            <div class="table-responsive">
+                <table class="table table-striped w-100" id="tblBidding">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Project</th>
+                        <th>Client</th>
+                        <th>Location</th>
+                        <th>Area</th>
+                        <th>Quotation No</th>
+                        <th>ATAI Products</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                    </thead>
+                </table>
             </div>
         </div>
 
-
-        {{-- ===== TABS (Bidding / In-Hand / Lost) ===== --}}
-        <ul class="nav nav-tabs" role="tablist">
-            <li class="nav-item">
-                <button class="nav-link active" data-bs-target="#bidding" data-bs-toggle="tab" type="button" role="tab">
-                    Bidding
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" data-bs-target="#inhand" data-bs-toggle="tab" type="button" role="tab">In-Hand
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" data-bs-target="#lost" data-bs-toggle="tab" type="button" role="tab">Lost
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" data-bs-target="#POreceived" data-bs-toggle="tab" type="button" role="tab">
-                    PO received
-                </button>
-            </li>
-        </ul>
-
-        @php $areas = ['','Eastern','Central','Western']; @endphp
-        <div class="tab-content border-start border-end border-bottom p-3 rounded-bottom">
-
-            {{-- ---------- BIDDING TAB ---------- --}}
-            <div class="tab-pane fade show active" id="bidding" role="tabpanel" tabindex="0">
-                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                    <div class="input-group w-auto">
-                        <span class="input-group-text">Search</span>
-                        <input id="searchBidding" type="text" class="form-control"
-                               placeholder="Project, client, location…">
-                    </div>
-                    <span id="sumBidding" class="badge-total text-bg-primary">Total: SAR 0</span>
+        {{-- ---------- IN-HAND TAB ---------- --}}
+        <div class="tab-pane fade" id="inhand" role="tabpanel" tabindex="0">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <div class="input-group w-auto">
+                    <span class="input-group-text">Search</span>
+                    <input id="searchInhand" type="text" class="form-control" placeholder="Project, client, location…">
                 </div>
-
-                <div class="table-responsive">
-                    <table class="table table-striped w-100" id="tblBidding">
-                        <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Project</th>
-                            <th>Client</th>
-                            <th>Location</th>
-                            <th>Area</th>
-                            <th>Quotation No</th>
-                            <th>ATAI Products</th>
-                            <th>Price</th>
-                            <th>Status</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-
-                        </thead>
-                    </table>
-                </div>
+                <span id="sumInhand" class="badge-total text-bg-info">Total: SAR 0</span>
             </div>
 
-            {{-- ---------- IN-HAND TAB ---------- --}}
-            <div class="tab-pane fade" id="inhand" role="tabpanel" tabindex="0">
-                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                    <div class="input-group w-auto">
-                        <span class="input-group-text">Search</span>
-                        <input id="searchInhand" type="text" class="form-control"
-                               placeholder="Project, client, location…">
-                    </div>
-                    <span id="sumInhand" class="badge-total text-bg-info">Total: SAR 0</span>
+            <div class="table-responsive">
+                <table class="table table-striped w-100" id="tblInhand">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Project</th>
+                        <th>Client</th>
+                        <th>Location</th>
+                        <th>Area</th>
+                        <th>Quotation No</th>
+                        <th>ATAI Products</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
 
+        {{-- ---------- LOST TAB ---------- --}}
+        <div class="tab-pane fade" id="lost" role="tabpanel" tabindex="0">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <div class="input-group w-auto">
+                    <span class="input-group-text">Search</span>
+                    <input id="searchLost" type="text" class="form-control" placeholder="Project, client, location…">
                 </div>
-
-                <div class="table-responsive">
-                    <table class="table table-striped w-100" id="tblInhand">
-                        <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Project</th>
-                            <th>Client</th>
-                            <th>Location</th>
-                            <th>Area</th>
-                            <th>Quotation No</th>
-                            <th>ATAI Products</th>
-                            <th>Price</th>
-                            <th>Status</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-
-                        </thead>
-                    </table>
-                </div>
+                <span id="sumLost" class="badge-total text-bg-danger">Total: SAR 0</span>
             </div>
 
-            {{-- ---------- LOST TAB ---------- --}}
-            <div class="tab-pane fade" id="lost" role="tabpanel" tabindex="0">
-                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                    <div class="input-group w-auto">
-                        <span class="input-group-text">Search</span>
-                        <input id="searchLost" type="text" class="form-control"
-                               placeholder="Project, client, location…">
-                    </div>
-                    <span id="sumLost" class="badge-total text-bg-danger">Total: SAR 0</span>
-                </div>
+            <div class="table-responsive">
+                <table class="table table-striped w-100" id="tblLost">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Project</th>
+                        <th>Client</th>
+                        <th>Location</th>
+                        <th>Area</th>
+                        <th>Quotation No</th>
+                        <th>Quotation Date</th>
 
-                <div class="table-responsive">
-                    <table class="table table-striped w-100" id="tblLost">
-                        <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Project</th>
-                            <th>Client</th>
-                            <th>Location</th>
-                            <th>Area</th>
-                            <th>Quotation No</th>
-                            <th>ATAI Products</th>
-                            <th>Price</th>
-                            <th>Status</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
+                        <th>ATAI Products</th>
+                        <th>Quotation Price</th>
 
-                        </thead>
-                    </table>
+                        <th>Status</th>
+{{--                        <th class="text-end">Actions</th>--}}
+                    </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+
+        {{-- ---------- PO RECEIVED TAB ---------- --}}
+        <div class="tab-pane fade" id="POreceived" role="tabpanel" tabindex="0">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <div class="input-group w-auto">
+                    <span class="input-group-text">Search</span>
+                    <input id="searchPOreceived" type="text" class="form-control" placeholder="Project, client, location…">
                 </div>
+                <span id="sumPOreceived" class="badge-total text-bg-primary">Total: SAR 0</span>
             </div>
 
-            <!-- PO received tab pane -->
-            <div class="tab-pane fade" id="POreceived" role="tabpanel" tabindex="0">
-                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                    <div class="input-group w-auto">
-                        <span class="input-group-text">Search</span>
-                        <input id="searchPOreceived" type="text" class="form-control" placeholder="Project, client, location…">
-                    </div>
-                    <span id="sumPOreceived" class="badge-total text-bg-success">Total: SAR 0</span>
-                </div>
-
-                <div class="table-responsive">
-                    <table class="table table-striped w-100" id="tblPOreceived">
-                        <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Project</th>
-                            <th>Client</th>
-                            <th>Location</th>
-                            <th>Area</th>
-                            <th>Quotation No</th>
-                            <th>ATAI Products</th>
-                            <th>Price</th>
-                            <th>Status</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-                        </thead>
-                    </table>
-                </div>
+            <div class="table-responsive">
+                <table class="table table-striped w-100" id="tblPOreceived">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Project</th>
+                        <th>Client</th>
+                        <th>Location</th>
+                        <th>Area</th>
+                        <th>Quotation No</th>
+                        <th>Quotation Date</th>
+                        <th>PO No(s)</th>
+                        <th>PO Date</th>
+                        <th>ATAI Products</th>
+                        <th>Quotation Price</th>
+                        <th>PO Value</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                    </thead>
+                </table>
             </div>
+        </div>
+    </div>
 </main>
 
 {{-- ===== BIDDING MODAL ===== --}}
@@ -379,6 +351,11 @@
                 </div><!-- /row -->
             </div>
             <div class="modal-footer">
+                <div class="modal-action">
+
+                    <button class="btn btn-danger" id="BiddingLostBtn" type="button">LOST</button>
+                    <button class="btn btn-success" id="BiddingPOBtn" type="button">PO RECEIVED</button>
+                </div>
                 <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
                 <button class="btn btn-primary" id="saveBiddingBtn" type="button">Save</button>
             </div>
@@ -430,12 +407,18 @@
 
             <div class="modal-footer">
                 <div class="modal-action">
-                    <button class="btn btn-danger" data-bs-dismiss="modal" id="LostStatusBtn" type="button">LOST</button>
+                    <button class="btn btn-danger" id="LostStatusBtn" type="button">LOST</button>
                     <button class="btn btn-success" id="POreceivedStatusBtn" type="button">PO RECEIVED</button>
                 </div>
                 <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
                 <button class="btn btn-primary" id="saveInhandBtn" type="button">Save</button>
             </div>
+
+
+
+
+
+
         </div>
     </div>
 </div>
@@ -463,7 +446,6 @@
                             <div class="card-body">
                                 <h6 class="card-title">Checklist (Lost)</h6>
                                 <div id="lostChecklist" class="vstack gap-2"></div>
-
                                 <div class="mt-3">
                                     <label for="lostComments" class="form-label mb-1">Comments</label>
                                     <textarea id="lostComments" class="form-control" rows="3"
@@ -482,8 +464,7 @@
     </div>
 </div>
 
-
-{{-- ===== POrecieved MODAL ===== --}}
+{{-- ===== PO RECEIVED MODAL ===== --}}
 <div class="modal fade" id="POreceivedModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
@@ -525,21 +506,19 @@
 
 {{-- Toast (generic success) --}}
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index:1080">
-    <div id="successToast" class="toast align-items-center text-bg-success border-0" role="status" aria-live="polite"
-         aria-atomic="true">
+    <div id="successToast" class="toast align-items-center text-bg-success border-0" role="status" aria-live="polite" aria-atomic="true">
         <div class="d-flex">
             <div class="toast-body" id="toastMsg">Updated.</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-                    aria-label="Close"></button>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
     </div>
 </div>
+
 <div class="modal fade" id="confirmActionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-3">
             <div class="modal-body text-center p-4">
                 <div id="confirmIcon" class="mb-3">
-                    <!-- default = warning -->
                     <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size:2.4rem;"></i>
                 </div>
                 <h5 class="fw-bold mb-2" id="confirmTitle">Confirm</h5>
@@ -552,17 +531,16 @@
         </div>
     </div>
 </div>
-{{-- Scripts --}}
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-        crossorigin="anonymous"></script>
 
+{{-- Scripts --}}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
     /* =============================================================================
      *  CONFIG & HELPERS
      * ============================================================================= */
-    const API = @json(url('/api'));
+    const API    = @json(url('/api'));
     const DT_URL = @json(route('projects.datatable'));
-    const $ = window.jQuery;
+    const $      = window.jQuery;
 
     let CURRENT_PROJECT_ID = null;
     let CURRENT_QUOTATION_NO = '';
@@ -572,16 +550,16 @@
         style: 'currency', currency: 'SAR', maximumFractionDigits: 0
     }).format(Number(n || 0));
 
-    // global state (no window.*)
-    let PROJ_YEAR = '';
+    // global state
+    let PROJ_YEAR   = '';
     let PROJ_REGION = '';
-    let ATAI_ME = null;
+    let ATAI_ME     = null;
     let CAN_VIEW_ALL = false;
     let currentFamily = ''; // '', 'ductwork','dampers','sound','accessories'
 
-
-    /*  DATA TABLES (3 tabs)
-    * ============================================================================= */
+    /* =============================================================================
+     *  DATA TABLES (4 tabs)
+     * ============================================================================= */
     const projectColumns = [
         {data: 'id', name: 'id', width: '64px'},
         {data: 'name', name: 'name'},
@@ -590,22 +568,34 @@
         {data: 'area_badge', name: 'area', orderable: true, searchable: false},
         {data: 'quotation_no', name: 'quotation_no'},
         {data: 'atai_products', name: 'atai_products'},
-        {
-            data: 'quotation_value_fmt',
-            name: 'quotation_value',
-            orderable: true,
-            searchable: false,
-            className: 'text-end'
-        },
+        {data: 'quotation_value_fmt', name: 'quotation_value', orderable: true, searchable: false, className: 'text-end'},
+        {data: 'status_badge', name: 'status', orderable: true, searchable: false},
+        {data: 'actions', orderable: false, searchable: false, className: 'text-end'}
+    ];
+
+    // PO/Lost tabs need extra columns
+    const projectColumnsPO = [
+        {data: 'id', name: 'id', width: '64px'},
+        {data: 'name', name: 'name'},
+        {data: 'client', name: 'client'},
+        {data: 'location', name: 'location'},
+        {data: 'area_badge', name: 'area', orderable: true, searchable: false},
+        {data: 'quotation_no', name: 'quotation_no'},
+        {data: 'quotation_date', name: 'quotation_date'},
+        {data: 'po_nos', name: 'po_nos'},
+        {data: 'po_date', name: 'po_date'},
+        {data: 'atai_products', name: 'atai_products'},
+        {data: 'quotation_value_fmt', name: 'quotation_value', orderable: true, searchable: false, className: 'text-end'},
+        {data: 'total_po_value_fmt', name: 'total_po_value', orderable: true, searchable: false, className: 'text-end'},
         {data: 'status_badge', name: 'status', orderable: true, searchable: false},
         {data: 'actions', orderable: false, searchable: false, className: 'text-end'}
     ];
 
     function initProjectsTable(selector, status, sumSelector) {
         const $table = $(selector);
-        const $filterRow = $table.find('thead tr.filters');
-        const statusMap = {bidding: 'Bidding', inhand: 'In-Hand', lost: 'Lost', poreceived: 'PO-received'};
-
+        const statusMap = {bidding: 'Bidding', inhand: 'In-Hand', lost: 'Lost', poreceived: 'PO-Received'};
+        //const cols = (status === 'poreceived' || status === 'lost') ? projectColumnsPO : projectColumns;
+        const cols = (status === 'poreceived' ) ? projectColumnsPO : projectColumns;
         const table = $table.DataTable({
             processing: true,
             serverSide: true,
@@ -615,72 +605,64 @@
                 headers: {'X-Requested-With': 'XMLHttpRequest'},
                 dataSrc: (json) => json.data || [],
                 data: (d) => {
-                    // send normalized status for the server to use
                     d.status_norm = statusMap[status] || '';
-
-                    // keep your other params
                     d.family = currentFamily || '';
 
-                    const year = document.querySelector('#projYear')?.value || '';
+                    const year  = document.querySelector('#projYear')?.value || '';
                     const month = document.querySelector('#monthSelect')?.value || '';
                     const dFrom = document.querySelector('#dateFrom')?.value || '';
-                    const dTo = document.querySelector('#dateTo')?.value || '';
+                    const dTo   = document.querySelector('#dateTo')?.value || '';
 
                     const areaSel = document.querySelector('#projRegion')?.value || '';
                     const area = CAN_VIEW_ALL ? areaSel : (PROJ_REGION || '');
 
                     if (dFrom) d.date_from = dFrom;
-                    if (dTo) d.date_to = dTo;
+                    if (dTo)   d.date_to   = dTo;
                     if (!dFrom && !dTo) {
                         if (month) d.month = month;
                         const yr = year || PROJ_YEAR || '';
                         if (yr) d.year = yr;
                     }
                     if (area) d.area = area;
+
+                    // Include projects with NO PO on the Lost tab (as per your note)
+                    if (status === 'lost') d.include_no_po = 1;
                 }
             },
-            columns: projectColumns,
+            columns: cols,
             language: {search: "Global search:", lengthMenu: "Show _MENU_"},
             drawCallback: function () {
                 const json = this.api().ajax.json() || {};
                 const sum = Number(json.sum_quotation_value || 0);
                 const cnt = Number(json.recordsFiltered || 0);
 
-                // per-tab badge (already there)
                 const el = document.querySelector(sumSelector);
                 if (el) el.textContent = 'Total: ' + fmtSAR(sum);
 
-                // NEW: store this tab totals and refresh header
-                TAB_SUMS[status] = sum;
+                TAB_SUMS[status]   = sum;
                 TAB_COUNTS[status] = cnt;
                 updateHeaderBadges();
             }
         });
 
-        // Per-column filters
-        $filterRow.find('th').each(function (i) {
-            const $in = $(this).find('input');
-            const $sel = $(this).find('select');
-            if ($in.length) $in.on('keyup change', () => table.column(i).search($in.val()).draw());
-            if ($sel.length) $sel.on('change', () => table.column(i).search($sel.val()).draw());
-        });
-
         return table;
     }
 
-    // Modals: simple hooks (details/checklists wiring kept)
+    /* =============================================================================
+     *  CHECKLISTS + DETAIL HELPERS
+     * ============================================================================= */
     const checklistBidding = [
         {key: "mep_contractor_appointed", label: "MEP Contractor appointed"},
-        {key: "boq_quoted", label: "BOQ  quoted"},
-        {key: "boq_submitted", label: "BOQ submitted"},
-        {key: "priced_at_discount", label: "Priced at discount"},
+        {key: "boq_quoted",               label: "BOQ  quoted"},
+        {key: "boq_submitted",            label: "BOQ submitted"},
+        {key: "priced_at_discount",       label: "Priced at discount"},
     ];
     const checklistInhand = [
-        {key: "submittal_approved", label: "Consultant approved — Submittal approved", weight: 25},
-        {key: "sample_approved", label: "Consultant approved — Sample approved", weight: 25},
-        {key: "commercial_terms_agreed", label: "Commercial terms / Payment terms agreed", weight: 50},
-        {key: "no_approval_or_terms", label: "No consultant approval or commercial terms agreed", weight: 0},
-        {key: "discount_offered_as_standard", label: "Discount offered as per standard", weight: 0},
+        {key: "submittal_approved",         label: "Consultant approved — Submittal approved",        weight: 25},
+        {key: "sample_approved",            label: "Consultant approved — Sample approved",            weight: 25},
+        {key: "commercial_terms_agreed",    label: "Commercial terms / Payment terms agreed",          weight: 50},
+        {key: "no_approval_or_terms",       label: "No consultant approval or commercial terms agreed",weight: 0},
+        {key: "discount_offered_as_standard",label:"Discount offered as per standard",                 weight: 0},
     ];
 
     function renderChecklist(containerId, list, prefix, values = {}) {
@@ -689,7 +671,6 @@
         cont.innerHTML = '';
         list.forEach(item => {
             const id = `${prefix}_${item.key}`;
-
             const checked = !!values[item.key];
             cont.insertAdjacentHTML('beforeend', `
           <div class="form-check">
@@ -731,12 +712,8 @@
 
     function normalizeRow(row) {
         const qVal = row.quotationValue ?? row.quotation_value ?? row.price ?? 0;
-
         return {
-            // ✅ keep everything we already have (including checklistBidding, biddingProgress, notes, etc.)
             ...row,
-
-            // ✅ normalize the common fields (overwrite only these)
             id: row.id,
             name: row.name ?? row.projectName ?? '-',
             client: row.client ?? row.clientName ?? '-',
@@ -748,15 +725,11 @@
             quotationDate: row.quotationDate ?? row.quotation_date ?? null,
             estimator: row.estimator ?? row.action1 ?? null,
             dateRec: row.dateRec ?? row.date_rec ?? null,
-            // keep original status but normalized lower for your kind-mapper
             status: String(row.status ?? '').toLowerCase(),
-
-            // these two were only used by older code – keep for safety
             checklist: row.checklist ?? {},
             comments: row.comments ?? '',
         };
     }
-
     function fillDetails(dlId, p) {
         const dl = document.getElementById(dlId);
         if (!dl) return;
@@ -779,35 +752,16 @@
 
     function normalizeStatusToKind(s) {
         const t = String(s || '').toLowerCase().trim();
-        // po received  bucket
         if (/^po[-_\s]?received|po[-_\s]?recieved$/.test(t) || t === 'po') return 'poreceived';
-        // In-Hand bucket
-        if (
-            /^in[\s-]?hand$/.test(t) ||
-            ['accepted', 'won', 'order', 'order in hand', 'ih'].includes(t)
-        ) return 'inhand';
-
-        // Bidding bucket
-        if (
-            ['bidding', 'open', 'submitted', 'pending', 'quote', 'quoted', 'rfq', 'inquiry', 'enquiry'].includes(t)
-        ) return 'bidding';
-
-        // Lost bucket
-        if (
-            ['lost', 'rejected', 'cancelled', 'canceled', 'closed lost', 'declined', 'not awarded'].includes(t)
-        ) return 'lost';
-
+        if (/^in[\s-]?hand$/.test(t) || ['accepted','won','order','order in hand','ih'].includes(t)) return 'inhand';
+        if (['bidding','open','submitted','pending','quote','quoted','rfq','inquiry','enquiry'].includes(t)) return 'bidding';
+        if (['lost','rejected','cancelled','canceled','closed lost','declined','not awarded'].includes(t)) return 'lost';
         return 'bidding';
-
-
-
-
-
     }
 
     function openProjectModalFromData(row) {
         const p = normalizeRow(row);
-        CURRENT_PROJECT_ID = p.id || row.id || null; // <— track current project
+        CURRENT_PROJECT_ID   = p.id || row.id || null;
         CURRENT_QUOTATION_NO = p.quotationNo || p.quotation_no || '-';
 
         const kind = normalizeStatusToKind(p.status);
@@ -815,11 +769,7 @@
         if (kind === 'bidding') {
             document.getElementById('biddingModalLabel').textContent = p.name || 'Project';
             fillDetails('biddingDetails', p);
-
-            // ✅ render saved ticks
             renderChecklist('biddingChecklist', checklistBidding, 'bid', p.checklistBidding || {});
-
-            // ✅ render saved progress
             if (typeof p.biddingProgress === 'number') {
                 const pct = p.biddingProgress;
                 document.getElementById('biddingProgressPct').textContent = pct + '%';
@@ -829,8 +779,6 @@
             } else {
                 updateChecklistProgress('bidding');
             }
-
-            // ✅ saved notes
             let notesWrap = document.getElementById('biddingNotesBody');
             if (!notesWrap) {
                 const wrap = document.createElement('div');
@@ -841,11 +789,9 @@
             }
             notesWrap.innerHTML = (p.notes || []).map(n =>
                 `<div class="border-start ps-2">
-       <div class="text-muted">${(n.created_at || '').replace('T', ' ').replace('Z', '')}</div>
-       <div>${n.note}</div>
-     </div>`
-            ).join('') || '<div class="text-muted">No notes yet.</div>';
-
+               <div class="text-muted">${(n.created_at || '').replace('T', ' ').replace('Z', '')}</div>
+               <div>${n.note}</div>
+             </div>`).join('') || '<div class="text-muted">No notes yet.</div>';
 
             new bootstrap.Modal(document.getElementById('biddingModal')).show();
             return;
@@ -854,9 +800,7 @@
         if (kind === 'inhand') {
             document.getElementById('inhandModalLabel').textContent = p.name || 'Project';
             fillDetails('inhandDetails', p);
-
             renderChecklist('inhandChecklist', checklistInhand, 'ih', p.checklistInhand || {});
-
             if (typeof p.inhandProgress === 'number') {
                 const pct = p.inhandProgress;
                 document.getElementById('inhandProgressPct').textContent = pct + '%';
@@ -866,10 +810,6 @@
             } else {
                 updateChecklistProgress('inhand');
             }
-
-
-
-            // ✅ saved notes
             let notesWrap = document.getElementById('inhandNotesBody');
             if (!notesWrap) {
                 const wrap = document.createElement('div');
@@ -880,41 +820,35 @@
             }
             notesWrap.innerHTML = (p.notes || []).map(n =>
                 `<div class="border-start ps-2">
-       <div class="text-muted">${(n.created_at || '').replace('T', ' ').replace('Z', '')}</div>
-       <div>${n.note}</div>
-     </div>`
-            ).join('') || '<div class="text-muted">No notes yet.</div>';
-            // (optional) show same notes & history here too
+               <div class="text-muted">${(n.created_at || '').replace('T', ' ').replace('Z', '')}</div>
+               <div>${n.note}</div>
+             </div>`).join('') || '<div class="text-muted">No notes yet.</div>';
+
             new bootstrap.Modal(document.getElementById('inhandModal')).show();
             return;
         }
 
         if (kind === 'lost') {
-               document.getElementById('lostModalLabel').textContent = p.name || 'Project';
-               fillDetails('lostDetails', p);
-               new bootstrap.Modal(document.getElementById('lostModal')).show();
-               return;
-             }
+            document.getElementById('lostModalLabel').textContent = p.name || 'Project';
+            fillDetails('lostDetails', p);
+            new bootstrap.Modal(document.getElementById('lostModal')).show();
+            return;
+        }
 
-             if (kind === 'poreceived') {
-               document.getElementById('POreceivedModalLabel').textContent = p.name || 'Project';
-               fillDetails('POreceivedDetails', p);
-                 const list = document.getElementById('POreceivedNotesList');
-                 if (list) {
-                     list.innerHTML =
-                         (p.notes || []).map(n => `
-        <div class="border-start ps-2">
-          <div class="text-muted">${(n.created_at || '').replace('T',' ').replace('Z','')}</div>
-          <div>${n.note}</div>
-        </div>
-      `).join('') || '<div class="text-muted">No notes yet.</div>';
-                 }
-               new bootstrap.Modal(document.getElementById('POreceivedModal')).show();
-               return;
-             }
-
-
-
+        if (kind === 'poreceived') {
+            document.getElementById('POreceivedModalLabel').textContent = p.name || 'Project';
+            fillDetails('POreceivedDetails', p);
+            const list = document.getElementById('POreceivedNotesList');
+            if (list) {
+                list.innerHTML = (p.notes || []).map(n => `
+                <div class="border-start ps-2">
+                  <div class="text-muted">${(n.created_at || '').replace('T',' ').replace('Z','')}</div>
+                  <div>${n.note}</div>
+                </div>`).join('') || '<div class="text-muted">No notes yet.</div>';
+            }
+            new bootstrap.Modal(document.getElementById('POreceivedModal')).show();
+            return;
+        }
     }
 
     // View button handler (fetch detail before opening)
@@ -925,7 +859,7 @@
         let row =
             tryGetRow($('#tblBidding').DataTable()) ||
             tryGetRow($('#tblInhand').DataTable()) ||
-            tryGetRow($('#tblLost').DataTable())||
+            tryGetRow($('#tblLost').DataTable()) ||
             tryGetRow($('#tblPOreceived').DataTable());
         if (!row || !row.id) return;
 
@@ -949,8 +883,9 @@
         btn.addEventListener('shown.bs.tab', () => {
             setTimeout(() => {
                 if (dtBid) dtBid.columns.adjust();
-                if (dtIn) dtIn.columns.adjust();
+                if (dtIn)  dtIn.columns.adjust();
                 if (dtLost) dtLost.columns.adjust();
+                if (dtPO)  dtPO.columns.adjust();
             }, 50);
         });
     });
@@ -961,9 +896,7 @@
     document.getElementById('searchInhand')?.addEventListener('input', e => dtIn && dtIn.search(e.target.value).draw());
     document.getElementById('searchLost')?.addEventListener('input', e => dtLost && dtLost.search(e.target.value).draw());
     document.getElementById('searchPOreceived')?.addEventListener('input', e => dtPO && dtPO.search(e.target.value).draw());
-    function getDT(sel) {
-        return $.fn.dataTable.isDataTable(sel) ? $(sel).DataTable() : null;
-    }
+    function getDT(sel) { return $.fn.dataTable.isDataTable(sel) ? $(sel).DataTable() : null; }
 
     // Family chips → refresh DT + KPI
     $(document).on('click', '#familyChips [data-family]', function (e) {
@@ -975,17 +908,17 @@
         getDT('#tblInhand')?.ajax.reload(null, false);
         getDT('#tblLost')?.ajax.reload(null, false);
         getDT('#tblPOreceived')?.ajax.reload(null, false);
-
     });
 
     // Apply filters
     document.getElementById('projApply')?.addEventListener('click', () => {
-        PROJ_YEAR = document.getElementById('projYear')?.value || '';
+        PROJ_YEAR   = document.getElementById('projYear')?.value || '';
         PROJ_REGION = CAN_VIEW_ALL ? (document.getElementById('projRegion')?.value || '') : '';
 
         if (dtBid) dtBid.ajax.reload(null, false);
-        if (dtIn) dtIn.ajax.reload(null, false);
+        if (dtIn)  dtIn.ajax.reload(null, false);
         if (dtLost) dtLost.ajax.reload(null, false);
+        if (dtPO)  dtPO.ajax.reload(null, false);
     });
 
     /* =============================================================================
@@ -1008,11 +941,10 @@
             document.getElementById('salesmanWrap')?.classList.remove('d-none');
         }
 
-        dtBid = initProjectsTable('#tblBidding', 'bidding', '#sumBidding');
-        dtIn = initProjectsTable('#tblInhand', 'inhand', '#sumInhand');
-        dtLost = initProjectsTable('#tblLost', 'lost', '#sumLost');
-        dtPO = initProjectsTable('#tblPOreceived', 'poreceived', '#sumPOreceived');
-
+        dtBid = initProjectsTable('#tblBidding', 'bidding',   '#sumBidding');
+        dtIn  = initProjectsTable('#tblInhand',  'inhand',    '#sumInhand');
+        dtLost= initProjectsTable('#tblLost',    'lost',      '#sumLost');
+        dtPO  = initProjectsTable('#tblPOreceived', 'poreceived', '#sumPOreceived');
     })();
 
     function hydrateRowWithDetail(row, d) {
@@ -1029,12 +961,11 @@
             quotationValue: d.quotationValue ?? row.quotationValue,
             status: d.status ?? row.status,
 
-            // ✅ use phase-specific payloads from API
             checklistBidding: d.checklistBidding ?? {},
-            checklistInhand: d.checklistInhand ?? {},
+            checklistInhand:  d.checklistInhand ?? {},
 
             biddingProgress: d.biddingProgress,
-            inhandProgress: d.inhandProgress,
+            inhandProgress:  d.inhandProgress,
 
             notes: d.notes ?? [],
             progressHistory: d.progressHistory ?? [],
@@ -1046,12 +977,18 @@
         };
     }
 
-    let TAB_SUMS = {bidding: 0, inhand: 0, lost: 0};
-    let TAB_COUNTS = {bidding: 0, inhand: 0, lost: 0};
+    let TAB_SUMS   = {bidding: 0, inhand: 0, lost: 0, poreceived: 0};
+    let TAB_COUNTS = {bidding: 0, inhand: 0, lost: 0, poreceived: 0};
 
     function updateHeaderBadges() {
-        const totalCnt = (TAB_COUNTS.bidding || 0) + (TAB_COUNTS.inhand || 0) + (TAB_COUNTS.lost || 0);
-        const totalSum = (TAB_SUMS.bidding || 0) + (TAB_SUMS.inhand || 0) + (TAB_SUMS.lost || 0);
+        const totalCnt = (TAB_COUNTS.bidding || 0)
+            + (TAB_COUNTS.inhand  || 0)
+            + (TAB_COUNTS.lost    || 0)
+            + (TAB_COUNTS.poreceived || 0);
+        const totalSum = (TAB_SUMS.bidding || 0)
+            + (TAB_SUMS.inhand  || 0)
+            + (TAB_SUMS.lost    || 0)
+            + (TAB_SUMS.poreceived || 0);
         const pEl = document.getElementById('kpiBadgeProjects');
         const vEl = document.getElementById('kpiBadgeValue');
         if (pEl) pEl.textContent = `Total Quotation No.: ${totalCnt}`;
@@ -1084,24 +1021,22 @@
         return res.json();
     }
 
+    /* =============================================================================
+     *  SAVE / STATUS HANDLERS
+     * ============================================================================= */
     document.getElementById('saveBiddingBtn')?.addEventListener('click', async () => {
         if (!CURRENT_PROJECT_ID) return alert('No project selected.');
-
-        // Collect checklist states from the generated inputs with prefix "bid_"
         const checked = (id) => !!document.getElementById(id)?.checked;
         const payloadChecklist = {
             action: 'checklist_bidding',
             mep_contractor_appointed: checked('bid_mep_contractor_appointed'),
-            boq_quoted: checked('bid_boq_quoted'),
-            boq_submitted: checked('bid_boq_submitted'),
-            priced_at_discount: checked('bid_priced_at_discount')
+            boq_quoted:               checked('bid_boq_quoted'),
+            boq_submitted:            checked('bid_boq_submitted'),
+            priced_at_discount:       checked('bid_priced_at_discount')
         };
 
         try {
-            // 1) Save checklist
             const r1 = await postProjectUpdate(CURRENT_PROJECT_ID, payloadChecklist);
-
-            // Update progress bar from server response (authoritative)
             if (r1?.ok) {
                 const pct = Number(r1.progress || 0);
                 document.getElementById('biddingProgressPct').textContent = pct + '%';
@@ -1110,18 +1045,14 @@
                 bar.setAttribute('aria-valuenow', String(pct));
             }
 
-            // 2) If there is a comment, save it as well
             const noteText = (document.getElementById('biddingComments')?.value || '').trim();
             if (noteText) {
                 await postProjectUpdate(CURRENT_PROJECT_ID, {action: 'add_note', note: noteText});
                 document.getElementById('biddingComments').value = '';
             }
 
-            // 3) Success toast + refresh the active table row totals if needed
             showToast('Bidding checklist saved.');
-            // Optional: reload active tab’s DataTable quietly to reflect status/value changes
             getDT('#tblBidding')?.ajax.reload(null, false);
-
         } catch (err) {
             alert('Save failed: ' + (err?.message || err));
         }
@@ -1129,16 +1060,14 @@
 
     document.getElementById('saveInhandBtn')?.addEventListener('click', async () => {
         if (!CURRENT_PROJECT_ID) return alert('No project selected.');
-
         const checked = (id) => !!document.getElementById(id)?.checked;
-
         const payload = {
             action: 'checklist_inhand',
-            submittal_approved: checked('ih_submittal_approved'),
-            sample_approved: checked('ih_sample_approved'),
-            commercial_terms_agreed: checked('ih_commercial_terms_agreed'),
-            no_approval_or_terms: checked('ih_no_approval_or_terms'),
-            discount_offered_as_standard: checked('ih_discount_offered_as_standard'),
+            submittal_approved:          checked('ih_submittal_approved'),
+            sample_approved:             checked('ih_sample_approved'),
+            commercial_terms_agreed:     checked('ih_commercial_terms_agreed'),
+            no_approval_or_terms:        checked('ih_no_approval_or_terms'),
+            discount_offered_as_standard:checked('ih_discount_offered_as_standard'),
         };
 
         try {
@@ -1151,7 +1080,6 @@
                 bar.setAttribute('aria-valuenow', String(pct));
             }
 
-            // Optional comment box for inhand
             const noteText = (document.getElementById('inhandComments')?.value || '').trim();
             if (noteText) {
                 await postProjectUpdate(CURRENT_PROJECT_ID, {action: 'add_note', note: noteText});
@@ -1167,7 +1095,6 @@
 
     document.getElementById('savePOreceivedBtn')?.addEventListener('click', async () => {
         if (!CURRENT_PROJECT_ID) return alert('No project selected.');
-
         const noteText = (document.getElementById('POreceivedComments')?.value || '').trim();
         try {
             if (noteText) {
@@ -1181,8 +1108,7 @@
         }
     });
 
-
-
+    // Confirmation dialog helper
     function showConfirmDialog({ title, html, confirmText='Continue', tone='warning' }) {
         return new Promise((resolve) => {
             const toneMap = {
@@ -1195,8 +1121,7 @@
 
             document.getElementById('confirmTitle').textContent = title || 'Confirm';
             document.getElementById('confirmText').innerHTML    = html || 'Are you sure?';
-            document.getElementById('confirmIcon').innerHTML    =
-                `<i class="bi ${t.icon}" style="font-size:2.4rem;"></i>`;
+            document.getElementById('confirmIcon').innerHTML    = `<i class="bi ${t.icon}" style="font-size:2.4rem;"></i>`;
 
             const okBtn = document.getElementById('confirmOkBtn');
             okBtn.textContent = confirmText;
@@ -1222,17 +1147,8 @@
         });
     }
 
-    // extra safety: remove any leftover Bootstrap backdrops & body state
-    function cleanupBackdrops() {
-        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-        document.body.classList.remove('modal-open');
-        document.body.style.removeProperty('padding-right');
-    }
-    // --- Change status helpers ---
     async function changeProjectStatus(toStatus) {
         if (!CURRENT_PROJECT_ID) return alert('No project selected.');
-
-        // OPTIONAL: use your nice confirm here if you like
         const confirmed = await showConfirmDialog({
             title: 'Confirm status change',
             html: `Are you sure you want to mark quotation <b>${CURRENT_QUOTATION_NO}</b> as <b>${toStatus.toUpperCase()}</b>?`,
@@ -1241,11 +1157,11 @@
         });
         if (!confirmed) return;
 
-        // disable buttons while saving
-        const lostBtn = document.getElementById('LostStatusBtn');
-        const poBtn   = document.getElementById('POreceivedStatusBtn');
-        lostBtn?.setAttribute('disabled', 'disabled');
-        poBtn?.setAttribute('disabled', 'disabled');
+        // Disable any visible buttons during update
+        ['LostStatusBtn','POreceivedStatusBtn','BiddingLostBtn','BiddingPOBtn'].forEach(id => {
+            const b = document.getElementById(id);
+            if (b) b.setAttribute('disabled','disabled');
+        });
 
         try {
             const res = await postProjectUpdate(CURRENT_PROJECT_ID, {
@@ -1254,21 +1170,20 @@
             });
             if (!res?.ok) throw new Error(res?.message || 'Update failed');
 
-            // ✅ close the In-Hand modal
-            const ihEl = document.getElementById('inhandModal');
-            const ihInst = ihEl ? bootstrap.Modal.getInstance(ihEl) : null;
-            ihInst?.hide();
-
-            // ✅ hard-clean any leftover backdrops
+            // Close any open modal cleanly
+            ['inhandModal','biddingModal','lostModal','POreceivedModal'].forEach(mid => {
+                const el = document.getElementById(mid);
+                const inst = el ? bootstrap.Modal.getInstance(el) : null;
+                inst?.hide();
+            });
             document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
             document.body.classList.remove('modal-open');
             document.body.style.removeProperty('padding-right');
 
-            // ✅ success toast with Quotation No.
             const qno = CURRENT_QUOTATION_NO || '';
             showToast(`Quotation ${qno} moved to ${toStatus.toUpperCase()}.`);
 
-            // refresh the grids
+            // Refresh all tables
             getDT('#tblInhand')?.ajax.reload(null, false);
             getDT('#tblLost')?.ajax.reload(null, false);
             getDT('#tblPOreceived')?.ajax.reload(null, false);
@@ -1277,30 +1192,20 @@
         } catch (err) {
             alert('Save failed: ' + (err?.message || err));
         } finally {
-            lostBtn?.removeAttribute('disabled');
-            poBtn?.removeAttribute('disabled');
+            ['LostStatusBtn','POreceivedStatusBtn','BiddingLostBtn','BiddingPOBtn'].forEach(id => {
+                const b = document.getElementById(id);
+                if (b) b.removeAttribute('disabled');
+            });
         }
     }
 
-    // buttons
-    document.getElementById('LostStatusBtn')?.addEventListener('click', () => {
-        changeProjectStatus('Lost');
-    });
-    document.getElementById('POreceivedStatusBtn')?.addEventListener('click', () => {
-        changeProjectStatus('PO-received');
-    });
+    // Wire buttons (In-Hand + Bidding)
+    document.getElementById('LostStatusBtn')?.addEventListener('click', () => changeProjectStatus('Lost'));
+    document.getElementById('POreceivedStatusBtn')?.addEventListener('click', () => changeProjectStatus('PO-received'));
+    document.getElementById('BiddingLostBtn')?.addEventListener('click', () => changeProjectStatus('Lost'));
+    document.getElementById('BiddingPOBtn')?.addEventListener('click', () => changeProjectStatus('PO-received'));
 
-    // LOST
-    document.getElementById('LostStatusBtn')?.addEventListener('click', () => {
-        changeProjectStatus('Lost', { question: 'Are you sure you want to mark this project as LOST?' });
-    });
-
-    // PO RECEIVED (spelling corrected)
-    document.getElementById('POreceivedStatusBtn')?.addEventListener('click', () => {
-        changeProjectStatus('PO-received', { question: 'Are you sure you want to mark this project as PO RECEIVED?' });
-    });
 </script>
-
-
 </body>
 </html>
+`

@@ -24,6 +24,7 @@ class Project extends Model
         'status_current',
         'status',
         'last_comment',
+        'project_type',
         'quotation_date',
         'date_rec',
         'action1',

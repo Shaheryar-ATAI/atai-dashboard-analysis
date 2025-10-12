@@ -18,49 +18,40 @@ class ProjectApiController extends Controller
 
     public function kpis(Request $req)
     {
-        $user = $req->user();
+        $user    = $req->user();
         $isAdmin = $user && $user->hasAnyRole(['gm','admin']);
         $effectiveArea = null;
 
-        // Base query (Projects)
-        $q = \App\Models\Project::query();
+        // -----------------------------
+        // Base query (PROJECTS) + RBAC
+        // -----------------------------
+        $q = Project::query();
 
-        // Non-GM/Admin → always force to their region (ignore query param)
         if (!$isAdmin) {
-            $eff = trim((string)($user->region ?? ''));
-            if ($eff !== '') {
-                $q->where('area', $eff);
-                $effectiveArea = $eff;
+            if (!empty($user->region)) {
+                $q->where('area', $user->region);
+                $effectiveArea = $user->region;
             }
         } else {
-            // GM/Admin → optional ?area=Central/Eastern/Western (ignore 'ALL'/'')
             if ($req->filled('area') && strtoupper($req->input('area')) !== 'ALL') {
                 $q->where('area', $req->input('area'));
                 $effectiveArea = $req->input('area');
             }
         }
-        // ---------- base query (Projects) ----------
-        $q = \App\Models\Project::query();
 
-        // Region scoping:
-        // - GM/Admin: can see all or filter by ?area=
-        // - Others: always locked to their own $user->region
-        if ($user && !$user->hasAnyRole(['gm','admin'])) {
-            if (!empty($user->region)) {
-                $q->where('area', $user->region);
-            }
-        } else {
-            if ($req->filled('area')) {
-                $q->where('area', $req->input('area'));
-            }
-        }
+        // One consistent date expression (projects side)
+        $dateExprSql = "COALESCE(
+        STR_TO_DATE(quotation_date,'%Y-%m-%d'),
+        STR_TO_DATE(quotation_date,'%d-%m-%Y'),
+        STR_TO_DATE(quotation_date,'%d/%m/%Y'),
+        DATE(created_at)
+    )";
 
-        // ---------- date expression (use the same everywhere) ----------
-        $dateExprSql = "COALESCE(quotation_date, date_rec, created_at)";
-
-        // ---------- filters ----------
-        $y  = $req->integer('year')   ?: null;
-        $m  = $req->integer('month')  ?: null;
+        // -----------------------------
+        // Filters
+        // -----------------------------
+        $y  = $req->integer('year') ?: null;
+        $m  = $req->integer('month') ?: null;
         $df = $req->input('date_from') ?: null;
         $dt = $req->input('date_to')   ?: null;
 
@@ -70,46 +61,44 @@ class ProjectApiController extends Controller
         if ($dt) $q->whereRaw("$dateExprSql<=?", [$dt]);
 
         if ($fam = (string) $req->input('family')) {
-            $q->where('atai_products','like',"%{$fam}%");
+            $q->where('atai_products', 'like', "%{$fam}%");
         }
 
-        $base = (clone $q);
+        $base = (clone $q); // use this everywhere below
 
-        // ---------- status normalization ----------
+        // -----------------------------
+        // Status normalization
+        // -----------------------------
         $statusCase = "
-  CASE
-    WHEN LOWER(TRIM(status)) IN ('in-hand','in hand','inhand','accepted','won','order','order in hand','ih') THEN 'In-Hand'
-    WHEN LOWER(TRIM(status)) IN ('bidding','open','submitted','pending','quote','quoted','rfq','inquiry','enquiry') THEN 'Bidding'
-    WHEN LOWER(TRIM(status)) IN ('lost','rejected','cancelled','canceled','closed lost','declined','not awarded') THEN 'Lost'
-    ELSE 'Other'
-  END
-";
+      CASE
+        WHEN LOWER(TRIM(project_type)) IN ('in-hand','in hand','inhand','accepted','won','order','order in hand','ih') THEN 'In-Hand'
+        WHEN LOWER(TRIM(project_type)) IN ('bidding','open','submitted','pending','quote','quoted','rfq','inquiry','enquiry') THEN 'Bidding'
+        WHEN LOWER(TRIM(status)) IN ('lost','rejected','cancelled','canceled','closed lost','declined','not awarded') THEN 'Lost'
 
-        // ---------- existing KPIs ----------
+        ELSE 'Other'
+      END
+    ";
+
+        // -----------------------------
+        // KPIs you already show
+        // -----------------------------
         $byStatus = (clone $base)
             ->selectRaw("$statusCase AS status_norm, SUM(COALESCE(quotation_value, price, 0)) AS sum_value")
             ->groupBy('status_norm')
             ->get();
 
         $rowsArea = (clone $base)->selectRaw("
-    COALESCE(area,'—') AS area,
-
-    /* counts */
-    SUM(CASE WHEN ($statusCase)='In-Hand' THEN 1 ELSE 0 END) AS inhand_cnt,
-    SUM(CASE WHEN ($statusCase)='Bidding' THEN 1 ELSE 0 END) AS bidding_cnt,
-    SUM(CASE WHEN ($statusCase)='Lost'    THEN 1 ELSE 0 END) AS lost_cnt,
-
-    /* values (SAR) */
-    SUM(CASE WHEN ($statusCase)='In-Hand' THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS inhand_val,
-    SUM(CASE WHEN ($statusCase)='Bidding' THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS bidding_val,
-    SUM(CASE WHEN ($statusCase)='Lost'    THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS lost_val
-")
+        COALESCE(area,'—') AS area,
+        SUM(CASE WHEN ($statusCase)='In-Hand' THEN 1 ELSE 0 END) AS inhand_cnt,
+        SUM(CASE WHEN ($statusCase)='Bidding' THEN 1 ELSE 0 END) AS bidding_cnt,
+        SUM(CASE WHEN ($statusCase)='Lost'    THEN 1 ELSE 0 END) AS lost_cnt,
+        SUM(CASE WHEN ($statusCase)='In-Hand' THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS inhand_val,
+        SUM(CASE WHEN ($statusCase)='Bidding' THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS bidding_val,
+        SUM(CASE WHEN ($statusCase)='Lost'    THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS lost_val
+    ")
             ->groupBy('area')
             ->orderBy('area')
             ->get();
-
-
-
 
         $preferredOrder = ['Eastern','Central','Western'];
         $mapArea        = collect($rowsArea)->keyBy('area');
@@ -117,29 +106,15 @@ class ProjectApiController extends Controller
         $extraAreasAsc  = $mapArea->keys()->diff($catsPreferred);
         $categoriesArea = $catsPreferred->merge($extraAreasAsc)->values()->all();
 
-
-        $seriesInhand  = [];
-        $seriesBidding = [];
-        $seriesLost    = [];
-
+        $seriesInhand = $seriesBidding = $seriesLost = [];
         foreach ($categoriesArea as $a) {
             $r = $mapArea->get($a);
-
-            $inCnt = (int)   ($r->inhand_cnt  ?? 0);
-            $bdCnt = (int)   ($r->bidding_cnt ?? 0);
-            $lsCnt = (int)   ($r->lost_cnt    ?? 0);
-
-            $inVal = (float) ($r->inhand_val  ?? 0);
-            $bdVal = (float) ($r->bidding_val ?? 0);
-            $lsVal = (float) ($r->lost_val    ?? 0);
-
-            $seriesInhand[]  = ['y' => $inCnt, 'sar' => $inVal];
-            $seriesBidding[] = ['y' => $bdCnt, 'sar' => $bdVal];
-            $seriesLost[]    = ['y' => $lsCnt, 'sar' => $lsVal];
+            $seriesInhand[]  = ['y' => (int)($r->inhand_cnt  ?? 0), 'sar' => (float)($r->inhand_val ?? 0)];
+            $seriesBidding[] = ['y' => (int)($r->bidding_cnt ?? 0), 'sar' => (float)($r->bidding_val ?? 0)];
+            $seriesLost[]    = ['y' => (int)($r->lost_cnt    ?? 0), 'sar' => (float)($r->lost_val ?? 0)];
         }
 
-
-        // ---------- month window ----------
+        // Month window for monthly charts
         if ($df && $dt) {
             $start = \Carbon\Carbon::parse($df)->startOfMonth();
             $end   = \Carbon\Carbon::parse($dt)->endOfMonth();
@@ -150,26 +125,20 @@ class ProjectApiController extends Controller
             $start = now()->startOfYear();
             $end   = now()->endOfYear();
         }
-
         $months = [];
-        for ($c = $start->copy(); $c <= $end; $c->addMonth()) {
-            $months[] = $c->format('Y-m');
-        }
+        for ($c = $start->copy(); $c <= $end; $c->addMonth()) $months[] = $c->format('Y-m');
 
-        // ---------- simple monthly area counts (kept) ----------
         $monthlyRows = (clone $base)
             ->selectRaw("DATE_FORMAT($dateExprSql,'%Y-%m') AS ym, COALESCE(area,'—') AS area, COUNT(*) AS cnt")
             ->whereRaw("$dateExprSql BETWEEN ? AND ?", [$start->toDateString(), $end->toDateString()])
-            ->groupBy('ym','area')
-            ->orderBy('ym')
-            ->get();
+            ->groupBy('ym','area')->orderBy('ym')->get();
 
         $baseAreas     = ['Eastern','Central','Western'];
         $extraFromData = $monthlyRows->pluck('area')->unique()->diff($baseAreas)->values()->all();
         $areasAll      = array_values(array_unique(array_merge($baseAreas,$extraFromData)));
 
         $idxMonthly = [];
-        foreach ($monthlyRows as $r) $idxMonthly[$r->ym][$r->area] = (int) $r->cnt;
+        foreach ($monthlyRows as $r) $idxMonthly[$r->ym][$r->area] = (int)$r->cnt;
 
         $seriesMonthly = [];
         foreach ($areasAll as $a) {
@@ -178,178 +147,26 @@ class ProjectApiController extends Controller
             $seriesMonthly[] = ['name'=>$a,'data'=>$data];
         }
 
-        // ---------- grouped+stacked (counts) ----------
-        $monthlyStatusRows = (clone $base)
-            ->selectRaw("DATE_FORMAT($dateExprSql,'%Y-%m') AS ym, COALESCE(area,'—') AS area, ($statusCase) AS status_norm, COUNT(*) AS cnt")
-            ->whereRaw("$dateExprSql BETWEEN ? AND ?", [$start->toDateString(), $end->toDateString()])
-            ->groupBy('ym','area','status_norm')
-            ->orderBy('ym')
-            ->get();
-
-
-
-        // ---------- Month × Area × Status (VALUE in SAR) ----------
-        $monthlyStatusValueRows = (clone $base)
-            ->selectRaw("
-      DATE_FORMAT($dateExprSql,'%Y-%m') AS ym,
-      COALESCE(area,'—')                AS area,
-      ($statusCase)                     AS status_norm,
-      SUM(COALESCE(quotation_value, price, 0)) AS amt
-  ")
-            ->whereRaw("$dateExprSql BETWEEN ? AND ?", [$start->toDateString(), $end->toDateString()])
-            ->groupBy('ym','area','status_norm')
-            ->orderBy('ym')
-            ->get();
-
-// Force exactly 3 area columns in this order (missing ones will appear as 0)
-        $fixedAreas = ['Eastern','Central','Western'];
-
-// Build series with legend = 3 statuses; each status has per-area linked series
-        $statuses = ['In-Hand','Bidding','Lost'];
-        $seriesValue = [];
-        $masterIds = [];
-        foreach ($statuses as $st) {
-            $mid = "masterval-$st";
-            $masterIds[$st] = $mid;
-            // master carries legend; has no data
-            $seriesValue[] = [
-                'name'             => $st,
-                'id'               => $mid,
-                'type'             => 'column',
-                'data'             => array_fill(0, count($months), 0),
-                'showInLegend'     => true,
-                'enableMouseTracking' => false,
-            ];
-        }
-
-// index values
-        $idxValArea = [];
-        foreach ($monthlyStatusValueRows as $r) {
-            $idxValArea[$r->ym][$r->area][$r->status_norm] = (float) $r->amt;
-        }
-
-// linked per-area series for each status; stack by AREA
-        foreach ($fixedAreas as $areaName) {
-            foreach ($statuses as $st) {
-                $data = [];
-                foreach ($months as $ym) {
-                    $data[] = (float) ($idxValArea[$ym][$areaName][$st] ?? 0.0);
-                }
-                $seriesValue[] = [
-                    'name'         => "{$areaName} – {$st}",
-                    'type'         => 'column',
-                    'stack'        => $areaName,            // ← groups columns by AREA
-                    'linkedTo'     => $masterIds[$st],      // ← legend = 3 statuses
-                    'showInLegend' => false,
-                    'data'         => $data,
-                ];
-            }
-        }
-
-        $responseValuePayload = [
-            'categories' => $months,     // ["2025-01", ...]
-            'areas'      => $fixedAreas, // always Eastern, Central, Western
-            'series'     => $seriesValue
-        ];
-
-
-        $statuses = ['In-Hand','Bidding','Lost'];
-        // Build master series (own the legend) + linked per-area series
-        $seriesGroupedStacked = [];
-        $masterIds = [];
-        foreach ($statuses as $st) {
-            $mid = "master-$st";
-            $masterIds[$st] = $mid;
-            $seriesGroupedStacked[] = [
-                'name'            => $st,
-                'id'              => $mid,
-                'type'            => 'column',
-                'data'            => array_fill(0, count($months), 0), // dummies
-                'showInLegend'    => true,
-                'enableMouseTracking' => false,
-                'pointPadding'    => 0.05,
-                'groupPadding'    => 0.18,
-                // OPTIONAL fixed colors per status (uncomment if you want fixed palette)
-                // 'color'        => $st === 'In-Hand' ? '#4e79a7' : ($st === 'Bidding' ? '#f28e2b' : '#59a14f'),
-            ];
-        }
-
-// Pre-allocate linked series: one per (area,status)
-        $linked = [];
-        foreach ($areasAll as $areaName) {
-            foreach ($statuses as $st) {
-                $key = "{$areaName} – {$st}";
-                $linked[$key] = [
-                    'name'         => $key,
-                    'type'         => 'column',
-                    'stack'        => $areaName,          // group by AREA
-                    'linkedTo'     => $masterIds[$st],    // legend toggles by STATUS
-                    'showInLegend' => false,              // hide per-area items
-                    'data'         => array_fill(0, count($months), 0),
-                    'pointPadding' => 0.05,
-                    'groupPadding' => 0.18,
-                ];
-                // OPTIONAL: inherit color from master automatically (default Highcharts behavior)
-            }
-        }
-
-        // Fill data
-        foreach ($monthlyStatusRows as $r) {
-            $ymIdx = array_search($r->ym, $months, true);
-            if ($ymIdx === false) continue;
-            $area = $r->area ?? '—';
-            if (!in_array($area, $areasAll, true)) continue;
-            if (!in_array($r->status_norm, $statuses, true)) continue;
-
-            $key = "{$area} – {$r->status_norm}";
-            if (isset($linked[$key])) {
-                $linked[$key]['data'][$ymIdx] = (int) $r->cnt;
-            }
-        }
-
-// Merge master + linked into the final series
-        $seriesGroupedStacked = array_values(array_merge($seriesGroupedStacked, $linked));
-        // =====================================================================
-        // NEW: Monthly stacked VALUES by Status + Target Attainment % (line)
-        // =====================================================================
-        $target = (float) ($req->input('monthly_target', 20000000)); // 20M default$target = (float) ($req->input('monthly_target', 20000000)); // 20M default
-
-        // Sum VALUE not count
+        // Value-by-status with target line
         $valRows = (clone $base)
-            ->selectRaw("
-            DATE_FORMAT($dateExprSql,'%Y-%m') AS ym,
-            ($statusCase) AS status_norm,
-            SUM(COALESCE(quotation_value, price, 0)) AS amt
-        ")
+            ->selectRaw("DATE_FORMAT($dateExprSql,'%Y-%m') AS ym, ($statusCase) AS status_norm, SUM(COALESCE(quotation_value, price, 0)) AS amt")
             ->whereRaw("$dateExprSql BETWEEN ? AND ?", [$start->toDateString(), $end->toDateString()])
-            ->groupBy('ym','status_norm')
-            ->orderBy('ym')
-            ->get();
+            ->groupBy('ym','status_norm')->orderBy('ym')->get();
 
-        // index: [ym]['In-Hand'|'Bidding'|'Lost'] => amount
         $idxVal = [];
-        foreach ($valRows as $r) {
-            $idxVal[$r->ym][$r->status_norm] = (float) $r->amt;
-        }
+        foreach ($valRows as $r) $idxVal[$r->ym][$r->status_norm] = (float)$r->amt;
 
-        $colInHand  = [];
-        $colBidding = [];
-        $colLost    = [];
-        $linePct    = [];
-
+        $colInHand=[]; $colBidding=[]; $colLost=[]; $linePct=[];
+        $target = (float) $req->input('monthly_target', 20000000);
         foreach ($months as $ym) {
             $ih = (float) ($idxVal[$ym]['In-Hand'] ?? 0);
             $bd = (float) ($idxVal[$ym]['Bidding'] ?? 0);
             $lt = (float) ($idxVal[$ym]['Lost'] ?? 0);
-
             $total = $ih + $bd + $lt;
-
             $colInHand[]  = $ih;
             $colBidding[] = $bd;
             $colLost[]    = $lt;
-
-            // FIX: calculate correctly per month
-            $linePct[] = $target > 0 ? round(($total / $target) * 100, 2) : 0.0;
+            $linePct[]    = $target > 0 ? round(($total / $target) * 100, 2) : 0.0;
         }
 
         $monthlyValueWithTarget = [
@@ -361,14 +178,69 @@ class ProjectApiController extends Controller
                 ['type'=>'column','name'=>'Lost (SAR)','stack'=>'Value','data'=>$colLost],
                 ['type'=>'spline','name'=>'Target Attainment %','yAxis'=>1,'tooltip'=>['valueSuffix'=>'%'],'data'=>$linePct]
             ],
-            // Suggest dual y-axes in the front-end:
-            // yAxis[0] = SAR (columns), yAxis[1] = % (line, max ~ 200)
         ];
 
-        // ---------- totals ----------
+        // Totals
         $totalCount = (clone $base)->count();
         $totalValue = (float) ((clone $base)->selectRaw("SUM(COALESCE(quotation_value,price,0)) AS t")->value('t') ?? 0);
 
+        // -----------------------------------------------
+        // VALUE CONVERSION % (PO value / Quoted value)
+        // -----------------------------------------------
+        $normProj = "UPPER(REPLACE(REPLACE(REPLACE(projects.quotation_no,' ',''),'.',''),'-',''))";
+
+        $poAggForValue = DB::table('salesorderlog as s')
+            ->selectRaw("UPPER(REPLACE(REPLACE(REPLACE(`Quote No.`,' ',''),'.',''),'-','')) AS q_key")
+            ->selectRaw("SUM(COALESCE(`PO Value`,0)) AS po_sum")
+            ->whereNotNull(DB::raw('`Quote No.`'))
+            ->whereRaw("TRIM(`Quote No.`) <> ''")
+            ->groupBy('q_key');
+
+        $filteredIds = (clone $base)->pluck('id');
+
+        $poValueSum = DB::table('projects')
+            ->whereIn('projects.id', $filteredIds)
+            ->joinSub($poAggForValue, 'so', function ($j) use ($normProj) {
+                $j->on(DB::raw($normProj), '=', DB::raw('so.q_key')); // expression vs expression
+            })
+            ->sum('so.po_sum');
+
+        $valueConvPct = $totalValue > 0 ? round(($poValueSum / $totalValue) * 100, 1) : 0.0;
+
+        // -----------------------------------------------
+        // COUNT & VALUE conversion over matched quotations
+        // -----------------------------------------------
+        $poAggForCounts = DB::table('salesorderlog as s')
+            ->selectRaw("UPPER(REPLACE(REPLACE(REPLACE(`Quote No.`,' ',''),'.',''),'-','')) AS q_key")
+            ->selectRaw("SUM(COALESCE(`PO Value`,0)) AS po_total")
+            ->selectRaw("COUNT(DISTINCT `PO. No.`)   AS po_cnt")
+            ->whereNotNull(DB::raw('`Quote No.`'))
+            ->whereRaw("TRIM(`Quote No.`) <> ''")
+            ->groupBy('q_key');
+
+        $eligible = (clone $base);
+
+        $totalInquiries  = (clone $eligible)->count();
+        $totalQuoteValue = (float) ((clone $eligible)
+            ->selectRaw('SUM(COALESCE(quotation_value, price, 0)) AS t')->value('t') ?? 0);
+
+        $eligibleWithPo = (clone $eligible)
+            ->joinSub($poAggForCounts, 'po', function ($j) use ($normProj) {
+                $j->on(DB::raw($normProj), '=', DB::raw('po.q_key')); // correct join
+            });
+
+        $projectsWithPo = (int) (clone $eligibleWithPo)
+            ->distinct('projects.id')->count('projects.id');
+
+        $totalPoValueMatched = (float) ((clone $eligibleWithPo)
+            ->selectRaw('SUM(po.po_total) AS s')->value('s') ?? 0);
+
+        $valueConversionPct = $totalQuoteValue > 0 ? (100.0 * $totalPoValueMatched / $totalQuoteValue) : 0.0;
+        $countConversionPct = $totalInquiries  > 0 ? (100.0 * $projectsWithPo   / $totalInquiries)  : 0.0;
+
+        // -----------------------------
+        // Response
+        // -----------------------------
         return response()->json([
             'total_count' => $totalCount,
             'total_value' => $totalValue,
@@ -382,26 +254,36 @@ class ProjectApiController extends Controller
                     ['name' => 'Lost',    'data' => $seriesLost],
                 ],
             ],
-
             'monthly_area' => [
                 'categories'=>$months,
                 'series'=>$seriesMonthly,
             ],
-
-            'monthly_area_status' => [
-                'categories' => $months,
-                'series'     => $seriesGroupedStacked,
-            ],
-
-            // NEW payload for your line+stacked column chart
             'monthly_value_status_with_target' => $monthlyValueWithTarget,
+
             'region_scope'   => $isAdmin ? 'ALL' : 'LOCKED',
-            'effective_area' => $effectiveArea,   // null for ALL
+            'effective_area' => $effectiveArea,
             'user_region'    => $user->region ?? null,
             'user_roles'     => $user->getRoleNames() ?? [],
-            'monthly_area_status_value' => $responseValuePayload,
+
+            // NEW badge numbers
+            'value_conversion' => [
+                'quote_value_sum'  => (float) $totalValue,
+                'po_value_sum'     => (float) $poValueSum,
+                'value_pct'        => round($valueConvPct, 2),
+            ],
+            'conversion_totals' => [
+                'total_inquiries'        => (int) $totalInquiries,
+                'projects_with_po'       => (int) $projectsWithPo,
+                'total_quote_value'      => (float) $totalQuoteValue,
+                'total_po_value_matched' => (float) $totalPoValueMatched,
+                'value_conversion_pct'   => round($valueConversionPct, 2),
+                'count_conversion_pct'   => round($countConversionPct, 2),
+            ],
         ]);
     }
+
+
+
 
 
 

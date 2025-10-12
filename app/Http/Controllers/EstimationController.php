@@ -77,8 +77,8 @@ class EstimationController extends Controller
         $q = DB::table('projects as p')
             ->whereRaw("
             CASE
-              WHEN UPPER(TRIM(p.status)) IN ('BIDDING','OPEN','SUBMITTED','PENDING','QUOTE','QUOTED','RFQ','INQUIRY','ENQUIRY') THEN 'Bidding'
-              WHEN UPPER(TRIM(p.status)) IN ('IN HAND','IN-HAND','INHAND','ACCEPTED','WON','ORDER','ORDER IN HAND','IH') THEN 'In-Hand'
+              WHEN UPPER(TRIM(p.project_type)) IN ('BIDDING','OPEN','SUBMITTED','PENDING','QUOTE','QUOTED','RFQ','INQUIRY','ENQUIRY') THEN 'Bidding'
+              WHEN UPPER(TRIM(p.project_type)) IN ('IN HAND','IN-HAND','INHAND','ACCEPTED','WON','ORDER','ORDER IN HAND','IH') THEN 'In-Hand'
               ELSE 'Other'
             END <> 'Other'
         ");

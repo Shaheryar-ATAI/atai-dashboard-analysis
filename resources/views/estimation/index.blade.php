@@ -42,29 +42,40 @@
 
         <div class="collapse navbar-collapse">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                {{-- Always visible --}}
                 <li class="nav-item">
-                <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
-                   href="{{ route('projects.index') }}">Quotation KPI</a>
+                    <a class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}"
+                       href="{{ route('projects.index') }}">Quotation KPI</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
-                       href="{{ route('inquiries.index') }}">Quotation Log</a>
+                    <a class="nav-link {{ request()->routeIs(['inquiries.index']) ? 'active' : '' }}"
+                       href="{{ route('inquiries.index') }}">
+                        Quotation Log
+                    </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
-                       href="{{ route('projects.index') }}">Sales Order Log KPI</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.*') ? 'active' : '' }}"
-                       href="{{ route('projects.index') }}">Sales Order Log</a>
+                    <a class="nav-link {{ request()->routeIs('salesorders.manager.kpi') ? 'active' : '' }}"
+                       href="{{ route('salesorders.manager.kpi') }}">
+                        Sales Order Log KPI
+                    </a>
                 </li>
 
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('salesorders.manager.index') ? 'active' : '' }}"
+                       href="{{ route('salesorders.manager.index') }}">
+                        Sales Order Log
+                    </a>
+                </li>
                 {{-- Sales roles only --}}
                 {{--                @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">Estimation</a>
                 </li>
+
+                {{-- Sales roles only --}}
+                {{--                @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
+
 
                 @hasanyrole('gm|admin')
                 <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.index') }}">Sales Orders</a></li>
@@ -262,43 +273,64 @@
         });
 
         // KPIs
-        function loadKpis(){
+        function loadKpis() {
             const qs = new URLSearchParams(buildFilters()).toString();
+
             fetch(`{{ route('estimation.kpis') }}?${qs}`)
-                .then(r=>r.json())
-                .then(payload=>{
+                .then(r => r.json())
+                .then(payload => {
+                    // Total badge
                     document.getElementById('kpi-total-value').textContent = fmtSAR(payload?.totals?.value || 0);
 
+                    // ===== Estimator pie =====
                     const titleEl = document.getElementById('kpi-title');
                     if (payload.mode === 'all') {
                         if (titleEl) titleEl.textContent = 'By Estimator (share of value)';
-                        Highcharts.chart('chart-estimator',{
-                            chart:{type:'pie',backgroundColor:'transparent'}, title:{text:null},
-                            tooltip:{pointFormatter:function(){return `<span style="color:${this.color}">●</span> ${this.name}: <b>${Highcharts.numberFormat(this.percentage,1)}%</b><br/>Value: <b>${fmtSAR(this.y)}</b>`;}},
-                            plotOptions:{pie:{dataLabels:{enabled:true,format:'{point.name}: {point.percentage:.1f}%'}}},
-                            series:[{name:'Share', colorByPoint:true, data:payload.estimatorPie || []}],
-                            credits:{enabled:false}
+                        Highcharts.chart('chart-estimator', {
+                            chart: { type: 'pie', backgroundColor: 'transparent' },
+                            title: { text: null },
+                            tooltip: {
+                                pointFormatter: function () {
+                                    return `<span style="color:${this.color}">●</span> ${this.name}: <b>${Highcharts.numberFormat(this.percentage, 1)}%</b><br/>Value: <b>${fmtSAR(this.y)}</b>`;
+                                }
+                            },
+                            plotOptions: {
+                                pie: { dataLabels: { enabled: true, format: '{point.name}: {point.percentage:.1f}%'} }
+                            },
+                            series: [{ name: 'Share', colorByPoint: true, data: payload.estimatorPie || [] }],
+                            credits: { enabled: false }
                         });
                     } else {
                         if (titleEl) titleEl.textContent = `${currentEstimator || 'Estimator'} — By Status`;
-                        Highcharts.chart('chart-estimator',{
-                            chart:{type:'pie',backgroundColor:'transparent'}, title:{text:null},
-                            tooltip:{pointFormatter:function(){return `<span style="color:${this.color}">●</span> ${this.name}: <b>${Highcharts.numberFormat(this.y,0)}</b><br/>Value: <b>${fmtSAR(this.options.value || 0)}</b>`;}},
-                            plotOptions:{pie:{dataLabels:{enabled:true,format:'{point.name}: {point.y}'}}},
-                            series:[{name:'Projects', colorByPoint:true, data:payload.statusPie || []}],
-                            credits:{enabled:false}
+                        Highcharts.chart('chart-estimator', {
+                            chart: { type: 'pie', backgroundColor: 'transparent' },
+                            title: { text: null },
+                            tooltip: {
+                                pointFormatter: function () {
+                                    return `<span style="color:${this.color}">●</span> ${this.name}: <b>${Highcharts.numberFormat(this.y, 0)}</b><br/>Value: <b>${fmtSAR(this.options.value || 0)}</b>`;
+                                }
+                            },
+                            plotOptions: { pie: { dataLabels: { enabled: true, format: '{point.name}: {point.y}' } } },
+                            series: [{ name: 'Projects', colorByPoint: true, data: payload.statusPie || [] }],
+                            credits: { enabled: false }
                         });
                     }
 
-                    // Monthly Region — stacked columns + Total + MoM%
+                    // ===== Monthly Region =====
                     const cats = payload.monthlyRegion?.categories || [];
-                    const regionCols = (payload.monthlyRegion?.series || []).map(s=>({
-                        name:s.name, type:'column', stack:'Value',
-                        data:(s.data||[]).map(v=>Number(v||0)),
-                        dataLabels:{enabled:true, formatter:function(){return this.y>=5_000_000?fmtCompactSAR(this.y):null;}, style:{textOutline:'none', fontWeight:600}}
+                    const regionCols = (payload.monthlyRegion?.series || []).map(s => ({
+                        name: s.name, type: 'column', stack: 'Value',
+                        data: (s.data || []).map(v => Number(v || 0)),
+                        dataLabels: {
+                            enabled: true,
+                            formatter: function () { return this.y >= 5_000_000 ? fmtCompactSAR(this.y) : null; },
+                            style: { textOutline: 'none', fontWeight: 600 }
+                        }
                     }));
-                    const totals = cats.map((_,i)=>regionCols.reduce((sum,s)=>sum+(s.data[i]||0),0));
-                    const momPct = totals.map((v,i)=> i===0?0: ((totals[i-1]||0)>0 ? Number(((v-totals[i-1])*100/totals[i-1]).toFixed(1)) : 0));
+                    const totals = cats.map((_, i) => regionCols.reduce((sum, s) => sum + (s.data[i] || 0), 0));
+                    const momPct = totals.map((v, i) =>
+                        i === 0 ? 0 : ((totals[i - 1] || 0) > 0 ? Number(((v - totals[i - 1]) * 100 / totals[i - 1]).toFixed(1)) : 0)
+                    );
 
                     Highcharts.chart('chartMonthlyRegion', {
                         chart: { type: 'column', backgroundColor: 'transparent' },
@@ -306,46 +338,33 @@
                         xAxis: { categories: payload.monthlyRegion?.categories || [] },
                         yAxis: [{
                             title: { text: 'Value (SAR)' },
-                            labels: { formatter(){ return fmtSAR(this.value); } }
-                        }, {
-                            title: { text: null },
-                            opposite: true
-                        }],
+                            labels: { formatter() { return fmtSAR(this.value); } }
+                        }, { title: { text: null }, opposite: true }],
                         legend: { itemStyle: { fontWeight: 600 } },
                         tooltip: {
                             shared: true,
                             formatter: function () {
                                 const header = `<b>${this.x}</b><br/>`;
-                                const lines = this.points.map(p =>
-                                    `<span style="color:${p.color}">●</span> ${p.series.name}: <b>${fmtSAR(p.y)}</b>`
-                                );
+                                const lines = this.points.map(p => `<span style="color:${p.color}">●</span> ${p.series.name}: <b>${fmtSAR(p.y)}</b>`);
                                 return header + lines.join('<br/>');
                             }
                         },
                         plotOptions: {
                             column: {
-                                pointPadding: 0.08,      // space inside each column group
-                                groupPadding: 0.14,      // space between groups (months)
+                                pointPadding: 0.08,
+                                groupPadding: 0.14,
                                 borderWidth: 0,
                                 dataLabels: {
                                     enabled: true,
                                     crop: false,
                                     overflow: 'none',
-                                    rotation: -90,            // ✅ rotate text vertically
-                                    align: 'center',          // ✅ center-align on the bar
-                                    verticalAlign: 'bottom',  // ✅ position above bar
-                                    inside: false,            // ✅ keep it above, not inside
-                                    y: -6,                    // ✅ small offset upward
-                                    formatter: function () {
-                                        // only show labels for reasonably big values to avoid clutter
-                                        return this.y >= 2_000_000 ? fmtCompactSAR(this.y) : null;
-                                    },
-                                    style: {
-                                        textOutline: 'none',
-                                        fontWeight: 600,
-                                        color: '#000',          // optional for readability
-                                        fontSize: '10px'
-                                    }
+                                    rotation: -90,
+                                    align: 'center',
+                                    verticalAlign: 'bottom',
+                                    inside: false,
+                                    y: -6,
+                                    formatter: function () { return this.y >= 2_000_000 ? fmtCompactSAR(this.y) : null; },
+                                    style: { textOutline: 'none', fontWeight: 600, color: '#000', fontSize: '10px' }
                                 }
                             }
                         },
@@ -353,18 +372,43 @@
                         credits: { enabled: false }
                     });
 
-                    // By Product (Value)
-                    Highcharts.chart('chartProduct',{
-                        chart:{type:'column', backgroundColor:'transparent'}, title:{text:null},
-                        xAxis:{categories:payload.productSeries?.categories || []},
-                        yAxis:{title:{text:'Value (SAR)'}, labels:{formatter:function(){return fmtSAR(this.value);}}},
-                        tooltip:{pointFormatter:function(){return `<b>${fmtSAR(this.y)}</b>`;}},
-                        plotOptions:{column:{dataLabels:{enabled:true, formatter:function(){return fmtSAR(this.y);}, style:{textOutline:'none', fontWeight:600}}}},
-                        series:[{name:'Value', data:payload.productSeries?.values || []}],
-                        credits:{enabled:false}
+                    // ===== By Product =====
+                    Highcharts.chart('chartProduct', {
+                        chart: { type: 'column', backgroundColor: 'transparent' },
+                        title: { text: null },
+                        xAxis: {
+                            categories: payload.productSeries?.categories || [],
+                            labels: { rotation: 0 }
+                        },
+                        yAxis: {
+                            title: { text: 'Value (SAR)' },
+                            min: 0,
+                            labels: { formatter() { return fmtCompactSAR(this.value); } }
+                        },
+                        tooltip: {
+                            shared: false,
+                            useHTML: true,
+                            pointFormatter: function () { return `<b>${fmtCompactSAR(this.y)}</b>`; }
+                        },
+                        plotOptions: {
+                            column: {
+                                borderWidth: 0,
+                                pointPadding: 0.08,
+                                groupPadding: 0.16,
+                                dataLabels: {
+                                    enabled: true,
+                                    style: { fontWeight: 600, fontSize: '11px', textOutline: 'none' },
+                                    formatter: function () { return this.y ? fmtCompactSAR(this.y) : ''; }
+                                }
+                            }
+                        },
+                        series: [{ name: 'Value', data: payload.productSeries?.values || [] }],
+                        credits: { enabled: false }
                     });
-                });
-        }
+                }) // <-- closes .then(payload => { ... })
+                .catch(err => console.error('KPIs load failed:', err)); // optional logging
+        } // <-- closes function loadKpis
+
 
         function buildFilters(){ return {
             estimator: currentEstimator,

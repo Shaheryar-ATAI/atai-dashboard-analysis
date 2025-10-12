@@ -54,14 +54,37 @@ class SalesOrderManagerController extends Controller
         // base already applies region/date; we’ll add chips here
         [$base] = $this->base($r);
 
-        if ($fam = trim((string) $r->query('family', ''))) {
-            $base->where('s.Products', $fam);
+        $fam = strtolower(trim((string) $r->query('family', '')));
+        $fam = strtolower(trim((string) $r->query('family', '')));
+        if ($fam !== '') {
+            switch ($fam) {
+                case 'ductwork':
+                    $base->whereRaw('LOWER(TRIM(s.`Products`)) LIKE ?', ['%duct%']);
+                    break;
+                case 'dampers':
+                    $base->whereRaw('LOWER(TRIM(s.`Products`)) LIKE ?', ['%damper%']);
+                    break;
+                case 'sound':
+                    // matches “Sound Attenuator(s)”
+                    $base->whereRaw('LOWER(TRIM(s.`Products`)) LIKE ?', ['%attenuator%']);
+                    break;
+                case 'accessories':
+                    $base->whereRaw('LOWER(TRIM(s.`Products`)) LIKE ?', ['%accessor%']);
+                    break;
+                default:
+                    // if someday you pass exact family strings, this still works:
+                    $base->whereRaw('LOWER(TRIM(s.`Products`)) = ?', [$fam]);
+            }
         }
+
+
+
         if ($st = trim((string) $r->query('status', ''))) {
             $base->where('s.Status', $st);
         }
 
         // Select with aliases (so JSON keys are clean)
+
         $q = $base->select([
             's.id',
             DB::raw('s.`PO. No.`      AS po_no'),
@@ -159,11 +182,35 @@ class SalesOrderManagerController extends Controller
 
         // ---- filtered KPIs (apply family & status)
         $filtered = clone $base;
-        if ($family !== '') $filtered->where('s.Products', $family);
+
+
+        $filtered = clone $base;
+      if ($family !== '') {
+        switch (strtolower(trim($family))) {
+            case 'ductwork':
+                $filtered->whereRaw('LOWER(TRIM(s.`Products`)) LIKE ?', ['%duct%']);
+                break;
+            case 'dampers':
+                $filtered->whereRaw('LOWER(TRIM(s.`Products`)) LIKE ?', ['%damper%']);
+                break;
+            case 'sound': // "Sound Attenuator(s)"
+                $filtered->whereRaw('LOWER(TRIM(s.`Products`)) LIKE ?', ['%attenuator%']);
+                break;
+            case 'accessories':
+                $filtered->whereRaw('LOWER(TRIM(s.`Products`)) LIKE ?', ['%accessor%']);
+                break;
+            default:
+                // fallback to exact normalized match if you ever pass full names
+                $filtered->whereRaw('LOWER(TRIM(s.`Products`)) = ?', [strtolower(trim($family))]);
+        }
+    }
+//      if ($family !== '') $filtered->where('s.Products', $family);
         if ($status !== '') $filtered->where('s.Status', $status);
 
         // totals
-        $totals = (clone $filtered)->selectRaw("COUNT(*) AS cnt, COALESCE(SUM($valExprSql),0) AS val")->first();
+        $totals = (clone $filtered)
+            ->selectRaw("COUNT(*) AS cnt, COALESCE(SUM($valExprSql),0) AS val")
+            ->first();
 
         // monthly total (for your existing simple monthly card)
         $monthlyRows = (clone $filtered)
@@ -241,18 +288,18 @@ class SalesOrderManagerController extends Controller
                 'type' => 'spline',
                 'name' => 'Accepted (line)',
                 'data' => $acceptedLine,
-                'dashStyle' => 'ShortDot',
+                'dashStyle' => 'line',
                 'color' => '#007bff', // blue
                 'marker' => ['enabled' => false],
-            ],
-            [
-                'type' => 'spline',
-                'name' => 'Pre-Acceptance (line)',
-                'data' => $cancelledLine,
-                'dashStyle' => 'ShortDash',
-                'color' => '#ff9900', // orange
-                'marker' => ['enabled' => false],
-            ],
+            ]
+//            [
+//                'type' => 'spline',
+//                'name' => 'Pre-Acceptance (line)',
+//                'data' => $cancelledLine,
+//                'dashStyle' => 'ShortDash',
+//                'color' => '#ff9900', // orange
+//                'marker' => ['enabled' => false],
+//            ],
         ];
 
         return response()->json([

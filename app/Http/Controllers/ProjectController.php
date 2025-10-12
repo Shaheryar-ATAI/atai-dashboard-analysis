@@ -28,7 +28,7 @@ class ProjectController extends Controller
             'quotationDate' => $project->quotation_date_ymd,
             'ataiProducts' => $project->atai_products,
             'estimator' => $project->action1 ?? null,
-            'status' => $project->status_current ?? $project->status,
+            'status' => $project->project_type?? null ,
             'salesperson' => $project->salesperson ?? $project->salesman,
             'dateRec' => optional($project->date_rec)->format('Y-m-d'),
             'clientReference' => $project->client_reference,

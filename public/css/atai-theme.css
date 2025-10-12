@@ -164,7 +164,7 @@ body{
 
 /* Cards */
 .card{ border-radius:12px; box-shadow:0 8px 30px rgba(34,139,34,.06); }
-.card-header{ background:#fff; }
+.card-header{  }
 
 /* Links */
 a{ color:#320061 !important; }
@@ -268,9 +268,9 @@ a:hover{ color:var(--bs-link-hover-color) !important; }
     --pf-focus: rgba(149,197,61,.25);
 
     display:flex; flex-wrap:wrap; align-items:center; gap:.55rem .6rem;
-    background:linear-gradient(145deg, #ffffff, #f9fafb);
-    border:1px solid rgba(0,0,0,.05); border-radius:14px; padding:.75rem 1rem;
-    box-shadow:0 4px 12px rgba(0,0,0,.08);
+
+
+
 }
 
 /* shared look for selects/inputs in the bar */
@@ -440,7 +440,7 @@ a:hover{ color:var(--bs-link-hover-color) !important; }
 .mix-card{
     --ok:#10b981; --watch:#f59e0b; --flag:#ef4444;
     min-width:200px; border-radius:14px; padding:.9rem 1rem;
-    background:linear-gradient(145deg,#ffffff,#f1f5f9);
+
     box-shadow:0 8px 24px rgba(0,0,0,.08); border:1px solid rgba(0,0,0,.06);
     transition:transform .15s, box-shadow .15s;
 }
@@ -453,7 +453,39 @@ a:hover{ color:var(--bs-link-hover-color) !important; }
 .mix-ok    .mix-main{ color:var(--ok); }
 .mix-watch .mix-main{ color:var(--watch); }
 .mix-flag  .mix-main{ color:var(--flag); }
+.card,
+.card-body,
+.card > .list-group,
+.card-header {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
 
+/* If you still use .mix-card anywhere and want it flat, make it transparent too */
+.mix-card {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+/* Optional: only some cards “flat” -> add class="card card--flat" to those */
+.card--flat,
+.card--flat .card-body,
+.card--flat .card-header {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+/* Highcharts container: ensure no panel background leaks */
+.hc-container,        /* if you wrap charts in a class */
+#barByArea,
+#hcMonthly,
+#barMonthlyValueTarget {
+    background: transparent !important;
+}
 
 .hc-badge {
     background: #3b5bfd;        /* purple */
@@ -466,3 +498,25 @@ a:hover{ color:var(--bs-link-hover-color) !important; }
     white-space: nowrap;
 }
 .hc-badge.hc-badge-green { background:#19c39c; }
+#valueByStatusCard,
+#valueByStatusCard .card,
+#valueByStatusCard .card-body {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+/* If you don't have an id on the wrapper, fall back to generic card flattening */
+.card, .card-body, .card-header {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+/* Some templates add bg-white utilities */
+.bg-white { background: transparent !important; }
+
+/* 2) Make Highcharts SVG fully transparent */
+#valueByStatus .highcharts-background { fill: transparent !important; }
+#valueByStatus { background: transparent !important; }
