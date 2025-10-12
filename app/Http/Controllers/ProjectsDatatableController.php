@@ -212,7 +212,15 @@ END
             ];
         });
 
-        $sum = (clone $base)->selectRaw('SUM(COALESCE(projects.quotation_value, projects.price, 0)) AS t')->value('t') ?: 0;
+        if ($statusNorm === 'PO-Received') {
+            $sum = (clone $base)
+                ->selectRaw('SUM(COALESCE(so.total_po_value, 0)) AS t')   // ← sum PO values
+                ->value('t') ?: 0;
+        } else {
+            $sum = (clone $base)
+                ->selectRaw('SUM(COALESCE(projects.quotation_value, projects.price, 0)) AS t')
+                ->value('t') ?: 0;
+        }
 
         return response()->json([
             'draw'                    => $draw,

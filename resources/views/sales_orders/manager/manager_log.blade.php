@@ -214,7 +214,7 @@
         const res = await fetch(`{{ route('salesorders.manager.kpis') }}?${qs}`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
         if(!res.ok) return;
         const j = await res.json();
-        $('#badgeCount').text('Total Sales-Order No.: '+Number(j?.totals?.count||0).toLocaleString());
+        $('#badgeCount').text('Total Sales-Order No: '+Number(j?.totals?.count||0).toLocaleString());
         $('#badgeValue').text('Total Sales-Order Value: '+fmtSAR(j?.totals?.value||0));
     }
 

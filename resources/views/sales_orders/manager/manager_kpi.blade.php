@@ -104,7 +104,7 @@
 
     </div>
     <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
-        <span id="badgeCount" class="badge-total text-bg-info">Total Sales-Order No.: 0</span>
+        <span id="badgeCount" class="badge-total text-bg-info">Total Sales-Order No: 0</span>
         <span id="badgeTotal" class="badge-total text-bg-primary">Total Sales-Order Value: SAR 0</span>
     </div>
     <div class="d-flex justify-content-end mb-2">

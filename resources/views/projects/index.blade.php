@@ -189,6 +189,7 @@
             </div>
 
             <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
+
                 <span id="kpiBadgeProjects" class="badge-total text-bg-info">Total Quotation No.: 0</span>
                 <span id="kpiBadgeValue" class="badge-total text-bg-primary">Total Quotation Value: SAR 0</span>
             </div>

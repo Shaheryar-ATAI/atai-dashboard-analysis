@@ -39,7 +39,7 @@ class SalesOrderManagerController extends Controller
             if ($r->filled('month')) $q->whereRaw("MONTH($dateExprSql) = ?", [(int)$r->query('month')]);
         }
 
-        $valExprSql   = "COALESCE(s.value_with_vat, s.`PO Value`, 0)";
+        $valExprSql   = "COALESCE(s.`PO Value`, 0)";
         $family       = trim((string) $r->query('family', ''));
         $status       = trim((string) $r->query('status', ''));   // NEW
 
