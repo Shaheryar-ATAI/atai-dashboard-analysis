@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\DB;
 
 class ProjectsDatatableController extends Controller
 {
+
+
+
     public function data(Request $req)
     {
         $user   = $req->user();
@@ -18,7 +21,6 @@ class ProjectsDatatableController extends Controller
         // Buckets
         $inHandList     = "'in-hand','in hand','inhand','accepted','won','order','order in hand','ih'";
         $biddingList    = "'bidding','open','submitted','pending','quote','quoted','rfq','inquiry','enquiry'";
-        $poReceivedList = "'po-received','po received','po_recieved','po-recieved','po recieved','po','po_received'";
         $lostList       = "'lost','rejected','cancelled','canceled','closed lost','declined','not awarded'";
 
         // Column shortcuts
@@ -27,122 +29,119 @@ class ProjectsDatatableController extends Controller
 
         // Date expr
         $dateExpr = "COALESCE(
-        STR_TO_DATE(quotation_date, '%Y-%m-%d'),
-        STR_TO_DATE(quotation_date, '%d-%m-%Y'),
-        STR_TO_DATE(quotation_date, '%d/%m/%Y'),
-        STR_TO_DATE(quotation_date, '%d.%m.%Y'),
-        DATE(created_at)
-    )";
+            STR_TO_DATE(quotation_date, '%Y-%m-%d'),
+            STR_TO_DATE(quotation_date, '%d-%m-%Y'),
+            STR_TO_DATE(quotation_date, '%d/%m/%Y'),
+            STR_TO_DATE(quotation_date, '%d.%m.%Y'),
+            DATE(created_at)
+        )";
 
         // Base scope + global search
         $base = Project::query()
             ->forUserRegion($user)
             ->search(data_get($req->input('search'), 'value', ''));
 
-        // === PO JOIN (robust, uses EXACT column names from your screenshot) ===
-        // Normalize quotation numbers on BOTH sides the same way (trim + remove spaces, dots, dashes)
-        // Portable normalization: TRIM → UPPER → strip spaces, dashes, dots, slashes
+        // === PO JOIN ===
         $normProjects = "REPLACE(REPLACE(REPLACE(REPLACE(UPPER(TRIM(projects.quotation_no)), ' ', ''), '-', ''), '.', ''), '/', '')";
         $normSales    = "REPLACE(REPLACE(REPLACE(REPLACE(UPPER(TRIM(s.`Quote No.`)),           ' ', ''), '-', ''), '.', ''), '/', '')";
 
-
         $poSub = DB::table('salesorderlog as s')
             ->selectRaw("$normSales AS q_key")
-            // exact column name per your schema: `PO. No.` (dot after PO and after No)
             ->selectRaw("COUNT(DISTINCT s.`PO. No.`) AS po_count")
             ->selectRaw("
-        GROUP_CONCAT(
-            DISTINCT s.`PO. No.`
-            ORDER BY s.`date_rec` IS NULL, s.`date_rec` ASC
-            SEPARATOR ', '
-        ) AS po_nos
-    ")
-    ->selectRaw("DATE_FORMAT(MAX(COALESCE(s.`date_rec`, s.`created_at`)), '%Y-%m-%d') AS po_date")
-        ->selectRaw("SUM(COALESCE(s.`PO Value`,0)) AS total_po_value")
-        ->whereNotNull(DB::raw('s.`Quote No.`'))
-        ->whereRaw("TRIM(s.`Quote No.`) <> ''")
-        ->groupBy('q_key');
+                GROUP_CONCAT(
+                    DISTINCT s.`PO. No.`
+                    ORDER BY s.`date_rec` IS NULL, s.`date_rec` ASC
+                    SEPARATOR ', '
+                ) AS po_nos
+            ")
+            ->selectRaw("DATE_FORMAT(MAX(COALESCE(s.`date_rec`, s.`created_at`)), '%Y-%m-%d') AS po_date")
+            ->selectRaw("SUM(COALESCE(s.`PO Value`,0)) AS total_po_value")
+            ->whereNotNull(DB::raw('s.`Quote No.`'))
+            ->whereRaw("TRIM(s.`Quote No.`) <> ''")
+            ->groupBy('q_key');
+
         $base = $base->leftJoinSub($poSub, 'so', function ($join) use ($normProjects) {
             $join->on(DB::raw($normProjects), '=', DB::raw('so.q_key'));
         });
 
-        // ===== Status logic requested: In-Hand/Bidding from project_type; Lost/PO-Received from status
+        // ===== Computed status =====
         $computedStatus = "
-CASE
-    WHEN COALESCE(so.po_count, 0) > 0 THEN 'PO-Received'    -- hard override if any PO exists
-    WHEN $st IN ($lostList)           THEN 'Lost'
-    WHEN $pt IN ($inHandList)         THEN 'In-Hand'
-    WHEN $pt IN ($biddingList)        THEN 'Bidding'
-    ELSE 'Other'
-END
-";
+            CASE
+              WHEN COALESCE(so.po_count, 0) > 0 THEN 'PO-Received'
+              WHEN $st IN ($lostList)           THEN 'Lost'
+              WHEN $pt IN ($inHandList)         THEN 'In-Hand'
+              WHEN $pt IN ($biddingList)        THEN 'Bidding'
+              ELSE 'Other'
+            END
+        ";
 
-        // Tab param -> normalize
+        // ========== Common filters (date/family/salesman) – applied to both global & tab queries ==========
+        $applyCommonFilters = function ($q) use ($req, $dateExpr, $user) {
+            // Salesman (GM/Admin can see all unless salesman is provided)
+            if ($req->filled('salesman')) {
+                $q->where('salesman', $req->input('salesman'));
+            } elseif (!$user->hasAnyRole(['gm','admin'])) {
+                $q->where('salesman', $user->name);
+            }
+
+            // Dates
+            $from = $req->input('date_from');
+            $to   = $req->input('date_to');
+            $y    = $req->integer('year');
+            $m    = $req->integer('month');
+
+            if ($from || $to) {
+                $from = $from ?: '1900-01-01';
+                $to   = $to   ?: '2999-12-31';
+                $q->whereRaw("$dateExpr BETWEEN ? AND ?", [$from, $to]);
+            } elseif ($m) {
+                $yyyy = $y ?: date('Y');
+                $startMonth = sprintf('%04d-%02d-01', $yyyy, $m);
+                $q->whereRaw("$dateExpr BETWEEN ? AND LAST_DAY(?)", [$startMonth, $startMonth]);
+            } elseif ($y) {
+                $q->whereRaw("YEAR($dateExpr) = ?", [$y]);
+            }
+
+            // Family
+            if ($req->filled('family') && strtolower($req->input('family')) !== '') {
+                $fam = strtolower(trim($req->input('family')));
+                $q->where(function ($qq) use ($fam) {
+                    if ($fam === 'ductwork') {
+                        $qq->whereRaw('LOWER(atai_products) LIKE ?', ['%duct%']);
+                    } elseif ($fam === 'dampers') {
+                        $qq->whereRaw('LOWER(atai_products) LIKE ?', ['%damper%']);
+                    } elseif (in_array($fam, ['sound','sound_attenuators','attenuators','attenuator'], true)) {
+                        $qq->whereRaw('LOWER(atai_products) LIKE ?', ['%attenuator%']);
+                    } elseif ($fam === 'accessories') {
+                        $qq->whereRaw('LOWER(atai_products) LIKE ?', ['%accessor%']);
+                    } else {
+                        $qq->whereRaw('LOWER(atai_products) LIKE ?', ['%'.$fam.'%']);
+                    }
+                });
+            }
+        };
+
+        // Clone BEFORE status filter so we can compute global header sum immediately
+        $globalBase = (clone $base);
+        $applyCommonFilters($globalBase);
+
+        // Global totals (count for header + value for header)
+        $recordsTotal = (clone $globalBase)->count();
+        $headerSum = (clone $globalBase)
+            ->selectRaw('SUM(COALESCE(projects.quotation_value, projects.price, 0)) AS t')
+            ->value('t') ?: 0;
+
+        // ====== TAB filter (status_norm) – only for the table data and tab sum ======
         $statusNorm = $req->input('status_norm');
-        if (!$statusNorm && $req->filled('status')) {
-            $map = [
-                'bidding' => 'Bidding',
-                'inhand' => 'In-Hand', 'in-hand' => 'In-Hand', 'in hand' => 'In-Hand',
-                'po' => 'PO-Received', 'po-received' => 'PO-Received', 'po_received' => 'PO-Received',
-                'po-recieved' => 'PO-Received', 'po recieved' => 'PO-Received', 'po_recieved' => 'PO-Received',
-                'lost' => 'Lost',
-            ];
-            $statusNorm = $map[strtolower(trim($req->input('status')))] ?? null;
+        if (!empty($statusNorm)) {
+            $base->whereRaw("($computedStatus) = ?", [$statusNorm]);
         }
 
-         if ($statusNorm === 'PO-Received') {
-            $base->whereRaw('COALESCE(so.po_count, 0) > 0');
-         } elseif ($statusNorm === 'Lost') {
-             $base->whereRaw("$st IN ($lostList)");
-         } elseif ($statusNorm === 'In-Hand') {
-             $base->whereRaw("$pt IN ($inHandList)");
-         } elseif ($statusNorm === 'Bidding') {
-             $base->whereRaw("$pt IN ($biddingList)");
-         }
+        // Apply common filters to the tab query too
+        $applyCommonFilters($base);
 
-        // Area filter
-        if ($req->filled('area')) {
-            $base->where('area', $req->input('area'));
-        }
-
-        // Dates
-        $from = $req->input('date_from');
-        $to   = $req->input('date_to');
-        $y    = $req->integer('year');
-        $m    = $req->integer('month');
-
-        if ($from || $to) {
-            $from = $from ?: '1900-01-01';
-            $to   = $to   ?: '2999-12-31';
-            $base->whereRaw("$dateExpr BETWEEN ? AND ?", [$from, $to]);
-        } elseif ($m) {
-            $yyyy = $y ?: date('Y');
-            $startMonth = sprintf('%04d-%02d-01', $yyyy, $m);
-            $base->whereRaw("$dateExpr BETWEEN ? AND LAST_DAY(?)", [$startMonth, $startMonth]);
-        } elseif ($y) {
-            $base->whereRaw("YEAR($dateExpr) = ?", [$y]);
-        }
-
-        // Family chips
-        if ($req->filled('family') && strtolower($req->input('family')) !== '') {
-            $fam = strtolower(trim($req->input('family')));
-            $base->where(function ($q) use ($fam) {
-                if ($fam === 'ductwork') {
-                    $q->whereRaw('LOWER(atai_products) LIKE ?', ['%duct%']);
-                } elseif ($fam === 'dampers') {
-                    $q->whereRaw('LOWER(atai_products) LIKE ?', ['%damper%']);
-                } elseif (in_array($fam, ['sound','sound_attenuators','attenuators','attenuator'], true)) {
-                    $q->whereRaw('LOWER(atai_products) LIKE ?', ['%attenuator%']);
-                } elseif ($fam === 'accessories') {
-                    $q->whereRaw('LOWER(atai_products) LIKE ?', ['%accessor%']);
-                } else {
-                    $q->whereRaw('LOWER(atai_products) LIKE ?', ['%'.$fam.'%']);
-                }
-            });
-        }
-
-        // Totals
-        $recordsTotal    = Project::query()->forUserRegion($user)->count();
+        // Filtered count (for table)
         $recordsFiltered = (clone $base)->count();
 
         // Ordering
@@ -176,14 +175,14 @@ END
 
         // Helpers
         $areaBadge = fn(?string $a) =>
-        $a ? '<span class="badge area-badge area-'.e($a).'" style="color:black">'.e(strtoupper($a)).'</span>' : '—';
+        $a ? '<span class="badge area-badge area-'.e($a).'" style="color:#ff0000">'.e(strtoupper($a)).'</span>' : '—';
 
         $statusBadge = fn(?string $s) =>
         $s ? '<span class="badge bg-warning-subtle text-dark fw-bold">'.e(strtoupper($s)).'</span>' : '—';
 
         $fmtSar = fn($n) => 'SAR '.number_format((float) $n, 0);
 
-        // Map
+        // Map to DT rows
         $data = $rows->map(function (Project $p) use ($areaBadge, $statusBadge, $fmtSar) {
             $poCount = (int) ($p->po_count ?? 0);
             $poFlag  = $poCount > 0
@@ -200,8 +199,8 @@ END
                 'area_badge'          => $areaBadge($p->area),
                 'quotation_no'        => $p->quotation_no,
                 'quotation_date'      => $p->quotation_date_ymd ?? $p->quotation_date,
-                'po_nos'  => $p->po_nos ?: '',
-                'po_date' => $p->po_date ?: '',
+                'po_nos'              => $p->po_nos ?: '',
+                'po_date'             => $p->po_date ?: '',
                 'atai_products'       => $p->atai_products,
                 'quotation_value_fmt' => $fmtSar($value),
                 'total_po_value_fmt'  => $fmtSar($p->total_po_value ?? 0),
@@ -212,24 +211,32 @@ END
             ];
         });
 
+        // Tab sum (respecting status_norm if present)
         if ($statusNorm === 'PO-Received') {
-            $sum = (clone $base)
-                ->selectRaw('SUM(COALESCE(so.total_po_value, 0)) AS t')   // ← sum PO values
+            $tabSum = (clone $base)
+                ->selectRaw('SUM(COALESCE(so.total_po_value, 0)) AS t')
                 ->value('t') ?: 0;
         } else {
-            $sum = (clone $base)
+            $tabSum = (clone $base)
                 ->selectRaw('SUM(COALESCE(projects.quotation_value, projects.price, 0)) AS t')
                 ->value('t') ?: 0;
         }
 
         return response()->json([
-            'draw'                    => $draw,
-            'recordsTotal'            => $recordsTotal,
-            'recordsFiltered'         => $recordsFiltered,
-            'data'                    => $data,
-            'sum_quotation_value'     => (float) $sum,
-            'sum_quotation_value_fmt' => $fmtSar($sum),
+            'draw'                            => $draw,
+            // header totals (global – no status filter)
+            'recordsTotal'                    => $recordsTotal,
+            'header_sum_value'                => (float) $headerSum,
+            'header_sum_value_fmt'            => $fmtSar($headerSum),
+
+            // table totals (filtered – status_norm applied)
+            'recordsFiltered'                 => $recordsFiltered,
+            'sum_quotation_value'             => (float) $tabSum,
+            'sum_quotation_value_fmt'         => $fmtSar($tabSum),
+
+            'data'                            => $data,
         ]);
     }
+
 
 }
