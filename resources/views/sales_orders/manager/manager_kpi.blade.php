@@ -33,51 +33,83 @@
 @php $u = auth()->user(); @endphp
 <nav class="navbar navbar-atai navbar-expand-lg">
     <div class="container-fluid">
+        {{-- Brand (left) --}}
         <a class="navbar-brand d-flex align-items-center" href="{{ route('projects.index') }}">
             <img src="{{ asset('images/atai-logo.png') }}" alt="ATAI" class="brand-logo me-2">
             <span class="brand-word">ATAI</span>
         </a>
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+
+        {{-- Toggler (mobile) --}}
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#ataiNav"
+                aria-controls="ataiNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        {{-- Collapse --}}
+        <div class="collapse navbar-collapse" id="ataiNav">
+            {{-- Centered nav (desktop); scrollable row (mobile) --}}
+            <ul class="navbar-nav mx-lg-auto mb-2 mb-lg-0">
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}"
                        href="{{ route('projects.index') }}">Quotation KPI</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs(['inquiries.index']) ? 'active' : '' }}"
-                       href="{{ route('inquiries.index') }}">
-                        Quotation Log
-                    </a>
+                       href="{{ route('inquiries.index') }}">Quotation Log</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.kpi') ? 'active' : '' }}"
-                       href="{{ route('salesorders.manager.kpi') }}">
-                        Sales Order Log KPI
-                    </a>
+                       href="{{ route('salesorders.manager.kpi') }}">Sales Order Log KPI</a>
                 </li>
-
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.index') ? 'active' : '' }}"
-                       href="{{ route('salesorders.manager.index') }}">
-                        Sales Order Log
-                    </a>
+                       href="{{ route('salesorders.manager.index') }}">Sales Order Log</a>
                 </li>
-                {{-- Sales roles only --}}
-                {{--                @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">Estimation</a>
                 </li>
+
+                @hasanyrole('gm|admin')
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
+                       href="{{ route('salesorders.index') }}">Sales Orders</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
+                       href="{{ route('performance.area') }}">Area summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active' : '' }}"
+                       href="{{ route('performance.salesman') }}">SalesMan summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
+                       href="{{ route('performance.product') }}">Product summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                       href="{{ route('powerbi.jump') }}">Accounts Summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                       href="{{ route('powerbi.jump') }}">Power BI Dashboard</a>
+                </li>
+                @endhasanyrole
             </ul>
-            <div class="navbar-text me-2">
-                Logged in as <strong>{{ $u->name ?? '' }}</strong>
-                @if(!empty($u->region))
-                    · <small>{{ $u->region }}</small>
-                @endif
+
+            {{-- Right block (far-right on desktop; full-width row on mobile) --}}
+            <div class="navbar-right">
+                <div class="navbar-text me-2">
+                    Logged in as <strong>{{ $u->name ?? '' }}</strong>
+                    @if(!empty($u->region))
+                        · <small>{{ $u->region }}</small>
+                    @endif
+                </div>
+                <form method="POST" action="{{ route('logout') }}" class="m-0">@csrf
+                    <button class="btn btn-logout btn-sm" type="submit">Logout</button>
+                </form>
             </div>
-            <form method="POST" action="{{ route('logout') }}">@csrf
-                <button class="btn btn-logout btn-sm">Logout</button>
-            </form>
         </div>
     </div>
 </nav>
@@ -103,11 +135,34 @@
 
 
     </div>
-    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
-        <span id="badgeCount" class="badge-total text-bg-info">Total Sales-Order No: 0</span>
-        <span id="badgeTotal" class="badge-total text-bg-primary">Total Sales-Order Value: SAR 0</span>
+{{--    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">--}}
+{{--        <span id="badgeCount" class="badge-total text-bg-info">Total Sales-Order No: 0</span>--}}
+{{--        <span id="badgeTotal" class="badge-total text-bg-primary">Total Sales-Order Value: SAR 0</span>--}}
+{{--    </div>--}}
+
+
+
+    <div class="row g-3 mb-4 text-center justify-content-center">
+        <div class="col-6 col-md col-lg">
+            <div class="kpi-card shadow-sm p-5 h-150">
+                {{--                <div class="kpi-label">Total Quotation Value </div>--}}
+                <div id="badgeCount"   class="kpi-value">SAR 0</div>
+            </div>
+        </div>
+        <div class="col-6 col-md col-lg">
+            <div class="kpi-card shadow-sm p-5 h-150">
+                {{--                <div class="kpi-label">Total Quotation Count</div>--}}
+                <div id="badgeTotal" class="kpi-value">0</div>
+            </div>
+        </div>
+
     </div>
-    <div class="d-flex justify-content-end mb-2">
+
+
+
+
+
+    <div class="d-flex justify-content-center mb-2">
         <div id="familyChips" class="btn-group pill-chips" role="group" aria-label="Families"></div>
     </div>
     <div class="d-flex justify-content-end mb-2">
@@ -136,7 +191,7 @@
                 <div class="card-body">
                     <div class="fw-semibold mb-2"> </div>
                     <div id="hcMonthly" class="hc"></div>
-                    <div id="barPoValueByArea" class="hc"></div>
+                    <div id="barPoValueByArea" class="hc" style="height: 100px"></div>
                 </div>
             </div>
         </div>
@@ -262,69 +317,103 @@
                 const lineSeries = payload.multiMonthly?.lines || [];
 
                 Highcharts.chart('hcArea', {
-                    chart: {backgroundColor: 'transparent'},
-                    title: {text: null},
-                    xAxis: {categories: catsNice},
+                    chart: {
+                        backgroundColor: 'transparent',
+                        spacing: [10, 20, 10, 20]
+                    },
+                    title: { text: null },
+                    credits: { enabled: false },
+
+                    colors: ['#60a5fa', '#8b5cf6', '#34d399', '#f59e0b', '#fb7185'], // columns first, then lines if any
+
+                    xAxis: {
+                        categories: catsNice,
+                        lineColor: 'rgba(255,255,255,.14)',
+                        tickColor: 'rgba(255,255,255,.14)',
+                        labels: { style: { color: '#C7D2FE', fontSize: '13px', fontWeight: 600 } }
+                    },
+
                     yAxis: [{
-                        title: {text: 'Value (SAR)'},
+                        title: { text: 'Value (SAR)', style: { color: '#C7D2FE', fontSize: '13px', fontWeight: 700 } },
                         min: 0,
+                        gridLineColor: 'rgba(255,255,255,.12)',
                         labels: {
-                            formatter() {
-                                return fmtSAR(this.value);
-                            }
+                            style: { color: '#E0E7FF', fontSize: '12px', fontWeight: 600 },
+                            formatter() { return fmtSAR(this.value); }
                         }
                     }],
+
+                    legend: {
+                        align: 'center',
+                        itemStyle: { color: '#E8F0FF', fontWeight: 600, fontSize: '13px' },
+                        itemHoverStyle: { color: '#FFFFFF' }
+                    },
+
                     tooltip: {
                         shared: true,
                         useHTML: true,
+                        backgroundColor: 'rgba(10,15,45,0.95)',
+                        borderColor: '#334155',
+                        borderRadius: 8,
+                        style: { color: '#E8F0FF', fontSize: '13px' },
                         formatter() {
-                            return `<b>${this.x}</b><br/>` + this.points.map(p =>
-                                `<span style="color:${p.color}">\u25CF</span> ${p.series.name}: <b>${
-                                    p.series.type === 'spline' ? p.y.toLocaleString() : fmtSAR(p.y)
-                                }</b>`
-                            ).join('<br/>');
+                            const header = `<div style="font-weight:700;margin-bottom:4px">${this.x}</div>`;
+                            const lines = this.points.map(p => {
+                                const val = p.series.type === 'spline' ? p.y.toLocaleString() : fmtSAR(p.y);
+                                return `<div><span style="color:${p.color}">●</span> ${p.series.name}: <b>${val}</b></div>`;
+                            });
+                            return header + lines.join('');
                         }
                     },
+
                     plotOptions: {
                         column: {
                             grouping: true,
-                            groupPadding: 0.12,
-                            pointPadding: 0.02,
+                            groupPadding: 0.14,
+                            pointPadding: 0.04,
+                            borderWidth: 0,
+                            borderRadius: 3,
+                            states: { hover: { brightness: 0.08 } },
                             dataLabels: {
                                 enabled: true,
-                                rotation: -90,               // vertical text
+                                rotation: -90,
                                 align: 'center',
                                 verticalAlign: 'bottom',
                                 inside: false,
-                                y: -8,
+                                y: -10,
+                                crop: false,
+                                overflow: 'none',
                                 style: {
-                                    fontWeight: '600',
-                                    fontSize: '11px',
-                                    textOutline: 'none'
+                                    color: '#E8F0FF',
+                                    fontWeight: 700,
+                                    fontSize: '12px',
+                                    textOutline: '2px rgba(0,0,0,.7)'
                                 },
-                                formatter() {
-                                    return this.y ? fmtCompactSAR(this.y) : '';
-                                }
+                                formatter() { return this.y ? fmtCompactSAR(this.y) : ''; }
                             }
                         },
+
                         spline: {
-                            marker: {enabled: false},
+                            lineWidth: 3,
+                            marker: { enabled: true, radius: 4, fillColor: '#fff', lineWidth: 2 },
                             dataLabels: {
                                 enabled: true,
+                                y: -8,
                                 style: {
-                                    fontWeight: '600',
-                                    fontSize: '11px',
-                                    textOutline: 'none'
+                                    color: '#FBBF24',            // readable warm accent for lines
+                                    fontWeight: 700,
+                                    fontSize: '12px',
+                                    textOutline: '1px rgba(0,0,0,.45)'
                                 },
-                                formatter() {
-                                    return fmtCompactSAR(this.y);
-                                }
+                                formatter() { return fmtCompactSAR(this.y); }
                             }
                         }
                     },
-                    series: [...barSeries, ...lineSeries],
-                    credits: {enabled: false}
+
+                    // Use your prepared series arrays
+                    series: [...barSeries, ...lineSeries]
                 });
+
             })();
 
             function fmtCompactSAR(val) {
@@ -343,17 +432,64 @@
 
             // ----- Chart 2: Status Pie (value) -----
             Highcharts.chart('hcStatus', {
-                chart: {type: 'pie', backgroundColor: 'transparent'},
-                title: {text: null},
+                chart: {
+                    type: 'pie',
+                    backgroundColor: 'transparent',
+                    spacing: [10, 10, 10, 10]
+                },
+                title: { text: null },
+                credits: { enabled: false },
+
+                colors: ['#60a5fa', '#8b5cf6', '#34d399', '#f59e0b', '#fb7185'],
+
                 tooltip: {
+                    useHTML: true,
+                    backgroundColor: 'rgba(10,15,45,0.95)',
+                    borderColor: '#334155',
+                    borderRadius: 8,
+                    style: { color: '#E8F0FF', fontSize: '13px' },
                     pointFormatter() {
-                        return `<b>${fmtSAR(this.y)}</b>`;
+                        return `<b>SAR ${fmtCompactSAR(this.y)}</b>`;
                     }
                 },
-                plotOptions: {pie: {dataLabels: {enabled: true, format: '{point.name}: {point.percentage:.1f}%'}}},
-                series: [{name: 'Value', data: payload.statusPie || []}],
-                credits: {enabled: false}
+
+                plotOptions: {
+                    pie: {
+                        allowPointSelect: true,
+                        size: '80%',
+                        borderWidth: 0,
+                        shadow: false,
+                        dataLabels: {
+                            enabled: true,
+                            distance: 18,
+                            softConnector: true,
+                            connectorWidth: 1.2,
+                            connectorColor: 'rgba(255,255,255,0.35)',
+                            style: {
+                                color: '#E8F0FF',
+                                fontWeight: 400,
+                                fontSize: '14px',
+                                textOutline: '2px rgba(0,0,0,0.6)'
+                            },
+                            format: '{point.name}: {point.percentage:.1f}%'
+                        }
+                    }
+                },
+
+                legend: {
+                    enabled: true,
+                    itemStyle: { color: '#E8F0FF', fontWeight: 600, fontSize: '13px' },
+                    itemHoverStyle: { color: '#FFFFFF' }
+                },
+
+                series: [{ name: 'Value', data: payload.statusPie || [] }],
+
+                lang: { noData: 'No status values.' },
+                noData: {
+                    style: { fontSize: '14px', color: '#E0E7FF', fontWeight: 600 }
+                }
             });
+
 
             // ----- Chart 3: Monthly value + MoM % -----
             const cats = payload.monthly?.categories || [];
@@ -361,66 +497,123 @@
             const mom = vals.map((v, i) => i === 0 || !vals[i - 1] ? 0 : Math.round(((v - vals[i - 1]) / vals[i - 1]) * 10000) / 100);
 
             Highcharts.chart('hcMonthly', {
-                chart: { backgroundColor: 'transparent'},
+                chart: {
+                    backgroundColor: 'transparent',
+                    spacing: [10, 20, 10, 20]
+                },
                 title: {
                     text: 'Sales Order Monthly Comparison',
-                    align: 'left',            // optional: align left, center, or right
-                    style: {
-                        fontWeight: '600',
-                        fontSize: '14px',
-                        color: '#222'          // adjust for dark/light theme
-                    },
-                    margin: 10                // optional spacing below title
+                    align: 'left',
+                    style: { color: '#E8F0FF', fontSize: '16px', fontWeight: '700' },
+                    margin: 10
                 },
+                credits: { enabled: false },
+
+                colors: ['#60a5fa', '#f59e0b'], // column, spline
+
                 xAxis: {
                     categories: cats.map(ym => {
                         const [y, m] = (ym || '').split('-');
                         return (y && m)
                             ? new Date(y, m - 1, 1).toLocaleString('en', { month: 'short' }) + ' ' + String(y).slice(-2)
                             : ym;
-                    })
+                    }),
+                    lineColor: 'rgba(255,255,255,.15)',
+                    tickColor: 'rgba(255,255,255,.15)',
+                    labels: { style: { color: '#C7D2FE', fontSize: '13px', fontWeight: 600 } }
                 },
-                yAxis: [{
-                    title: { text: 'Value (SAR)' }, min: 0,
-                    labels: { formatter() { return fmtCompactSAR(this.value); } }
-                }, {
-                    title: { text: 'Percent (%)' }, opposite: true, min: 0,
-                    labels: { formatter() { return fmtPct(this.value); } }
-                }],
+
+                yAxis: [
+                    {
+                        title: { text: 'Value (SAR)', style: { color: '#C7D2FE', fontWeight: 700, fontSize: '13px' } },
+                        min: 0,
+                        gridLineColor: 'rgba(255,255,255,.10)',
+                        labels: {
+                            style: { color: '#E0E7FF', fontWeight: 600, fontSize: '13px' },
+                            formatter() { return fmtCompactSAR(this.value); }
+                        }
+                    },
+                    {
+                        title: { text: 'Percent (%)', style: { color: '#F59E0B', fontWeight: 700, fontSize: '13px' } },
+                        opposite: true,
+                        min: 0,
+                        gridLineColor: 'transparent',
+                        labels: {
+                            style: { color: '#FBBF24', fontWeight: 600, fontSize: '12px' },
+                            formatter() { return fmtPct(this.value); }
+                        }
+                    }
+                ],
+
+                legend: {
+                    align: 'center',
+                    itemStyle: { color: '#E8F0FF', fontWeight: 600, fontSize: '13px' },
+                    itemHoverStyle: { color: '#FFFFFF' }
+                },
+
                 tooltip: {
                     shared: false,
                     useHTML: true,
+                    backgroundColor: 'rgba(190,190,190,0.95)',
+                    borderColor: '#090909',
+                    borderRadius: 8,
+                    style: { color: '#050505', fontSize: '13px' },
                     formatter() {
-                        const x = `<b>${this.x}</b><br/>`;
-                        if (this.series.yAxis.opposite) {
-                            return x + `${this.series.name}: <b>${fmtPct(this.y)}</b>`;
-                        }
-                        return x + `${this.series.name}: <b>${fmtCompactSAR(this.y)}</b>`;
+                        const head = `<div style="font-weight:700;margin-bottom:4px">${this.x}</div>`;
+                        const body = this.series.yAxis.opposite
+                            ? `${this.series.name}: <b>${fmtPct(this.y)}</b>`
+                            : `${this.series.name}: <b>SAR ${fmtCompactSAR(this.y)}</b>`;
+                        return head + body;
                     }
                 },
+
                 plotOptions: {
                     column: {
+                        borderWidth: 0,
+                        borderRadius: 3,
+                        pointPadding: 0.06,
+                        groupPadding: 0.18,
+                        states: { hover: { brightness: 0.08 } },
                         dataLabels: {
                             enabled: true,
-                            style: { fontWeight: '600', fontSize: '11px', textOutline: 'none' },
-                            formatter() { return this.y ? fmtCompactSAR(this.y) : ''; }
+                            rotation: -90,
+                            align: 'center',
+                            verticalAlign: 'bottom',
+                            inside: false,
+                            y: -10,
+                            crop: false,
+                            overflow: 'none',
+                            style: {
+                                color: '#E8F0FF',
+
+                                fontSize: '15px',
+                            },
+                            formatter() { return this.y > 0 ? `SAR ${fmtCompactSAR(this.y)}` : ''; }
                         }
                     },
                     spline: {
-                        marker: { enabled: false },
+                        lineWidth: 3,
+                        marker: { enabled: true, radius: 4, fillColor: '#fff', lineColor: '#f59e0b', lineWidth: 2 },
                         dataLabels: {
                             enabled: true,
-                            style: { fontWeight: '600', fontSize: '11px', textOutline: 'none' },
+                            y: -6,
+                            style: {
+                                color: '#FBBF24',
+                                fontWeight: 700,
+                                fontSize: '12px',
+                                textOutline: '2px rgba(0,0,0,.55)'
+                            },
                             formatter() { return fmtPct(this.y); }
                         }
                     }
                 },
+
                 series: [
                     { type: 'column', name: 'Value (SAR)', data: vals },
                     { type: 'spline', name: 'MoM %', yAxis: 1, data: mom, dashStyle: 'ShortDot' }
-                ],
-                credits: { enabled: false }
+                ]
             });
+
         }
 
         $('#btnApply').on('click', loadKPIs);

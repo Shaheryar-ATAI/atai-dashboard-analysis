@@ -1,15 +1,16 @@
 <?php
 
 use App\Models\Project;
-use Illuminate\Support\Facades\DB;
 
+use Illuminate\Support\Facades\DB;
+use App\Events\ProjectStatusChanged;
 class ProjectUpdater
 {
     public function handle(Project $project, array $payload, int $userId): Project
     {
         return DB::transaction(function () use ($project,$payload,$userId) {
 
-            // Checklist
+            // Checklist …
             $cl = $project->checklist()->firstOrNew();
             $cl->fill([
                 'mep_contractor_appointed' => (bool)($payload['checklist']['mep_contractor_appointed'] ?? false),
@@ -19,12 +20,10 @@ class ProjectUpdater
             ]);
             $cl->save();
 
-            // Progress = 25% per check
             $progress = collect($cl->getAttributes())
                     ->only(['mep_contractor_appointed','boq_quoted','boq_submitted','priced_at_discount'])
                     ->filter()->count() * 25;
 
-            // Auto-status (customize if needed)
             $targetStatus = $payload['status'] ?? $project->status;
             if ($progress === 100 && stripos($targetStatus,'lost') === false) $targetStatus = 'IN HAND';
             if ($progress === 0   && stripos($targetStatus,'lost') === false) $targetStatus = 'BIDDING';
@@ -49,8 +48,8 @@ class ProjectUpdater
                     'from_status'=>$from,'to_status'=>$targetStatus,'changed_by'=>$userId
                 ]);
 
-                // later: send mail / db notification
-                event(new \App\Events\ProjectStatusChanged($project, $from, $targetStatus, $userId));
+                // Fire the event – listeners will send email
+                event(new ProjectStatusChanged($project, $from, $targetStatus, $userId));
             }
 
             if (!empty($payload['comments'])) {

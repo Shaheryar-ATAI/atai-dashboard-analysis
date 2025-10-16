@@ -20,14 +20,22 @@ class SalesOrderManagerController extends Controller
     protected function base(Request $r)
     {
         $u      = $r->user();
+        error_log('Logged in user: ' . $u);
         $region = $u?->region ? trim($u->region) : null;
+        $loggedUser = $u?->name? trim($u->name) : null;
 
         $q = DB::table('salesorderlog as s');
 
         if (!empty($region)) {
             $q->whereRaw('LOWER(TRIM(s.region)) = ?', [strtolower($region)]);
         }
-
+        if (!empty($loggedUser)) {
+            $q->where(function($sub) {
+                    $sub->whereRaw('TRIM(`s`.`Sales Source`) = ?', ['SOHAIB'])
+                        ->orWhereRaw('TRIM(`s`.`Sales Source`) = ?', ['SOAHIB']);
+                });
+        }
+        error_log('Logged in user: ' . $q->count());
         $dateExprSql = "COALESCE(NULLIF(s.date_rec,'0000-00-00'), DATE(s.created_at))";
 
         if ($r->filled('from') || $r->filled('to')) {
@@ -54,7 +62,7 @@ class SalesOrderManagerController extends Controller
         // base already applies region/date; we’ll add chips here
         [$base] = $this->base($r);
 
-        $fam = strtolower(trim((string) $r->query('family', '')));
+        //$fam = strtolower(trim((string) $r->query('family', '')));
         $fam = strtolower(trim((string) $r->query('family', '')));
         if ($fam !== '') {
             switch ($fam) {

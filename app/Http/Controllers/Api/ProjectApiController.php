@@ -19,16 +19,17 @@ class ProjectApiController extends Controller
     public function kpis(Request $req)
     {
         $user    = $req->user();
-        $isAdmin = $user && $user->hasAnyRole(['gm','admin']);
+        $isAdmin = $user && method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['gm','admin']);
         $effectiveArea = null;
 
-        // -----------------------------
-        // Base query (PROJECTS) + RBAC
-        // -----------------------------
+        /* -----------------------------
+         * Base query (PROJECTS) + RBAC
+         * ----------------------------- */
         $q = Project::query();
 
+        // Region RBAC (unchanged)
         if (!$isAdmin) {
-            if (!empty($user->region)) {
+            if ($user && !empty($user->region)) {
                 $q->where('area', $user->region);
                 $effectiveArea = $user->region;
             }
@@ -39,7 +40,14 @@ class ProjectApiController extends Controller
             }
         }
 
-        // One consistent date expression (projects side)
+        // Salesman RBAC (match Datatable controller)
+        if ($req->filled('salesman')) {
+            $q->where('salesman', $req->input('salesman'));
+        } elseif (!$isAdmin) {
+            $q->where('salesman', $user->name);
+        }
+
+        // A single, reusable DATE expression (as PLAIN STRING, not DB::raw)
         $dateExprSql = "COALESCE(
         STR_TO_DATE(quotation_date,'%Y-%m-%d'),
         STR_TO_DATE(quotation_date,'%d-%m-%Y'),
@@ -47,54 +55,87 @@ class ProjectApiController extends Controller
         DATE(created_at)
     )";
 
-        // -----------------------------
-        // Filters
-        // -----------------------------
+        /* -----------------------------
+         * Filters
+         * ----------------------------- */
         $y  = $req->integer('year') ?: null;
         $m  = $req->integer('month') ?: null;
         $df = $req->input('date_from') ?: null;
         $dt = $req->input('date_to')   ?: null;
 
-        if ($y)  $q->whereRaw("YEAR($dateExprSql)=?", [$y]);
-        if ($m)  $q->whereRaw("MONTH($dateExprSql)=?", [$m]);
-        if ($df) $q->whereRaw("$dateExprSql>=?", [$df]);
-        if ($dt) $q->whereRaw("$dateExprSql<=?", [$dt]);
+        if ($y)  { $q->whereRaw("YEAR($dateExprSql) = ?", [$y]); }
+        if ($m)  { $q->whereRaw("MONTH($dateExprSql) = ?", [$m]); }
+        if ($df) { $q->whereRaw("$dateExprSql >= ?", [$df]); }
+        if ($dt) { $q->whereRaw("$dateExprSql <= ?", [$dt]); }
 
-        if ($fam = (string) $req->input('family')) {
-            $q->where('atai_products', 'like', "%{$fam}%");
+        if ($fam = trim((string)$req->input('family'))) {
+            $q->whereRaw('LOWER(atai_products) LIKE ?', ['%'.strtolower($fam).'%']);
         }
 
-        $base = (clone $q); // use this everywhere below
+        /* ---------------------------------------------------------
+         * PO JOIN (exactly like in ProjectsDatatableController@data)
+         * --------------------------------------------------------- */
 
-        // -----------------------------
-        // Status normalization
-        // -----------------------------
-        $statusCase = "
-      CASE
-        WHEN LOWER(TRIM(project_type)) IN ('in-hand','in hand','inhand','accepted','won','order','order in hand','ih') THEN 'In-Hand'
-        WHEN LOWER(TRIM(project_type)) IN ('bidding','open','submitted','pending','quote','quoted','rfq','inquiry','enquiry') THEN 'Bidding'
-        WHEN LOWER(TRIM(status)) IN ('lost','rejected','cancelled','canceled','closed lost','declined','not awarded') THEN 'Lost'
+        // Normalizers used on BOTH sides of the join
+        $normProjects = "REPLACE(REPLACE(REPLACE(REPLACE(UPPER(TRIM(projects.quotation_no)), ' ', ''), '-', ''), '.', ''), '/', '')";
+        $normSales    = "REPLACE(REPLACE(REPLACE(REPLACE(UPPER(TRIM(s.`Quote No.`)),           ' ', ''), '-', ''), '.', ''), '/', '')";
 
-        ELSE 'Other'
-      END
-    ";
+        $poSub = DB::table('salesorderlog as s')
+            ->selectRaw("$normSales AS q_key")
+            ->selectRaw("COUNT(DISTINCT s.`PO. No.`) AS po_count")
+            ->selectRaw("GROUP_CONCAT(DISTINCT s.`PO. No.` ORDER BY s.`date_rec` IS NULL, s.`date_rec` ASC SEPARATOR ', ') AS po_nos")
+            ->selectRaw("DATE_FORMAT(MAX(COALESCE(s.`date_rec`, s.`created_at`)), '%Y-%m-%d') AS po_date")
+            ->selectRaw("SUM(COALESCE(s.`PO Value`,0)) AS total_po_value")
+            ->whereNotNull(DB::raw('s.`Quote No.`'))
+            ->whereRaw("TRIM(s.`Quote No.`) <> ''")
+            ->groupBy('q_key');
 
-        // -----------------------------
-        // KPIs you already show
-        // -----------------------------
+        $base = (clone $q)->leftJoinSub($poSub, 'so', function ($join) use ($normProjects) {
+            $join->on(DB::raw($normProjects), '=', DB::raw('so.q_key'));
+        });
+
+        /* ---------------------------------------------------------
+         * Status normalization (same precedence as datatable)
+         * --------------------------------------------------------- */
+        $pt = "LOWER(TRIM(projects.project_type))";
+        $st = "LOWER(TRIM(projects.status))";
+
+        $inHandList  = "'in-hand','in hand','inhand','accepted','won','order','order in hand','ih'";
+        $biddingList = "'bidding','open','submitted','pending','quote','quoted','rfq','inquiry','enquiry'";
+        $lostList    = "'lost','rejected','cancelled','canceled','closed lost','declined','not awarded'";
+
+        $computedStatus = "
+CASE
+  WHEN COALESCE(so.po_count, 0) > 0 THEN 'PO-Received'
+  WHEN $st IN ($lostList)           THEN 'Lost'
+  WHEN $pt IN ($inHandList)         THEN 'In-Hand'
+  WHEN $pt IN ($biddingList)        THEN 'Bidding'
+  ELSE 'Other'
+END
+";
+
+        // Common value expression
+        $valExpr = DB::raw('COALESCE(quotation_value, price, 0)');
+
+        /* -----------------------------
+         * KPI: value by status (pie)
+         * ----------------------------- */
         $byStatus = (clone $base)
-            ->selectRaw("$statusCase AS status_norm, SUM(COALESCE(quotation_value, price, 0)) AS sum_value")
+            ->selectRaw("($computedStatus) AS status_norm, SUM(COALESCE(quotation_value, price, 0)) AS sum_value")
             ->groupBy('status_norm')
             ->get();
 
+        /* -----------------------------
+         * KPI: area stacks (counts + SAR)
+         * ----------------------------- */
         $rowsArea = (clone $base)->selectRaw("
         COALESCE(area,'—') AS area,
-        SUM(CASE WHEN ($statusCase)='In-Hand' THEN 1 ELSE 0 END) AS inhand_cnt,
-        SUM(CASE WHEN ($statusCase)='Bidding' THEN 1 ELSE 0 END) AS bidding_cnt,
-        SUM(CASE WHEN ($statusCase)='Lost'    THEN 1 ELSE 0 END) AS lost_cnt,
-        SUM(CASE WHEN ($statusCase)='In-Hand' THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS inhand_val,
-        SUM(CASE WHEN ($statusCase)='Bidding' THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS bidding_val,
-        SUM(CASE WHEN ($statusCase)='Lost'    THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS lost_val
+        SUM(CASE WHEN (($computedStatus)='In-Hand') THEN 1 ELSE 0 END) AS inhand_cnt,
+        SUM(CASE WHEN (($computedStatus)='Bidding') THEN 1 ELSE 0 END) AS bidding_cnt,
+        SUM(CASE WHEN (($computedStatus)='Lost')    THEN 1 ELSE 0 END) AS lost_cnt,
+        SUM(CASE WHEN (($computedStatus)='In-Hand') THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS inhand_val,
+        SUM(CASE WHEN (($computedStatus)='Bidding') THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS bidding_val,
+        SUM(CASE WHEN (($computedStatus)='Lost')    THEN COALESCE(quotation_value, price, 0) ELSE 0 END) AS lost_val
     ")
             ->groupBy('area')
             ->orderBy('area')
@@ -114,7 +155,9 @@ class ProjectApiController extends Controller
             $seriesLost[]    = ['y' => (int)($r->lost_cnt    ?? 0), 'sar' => (float)($r->lost_val ?? 0)];
         }
 
-        // Month window for monthly charts
+        /* -----------------------------
+         * Monthly window
+         * ----------------------------- */
         if ($df && $dt) {
             $start = \Carbon\Carbon::parse($df)->startOfMonth();
             $end   = \Carbon\Carbon::parse($dt)->endOfMonth();
@@ -125,9 +168,15 @@ class ProjectApiController extends Controller
             $start = now()->startOfYear();
             $end   = now()->endOfYear();
         }
-        $months = [];
-        for ($c = $start->copy(); $c <= $end; $c->addMonth()) $months[] = $c->format('Y-m');
 
+        $months = [];
+        for ($c = $start->copy(); $c <= $end; $c->addMonth()) {
+            $months[] = $c->format('Y-m');
+        }
+
+        /* -----------------------------
+         * KPI: monthly counts by area
+         * ----------------------------- */
         $monthlyRows = (clone $base)
             ->selectRaw("DATE_FORMAT($dateExprSql,'%Y-%m') AS ym, COALESCE(area,'—') AS area, COUNT(*) AS cnt")
             ->whereRaw("$dateExprSql BETWEEN ? AND ?", [$start->toDateString(), $end->toDateString()])
@@ -147,75 +196,110 @@ class ProjectApiController extends Controller
             $seriesMonthly[] = ['name'=>$a,'data'=>$data];
         }
 
-        // Value-by-status with target line
+        /* -----------------------------
+         * KPI: monthly value by status + target %
+         * ----------------------------- */
         $valRows = (clone $base)
-            ->selectRaw("DATE_FORMAT($dateExprSql,'%Y-%m') AS ym, ($statusCase) AS status_norm, SUM(COALESCE(quotation_value, price, 0)) AS amt")
+            ->selectRaw("DATE_FORMAT($dateExprSql,'%Y-%m') AS ym, ($computedStatus) AS status_norm, SUM(COALESCE(quotation_value, price, 0)) AS amt")
             ->whereRaw("$dateExprSql BETWEEN ? AND ?", [$start->toDateString(), $end->toDateString()])
-            ->groupBy('ym','status_norm')->orderBy('ym')->get();
+            ->groupBy('ym','status_norm')
+            ->orderBy('ym')
+            ->get();
 
         $idxVal = [];
-        foreach ($valRows as $r) $idxVal[$r->ym][$r->status_norm] = (float)$r->amt;
+        foreach ($valRows as $r) {
+            $idxVal[$r->ym][$r->status_norm] = (float) $r->amt;
+        }
 
-        $colInHand=[]; $colBidding=[]; $colLost=[]; $linePct=[];
-        $target = (float) $req->input('monthly_target', 20000000);
+        $colInHand = [];
+        $colBidding = [];
+        $colLost = [];
+        $linePct = [];
+
+        $targetPerMonth = (float) $req->input('monthly_target', 3_000_000);
+        $today = now();
+
+        $cumulativeByYear = [];
+        $monthsElapsed = function (int $year, int $monthNum) use ($today): int {
+            if ($year < (int) $today->year) return $monthNum;
+            if ($year === (int) $today->year) return min($monthNum, (int) $today->month);
+            return $monthNum;
+        };
+
         foreach ($months as $ym) {
             $ih = (float) ($idxVal[$ym]['In-Hand'] ?? 0);
             $bd = (float) ($idxVal[$ym]['Bidding'] ?? 0);
             $lt = (float) ($idxVal[$ym]['Lost'] ?? 0);
+
             $total = $ih + $bd + $lt;
+
             $colInHand[]  = $ih;
             $colBidding[] = $bd;
             $colLost[]    = $lt;
-            $linePct[]    = $target > 0 ? round(($total / $target) * 100, 2) : 0.0;
+
+            [$yy, $mm] = array_map('intval', explode('-', $ym));
+            $cumulativeByYear[$yy] = ($cumulativeByYear[$yy] ?? 0.0) + $total;
+
+            $elapsed = $monthsElapsed($yy, $mm);
+            $ytdTarget = $targetPerMonth * 12; // keep your current design
+            $linePct[] = $targetPerMonth > 0 ? round(($total / $ytdTarget) * 100, 2) : 0.0;
+        }
+
+        if ($y) {
+            $targetValueForLegend = $targetPerMonth * ($y == (int) $today->year ? (int) $today->month : 12);
+        } else {
+            $targetValueForLegend = $targetPerMonth * (int) $today->month;
         }
 
         $monthlyValueWithTarget = [
-            'categories' => $months,
-            'target_value' => 20000000,
-            'series' => [
-                ['type'=>'column','name'=>'In-Hand (SAR)','stack'=>'Value','data'=>$colInHand],
-                ['type'=>'column','name'=>'Bidding (SAR)','stack'=>'Value','data'=>$colBidding],
-                ['type'=>'column','name'=>'Lost (SAR)','stack'=>'Value','data'=>$colLost],
-                ['type'=>'spline','name'=>'Target Attainment %','yAxis'=>1,'tooltip'=>['valueSuffix'=>'%'],'data'=>$linePct]
+            'categories'   => $months,
+            'target_value' => $targetValueForLegend,
+            'series'       => [
+                ['type' => 'column', 'name' => 'In-Hand (SAR)', 'stack' => 'Value', 'data' => $colInHand],
+                ['type' => 'column', 'name' => 'Bidding (SAR)', 'stack' => 'Value', 'data' => $colBidding],
+                ['type' => 'column', 'name' => 'Lost (SAR)',    'stack' => 'Value', 'data' => $colLost],
+                ['type' => 'spline', 'name' => 'Target Attainment %', 'yAxis' => 1, 'tooltip' => ['valueSuffix' => '%'], 'data' => $linePct],
             ],
         ];
 
-        // Totals
+        /* -----------------------------
+         * Totals (badges)
+         * ----------------------------- */
         $totalCount = (clone $base)->count();
         $totalValue = (float) ((clone $base)->selectRaw("SUM(COALESCE(quotation_value,price,0)) AS t")->value('t') ?? 0);
 
-        // -----------------------------------------------
-        // VALUE CONVERSION % (PO value / Quoted value)
-        // -----------------------------------------------
-        $normProj = "UPPER(REPLACE(REPLACE(REPLACE(projects.quotation_no,' ',''),'.',''),'-',''))";
+        /* -----------------------------------------------
+         * VALUE conversion % (PO value / Quoted value)
+         * ----------------------------------------------- */
+        // Normalizers (define once and reuse)
+        $normProjExpr = "UPPER(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(projects.quotation_no),' ',''),'.',''),'-',''),'/',''))";
+        $normSoExpr   = "UPPER(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(`Quote No.`),' ',''),'.',''),'-',''),'/',''))";
 
         $poAggForValue = DB::table('salesorderlog as s')
-            ->selectRaw("UPPER(REPLACE(REPLACE(REPLACE(`Quote No.`,' ',''),'.',''),'-','')) AS q_key")
+            ->selectRaw("$normSoExpr AS q_key")
             ->selectRaw("SUM(COALESCE(`PO Value`,0)) AS po_sum")
-            ->whereNotNull(DB::raw('`Quote No.`'))
-            ->whereRaw("TRIM(`Quote No.`) <> ''")
+            ->whereRaw("`Quote No.` IS NOT NULL AND TRIM(`Quote No.`) <> ''")
             ->groupBy('q_key');
 
-        $filteredIds = (clone $base)->pluck('id');
+        $filteredIds = (clone $base)->pluck('projects.id');
 
         $poValueSum = DB::table('projects')
             ->whereIn('projects.id', $filteredIds)
-            ->joinSub($poAggForValue, 'so', function ($j) use ($normProj) {
-                $j->on(DB::raw($normProj), '=', DB::raw('so.q_key')); // expression vs expression
+            ->joinSub($poAggForValue, 'so', function ($j) use ($normProjExpr) {
+                $j->on(DB::raw($normProjExpr), '=', DB::raw('so.q_key'));
             })
             ->sum('so.po_sum');
 
         $valueConvPct = $totalValue > 0 ? round(($poValueSum / $totalValue) * 100, 1) : 0.0;
 
-        // -----------------------------------------------
-        // COUNT & VALUE conversion over matched quotations
-        // -----------------------------------------------
+        /* -----------------------------------------------
+         * COUNT & VALUE conversion (matched projects)
+         * ----------------------------------------------- */
         $poAggForCounts = DB::table('salesorderlog as s')
-            ->selectRaw("UPPER(REPLACE(REPLACE(REPLACE(`Quote No.`,' ',''),'.',''),'-','')) AS q_key")
+            ->selectRaw("$normSoExpr AS q_key")
             ->selectRaw("SUM(COALESCE(`PO Value`,0)) AS po_total")
             ->selectRaw("COUNT(DISTINCT `PO. No.`)   AS po_cnt")
-            ->whereNotNull(DB::raw('`Quote No.`'))
-            ->whereRaw("TRIM(`Quote No.`) <> ''")
+            ->whereRaw("`Quote No.` IS NOT NULL AND TRIM(`Quote No.`) <> ''")
             ->groupBy('q_key');
 
         $eligible = (clone $base);
@@ -225,8 +309,8 @@ class ProjectApiController extends Controller
             ->selectRaw('SUM(COALESCE(quotation_value, price, 0)) AS t')->value('t') ?? 0);
 
         $eligibleWithPo = (clone $eligible)
-            ->joinSub($poAggForCounts, 'po', function ($j) use ($normProj) {
-                $j->on(DB::raw($normProj), '=', DB::raw('po.q_key')); // correct join
+            ->joinSub($poAggForCounts, 'po', function ($j) use ($normProjExpr) {
+                $j->on(DB::raw($normProjExpr), '=', DB::raw('po.q_key'));
             });
 
         $projectsWithPo = (int) (clone $eligibleWithPo)
@@ -238,9 +322,110 @@ class ProjectApiController extends Controller
         $valueConversionPct = $totalQuoteValue > 0 ? (100.0 * $totalPoValueMatched / $totalQuoteValue) : 0.0;
         $countConversionPct = $totalInquiries  > 0 ? (100.0 * $projectsWithPo   / $totalInquiries)  : 0.0;
 
-        // -----------------------------
-        // Response
-        // -----------------------------
+        /* -------------------------------------------------
+         * IN-HAND vs PO
+         * ------------------------------------------------- */
+        $inhandBase = (clone $q)->whereRaw("$pt IN ($inHandList)");
+        $inhandQuoteSum = (float) ((clone $inhandBase)->selectRaw('SUM(COALESCE(quotation_value, price, 0)) AS t')->value('t') ?? 0);
+
+        $poAggByQuote = DB::table('salesorderlog as s')
+            ->selectRaw("$normSoExpr AS q_key")
+            ->selectRaw("SUM(COALESCE(`PO Value`,0)) AS po_total")
+            ->whereRaw("`Quote No.` IS NOT NULL AND TRIM(`Quote No.`) <> ''")
+            ->groupBy('q_key');
+
+        $inhandIds = (clone $inhandBase)->pluck('projects.id');
+
+        $inhandPoSum = DB::table('projects')
+            ->whereIn('projects.id', $inhandIds)
+            ->joinSub($poAggByQuote, 'po', function ($j) use ($normProjExpr) {
+                $j->on(DB::raw($normProjExpr), '=', DB::raw('po.q_key'));
+            })
+            ->sum('po.po_total');
+
+        $inhandBalance = max($inhandQuoteSum - $inhandPoSum, 0.0);
+        $targetAchievedPct = $inhandQuoteSum > 0
+            ? round(100.0 * $inhandPoSum / $inhandQuoteSum, 1)
+            : 0.0;
+
+        /* -------------------------------------------------
+         * BIDDING vs PO (same pattern)
+         * ------------------------------------------------- */
+        $biddingBase = (clone $q)->whereRaw("$pt IN ($biddingList)");
+        $biddingQuoteSum = (float) ((clone $biddingBase)->selectRaw('SUM(COALESCE(quotation_value, price, 0)) AS t')->value('t') ?? 0);
+        $biddingIds = (clone $biddingBase)->pluck('projects.id');
+
+        $biddingPoSum = DB::table('projects')
+            ->whereIn('projects.id', $biddingIds)
+            ->joinSub($poAggByQuote, 'po', function ($j) use ($normProjExpr) {
+                $j->on(DB::raw($normProjExpr), '=', DB::raw('po.q_key'));
+            })
+            ->sum('po.po_total');
+
+        $biddingBalance = max($biddingQuoteSum - $biddingPoSum, 0.0);
+        $biddingAchievedPct = $biddingQuoteSum > 0
+            ? round(100.0 * $biddingPoSum / $biddingQuoteSum, 1)
+            : 0.0;
+
+        /* -------------------------------------------------
+         * Gauges (value totals & conversion %)
+         * ------------------------------------------------- */
+        $inhandValue  = (float) (clone $base)->whereRaw("( $computedStatus )='In-Hand'")->sum($valExpr);
+        $biddingValue = (float) (clone $base)->whereRaw("( $computedStatus )='Bidding'")->sum($valExpr);
+
+        $inhandMax  = (float) $req->input('inhand_max',  15_000_000);
+        $biddingMax = (float) $req->input('bidding_max', 15_000_000);
+        $targetConv = (float) $req->input('target_conv', 20);
+
+        /* =================================================
+         * NEW: VALUE-BASED FUNNEL (Quoted→In-Hand/Bidding→PO)
+         * ================================================= */
+        $quotedSum   = (float) $totalValue;          // same as your "Quoted" universe under current filters
+        $inHandSum   = (float) $inhandQuoteSum;      // from above
+        $biddingSum  = (float) $biddingQuoteSum;     // from above
+
+        // PO Received (value)
+        $poRecvAgg = DB::table('salesorderlog as s')
+            ->selectRaw("$normSoExpr AS q_key")
+            ->selectRaw("SUM(COALESCE(`PO Value`,0)) AS po_sum")
+            ->whereRaw("`Quote No.` IS NOT NULL AND TRIM(`Quote No.`) <> ''")
+            ->groupBy('q_key');
+
+        $poReceivedSum = DB::table('projects')
+            ->whereIn('projects.id', $filteredIds)
+            ->joinSub($poRecvAgg, 'po', function ($j) use ($normProjExpr) {
+                $j->on(DB::raw($normProjExpr), '=', DB::raw('po.q_key'));
+            })
+            ->sum('po.po_sum');
+
+        // PO Cancelled (value) — adjust if your Status column differs
+        $poCancelAgg = DB::table('salesorderlog as s')
+            ->selectRaw("$normSoExpr AS q_key")
+            ->selectRaw("SUM(COALESCE(`PO Value`,0)) AS po_sum")
+            ->whereRaw("`Quote No.` IS NOT NULL AND TRIM(`Quote No.`) <> ''")
+            ->whereRaw("LOWER(COALESCE(`Status`,'')) IN ('cancelled','canceled')")
+            ->groupBy('q_key');
+
+        $poCancelledSum = DB::table('projects')
+            ->whereIn('projects.id', $filteredIds)
+            ->joinSub($poCancelAgg, 'pc', function ($j) use ($normProjExpr) {
+                $j->on(DB::raw($normProjExpr), '=', DB::raw('pc.q_key'));
+            })
+            ->sum('pc.po_sum');
+
+        $funnelValue = [
+            'stages' => [
+                ['name' => 'Quoted',      'value' => round($quotedSum, 2)],
+                ['name' => 'In Hand',     'value' => round($inHandSum, 2)],
+                ['name' => 'Bidding',     'value' => round($biddingSum, 2)],
+                ['name' => 'PO Received', 'value' => round($poReceivedSum, 2)],
+                ['name' => 'PO Cancelled','value' => round($poCancelledSum, 2)],
+            ]
+        ];
+
+        /* -----------------------------
+         * Response (unchanged keys)
+         * ----------------------------- */
         return response()->json([
             'total_count' => $totalCount,
             'total_value' => $totalValue,
@@ -255,17 +440,17 @@ class ProjectApiController extends Controller
                 ],
             ],
             'monthly_area' => [
-                'categories'=>$months,
-                'series'=>$seriesMonthly,
+                'categories' => $months,
+                'series'     => $seriesMonthly,
             ],
             'monthly_value_status_with_target' => $monthlyValueWithTarget,
 
             'region_scope'   => $isAdmin ? 'ALL' : 'LOCKED',
             'effective_area' => $effectiveArea,
-            'user_region'    => $user->region ?? null,
-            'user_roles'     => $user->getRoleNames() ?? [],
+            'user_region'    => $user ? $user->region : null,
+            'user_roles'     => ($user && method_exists($user, 'getRoleNames')) ? $user->getRoleNames() : [],
 
-            // NEW badge numbers
+            // badges
             'value_conversion' => [
                 'quote_value_sum'  => (float) $totalValue,
                 'po_value_sum'     => (float) $poValueSum,
@@ -279,8 +464,54 @@ class ProjectApiController extends Controller
                 'value_conversion_pct'   => round($valueConversionPct, 2),
                 'count_conversion_pct'   => round($countConversionPct, 2),
             ],
+
+            // In-Hand vs PO
+            'inhand_po' => [
+                'inhand_quote_sum'   => (float) $inhandQuoteSum,
+                'inhand_po_sum'      => (float) $inhandPoSum,
+                'inhand_balance_sum' => (float) $inhandBalance,
+                'achieved_pct'       => (float) $targetAchievedPct,
+            ],
+            'bidding_po' => [
+                'bidding_quote_sum'   => (float) $biddingQuoteSum,
+                'bidding_po_sum'      => (float) $biddingPoSum,
+                'bidding_balance_sum' => (float) $biddingBalance,
+                'achieved_pct'        => (float) $biddingAchievedPct,
+            ],
+
+            // gauges
+            'gauges' => [
+                'inhand' => [
+                    'inhand_quote_sum'   => (float) $inhandQuoteSum,
+                    'display_value' => (float) $inhandQuoteSum,
+                    'pct'           => (float) $targetAchievedPct,
+                    'po_value'      => (float) $inhandPoSum,
+                    'balance_value' => (float) max($inhandQuoteSum - $inhandPoSum, 0),
+                    'unit'          => 'SAR',
+                    'max_pct'       => 100,
+                ],
+                'bidding' => [
+                    'display_value' => (float) $biddingQuoteSum,
+                    'pct'           => (float) $biddingAchievedPct,
+                    'po_value'      => (float) $biddingPoSum,
+                    'balance_value' => (float) $biddingBalance,
+                    'unit'          => 'SAR',
+                    'max_pct'       => 100,
+                ],
+                'conversion' => [
+                    'value'  => round($valueConvPct, 1),
+                    'max'    => 100,
+                    'target' => (float) $req->input('target_conv', 20),
+                    'unit'   => '%',
+                ],
+            ],
+
+            // Value-based funnel
+            'funnel_value' => $funnelValue,
         ]);
     }
+
+
 
 
 

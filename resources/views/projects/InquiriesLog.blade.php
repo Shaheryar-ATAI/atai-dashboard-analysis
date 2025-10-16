@@ -33,73 +33,83 @@
 @php $u = auth()->user(); @endphp
 <nav class="navbar navbar-atai navbar-expand-lg">
     <div class="container-fluid">
+        {{-- Brand (left) --}}
         <a class="navbar-brand d-flex align-items-center" href="{{ route('projects.index') }}">
             <img src="{{ asset('images/atai-logo.png') }}" alt="ATAI" class="brand-logo me-2">
             <span class="brand-word">ATAI</span>
         </a>
 
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                {{-- Always visible --}}
+        {{-- Toggler (mobile) --}}
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#ataiNav"
+                aria-controls="ataiNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        {{-- Collapse --}}
+        <div class="collapse navbar-collapse" id="ataiNav">
+            {{-- Centered nav (desktop); scrollable row (mobile) --}}
+            <ul class="navbar-nav mx-lg-auto mb-2 mb-lg-0">
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}"
                        href="{{ route('projects.index') }}">Quotation KPI</a>
                 </li>
-
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs(['inquiries.index']) ? 'active' : '' }}"
-                       href="{{ route('inquiries.index') }}">
-                        Quotation Log
-                    </a>
+                       href="{{ route('inquiries.index') }}">Quotation Log</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.kpi') ? 'active' : '' }}"
-                       href="{{ route('salesorders.manager.kpi') }}">
-                        Sales Order Log KPI
-                    </a>
+                       href="{{ route('salesorders.manager.kpi') }}">Sales Order Log KPI</a>
                 </li>
-
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.index') ? 'active' : '' }}"
-                       href="{{ route('salesorders.manager.index') }}">
-                        Sales Order Log
-                    </a>
+                       href="{{ route('salesorders.manager.index') }}">Sales Order Log</a>
                 </li>
-
-                {{-- Sales roles only --}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">Estimation</a>
                 </li>
 
-                {{-- GM/Admin only --}}
                 @hasanyrole('gm|admin')
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
-                                        href="{{ route('salesorders.index') }}">Sales Orders</a></li>
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
-                                        href="{{ route('performance.area') }}">Area summary</a></li>
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active' : '' }}"
-                                        href="{{ route('performance.salesman') }}">SalesMan summary</a></li>
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
-                                        href="{{ route('performance.product') }}">Product summary</a></li>
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
-                                        href="{{ route('powerbi.jump') }}">Accounts Summary</a></li>
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
-                                        href="{{ route('powerbi.jump') }}">Power BI Dashboard</a></li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
+                       href="{{ route('salesorders.index') }}">Sales Orders</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
+                       href="{{ route('performance.area') }}">Area summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active' : '' }}"
+                       href="{{ route('performance.salesman') }}">SalesMan summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
+                       href="{{ route('performance.product') }}">Product summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                       href="{{ route('powerbi.jump') }}">Accounts Summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                       href="{{ route('powerbi.jump') }}">Power BI Dashboard</a>
+                </li>
                 @endhasanyrole
             </ul>
 
-            <div class="navbar-text me-2">
-                Logged in as <strong>{{ $u->name ?? '' }}</strong>
-                @if(!empty($u->region))
-                    · <small>{{ $u->region }}</small>
-                @endif
+            {{-- Right block (far-right on desktop; full-width row on mobile) --}}
+            <div class="navbar-right">
+                <div class="navbar-text me-2">
+                    Logged in as <strong>{{ $u->name ?? '' }}</strong>
+                    @if(!empty($u->region))
+                        · <small>{{ $u->region }}</small>
+                    @endif
+                </div>
+                <form method="POST" action="{{ route('logout') }}" class="m-0">@csrf
+                    <button class="btn btn-logout btn-sm" type="submit">Logout</button>
+                </form>
             </div>
-
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button class="btn btn-logout btn-sm">Logout</button>
-            </form>
         </div>
     </div>
 </nav>
@@ -147,10 +157,30 @@
             </div>
         </div>
 
-        <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
-            <span id="kpiBadgeProjects" class="badge-total text-bg-info">Total Quotations No. : 0</span>
-            <span id="kpiBadgeValue" class="badge-total text-bg-primary">Total Quotations Value: SAR 0</span>
+{{--        <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">--}}
+{{--            <span id="kpiBadgeProjects" class="badge-total text-bg-info">Total Quotations No. : 0</span>--}}
+{{--            <span id="kpiBadgeValue" class="badge-total text-bg-primary">Total Quotations Value: SAR 0</span>--}}
+{{--        </div>--}}
+
+
+        <div class="row g-3 mb-4 text-center justify-content-center">
+            <div class="col-6 col-md col-lg">
+                <div class="kpi-card shadow-sm p-5 h-150">
+                    <div class="kpi-label"></div>
+                    <div id="kpiBadgeProjects" class="kpi-value">SAR 0</div>
+                </div>
+            </div>
+            <div class="col-6 col-md col-lg">
+                <div class="kpi-card shadow-sm p-5 h-150">
+                    <div class="kpi-label"></div>
+                    <div id="kpiBadgeValue" class="kpi-value">0</div>
+                </div>
+            </div>
+
         </div>
+
+
+
     </div>
 
     <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
@@ -164,6 +194,16 @@
     </div>
 
     {{-- ===== TABS (Bidding / In-Hand / Lost / PO received) ===== --}}
+{{--    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">--}}
+{{--        <div id="familyChips" class="btn-group" role="group" aria-label="Product family">--}}
+{{--            <button class="nav-link active" data-bs-target="#bidding" data-bs-toggle="tab" type="button" role="tab">Bidding</button>--}}
+{{--            <button class="nav-link" data-bs-target="#inhand" data-bs-toggle="tab" type="button" role="tab">In-Hand</button>--}}
+{{--            <button class="nav-link" data-bs-target="#lost" data-bs-toggle="tab" type="button" role="tab">Lost</button>--}}
+{{--        --}}
+{{--        </div>--}}
+{{--    </div>--}}
+
+
     <ul class="nav nav-tabs" role="tablist">
         <li class="nav-item">
             <button class="nav-link active" data-bs-target="#bidding" data-bs-toggle="tab" type="button" role="tab">Bidding</button>
@@ -187,7 +227,12 @@
                     <span class="input-group-text">Search</span>
                     <input id="searchBidding" type="text" class="form-control" placeholder="Project, client, location…">
                 </div>
-                <span id="sumBidding" class="badge-total text-bg-primary">Total: SAR 0</span>
+
+{{--                <span id="sumBidding" class="badge-total text-bg-primary"> SAR 0</span>--}}
+
+
+
+
             </div>
 
             <div class="table-responsive">
@@ -217,7 +262,7 @@
                     <span class="input-group-text">Search</span>
                     <input id="searchInhand" type="text" class="form-control" placeholder="Project, client, location…">
                 </div>
-                <span id="sumInhand" class="badge-total text-bg-info">Total: SAR 0</span>
+{{--                <span id="sumInhand" class="badge-total text-bg-info">Total: SAR 0</span>--}}
             </div>
 
             <div class="table-responsive">
@@ -247,7 +292,7 @@
                     <span class="input-group-text">Search</span>
                     <input id="searchLost" type="text" class="form-control" placeholder="Project, client, location…">
                 </div>
-                <span id="sumLost" class="badge-total text-bg-danger">Total: SAR 0</span>
+{{--                <span id="sumLost" class="badge-total text-bg-danger">Total: SAR 0</span>--}}
             </div>
 
             <div class="table-responsive">
@@ -280,7 +325,7 @@
                     <span class="input-group-text">Search</span>
                     <input id="searchPOreceived" type="text" class="form-control" placeholder="Project, client, location…">
                 </div>
-                <span id="sumPOreceived" class="badge-total text-bg-primary">Total: SAR 0</span>
+{{--                <span id="sumPOreceived" class="badge-total text-bg-primary">Total: SAR 0</span>--}}
             </div>
 
             <div class="table-responsive">
@@ -310,7 +355,7 @@
 </main>
 
 {{-- ===== BIDDING MODAL ===== --}}
-<div class="modal fade" id="biddingModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade modal-atai" id="biddingModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
@@ -364,7 +409,7 @@
 </div>
 
 {{-- ===== IN-HAND MODAL ===== --}}
-<div class="modal fade" id="inhandModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade modal-atai" id="inhandModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
@@ -424,7 +469,7 @@
 </div>
 
 {{-- ===== LOST MODAL ===== --}}
-<div class="modal fade" id="lostModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade modal-atai" id="lostModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
@@ -465,8 +510,8 @@
 </div>
 
 {{-- ===== PO RECEIVED MODAL ===== --}}
-<div class="modal fade" id="POreceivedModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+<div class="modal fade modal-atai" id="POreceivedModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dia log modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="POreceivedModalLabel">PO received Project</h5>
@@ -593,17 +638,16 @@
 
     function initProjectsTable(selector, status, sumSelector) {
         const $table = $(selector);
-        const statusMap = {bidding: 'Bidding', inhand: 'In-Hand', lost: 'Lost', poreceived: 'PO-Received'};
-        //const cols = (status === 'poreceived' || status === 'lost') ? projectColumnsPO : projectColumns;
-        const cols = (status === 'poreceived' ) ? projectColumnsPO : projectColumns;
-        const table = $table.DataTable({
+        const statusMap = { bidding: 'Bidding', inhand: 'In-Hand', lost: 'Lost', poreceived: 'PO-Received' };
+        const cols = (status === 'poreceived') ? projectColumnsPO : projectColumns;
+
+        return $table.DataTable({
             processing: true,
             serverSide: true,
             order: [[0, 'desc']],
             ajax: {
                 url: DT_URL,
-                headers: {'X-Requested-With': 'XMLHttpRequest'},
-                dataSrc: (json) => json.data || [],
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
                 data: (d) => {
                     d.status_norm = statusMap[status] || '';
                     d.family = currentFamily || '';
@@ -624,30 +668,50 @@
                         if (yr) d.year = yr;
                     }
                     if (area) d.area = area;
+                },
+                dataSrc: (json) => {
+                    // 1) Immediately set header with GLOBAL values from this single response
+                    const pEl = document.getElementById('kpiBadgeProjects'); // count
+                    const vEl = document.getElementById('kpiBadgeValue');    // value
 
-                    // Include projects with NO PO on the Lost tab (as per your note)
-                    if (status === 'lost') d.include_no_po = 1;
+                    if (pEl) pEl.textContent = `Total Quotation No : ${Number(json?.recordsTotal || 0)}`;
+                    if (vEl) vEl.textContent = `Total Quotation Value: ${json?.header_sum_value_fmt || 'SAR 0'}`;
+                    FIRST_HEADER_PRIMED = true;
+
+                    // 2) Store this tab’s totals (for switching)
+                    const tabSum = Number(json?.sum_quotation_value || 0);
+                    const tabCnt = Number(json?.recordsFiltered || 0);
+                    TAB_SUMS[status]   = tabSum;
+                    TAB_COUNTS[status] = tabCnt;
+                    TAB_LOADED[status] = true;
+
+                    // 3) Update small badge inside this tab
+                    const el = document.querySelector(sumSelector);
+                    if (el) el.textContent = 'Total: ' + fmtSAR(tabSum);
+
+                    // 4) If the user is currently looking at this tab, override the header with this tab’s totals
+                    if (SHOW_CURRENT_TAB_ONLY) updateHeaderBadges(status);
+
+                    return json?.data || [];
                 }
             },
-            columns: cols,
-            language: {search: "Global search:", lengthMenu: "Show _MENU_"},
-            drawCallback: function () {
-                const json = this.api().ajax.json() || {};
-                const sum = Number(json.sum_quotation_value || 0);
-                const cnt = Number(json.recordsFiltered || 0);
-
-                const el = document.querySelector(sumSelector);
-                if (el) el.textContent = 'Total: ' + fmtSAR(sum);
-
-                TAB_SUMS[status]   = sum;
-                TAB_COUNTS[status] = cnt;
-                updateHeaderBadges();
-            }
+            columns: cols
         });
-
-        return table;
     }
 
+    document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', (e) => {
+            const tabId = e.target.getAttribute('data-bs-target') || '';
+            let key = null;
+            if (tabId.includes('bidding'))    key = 'bidding';
+            if (tabId.includes('inhand'))     key = 'inhand';
+            if (tabId.includes('lost'))       key = 'lost';
+            if (tabId.includes('POreceived')) key = 'poreceived';
+
+            SHOW_CURRENT_TAB_ONLY = !!key;
+            updateHeaderBadges(key);
+        });
+    });
     /* =============================================================================
      *  CHECKLISTS + DETAIL HELPERS
      * ============================================================================= */
@@ -899,28 +963,28 @@
     function getDT(sel) { return $.fn.dataTable.isDataTable(sel) ? $(sel).DataTable() : null; }
 
     // Family chips → refresh DT + KPI
+
     $(document).on('click', '#familyChips [data-family]', function (e) {
         e.preventDefault();
         $('#familyChips [data-family]').removeClass('active');
         this.classList.add('active');
         currentFamily = this.getAttribute('data-family') || '';
-        getDT('#tblBidding')?.ajax.reload(null, false);
-        getDT('#tblInhand')?.ajax.reload(null, false);
-        getDT('#tblLost')?.ajax.reload(null, false);
-        getDT('#tblPOreceived')?.ajax.reload(null, false);
+        resetTabTotals(); // important
+        dtBid?.ajax.reload(null, false);
+        dtIn?.ajax.reload(null, false);
+        dtLost?.ajax.reload(null, false);
+        dtPO?.ajax.reload(null, false);
     });
-
     // Apply filters
     document.getElementById('projApply')?.addEventListener('click', () => {
         PROJ_YEAR   = document.getElementById('projYear')?.value || '';
         PROJ_REGION = CAN_VIEW_ALL ? (document.getElementById('projRegion')?.value || '') : '';
-
-        if (dtBid) dtBid.ajax.reload(null, false);
-        if (dtIn)  dtIn.ajax.reload(null, false);
-        if (dtLost) dtLost.ajax.reload(null, false);
-        if (dtPO)  dtPO.ajax.reload(null, false);
+        resetTabTotals(); // important
+        dtBid?.ajax.reload(null, false);
+        dtIn?.ajax.reload(null, false);
+        dtLost?.ajax.reload(null, false);
+        dtPO?.ajax.reload(null, false);
     });
-
     /* =============================================================================
      *  BOOT
      * ============================================================================= */
@@ -977,24 +1041,56 @@
         };
     }
 
-    let TAB_SUMS   = {bidding: 0, inhand: 0, lost: 0, poreceived: 0};
-    let TAB_COUNTS = {bidding: 0, inhand: 0, lost: 0, poreceived: 0};
+    // Totals state for header
+    // ===== Totals state =====
+    let TAB_SUMS   = { bidding: 0, inhand: 0, lost: 0, poreceived: 0 };
+    let TAB_COUNTS = { bidding: 0, inhand: 0, lost: 0, poreceived: 0 };
 
-    function updateHeaderBadges() {
-        const totalCnt = (TAB_COUNTS.bidding || 0)
-            + (TAB_COUNTS.inhand  || 0)
-            + (TAB_COUNTS.lost    || 0)
-            + (TAB_COUNTS.poreceived || 0);
-        const totalSum = (TAB_SUMS.bidding || 0)
-            + (TAB_SUMS.inhand  || 0)
-            + (TAB_SUMS.lost    || 0)
-            + (TAB_SUMS.poreceived || 0);
+    // Track which tabs have finished their first load
+    let TAB_LOADED = { bidding: false, inhand: false, lost: false, poreceived: false };
+
+    // Header behavior flags
+    let SHOW_CURRENT_TAB_ONLY = false; // toggled by tab clicks
+    let FIRST_HEADER_PRIMED   = false; // set once we used recordsTotal the very first time
+
+
+
+
+
+
+    function resetTabTotals() {
+        TAB_SUMS   = { bidding: 0, inhand: 0, lost: 0, poreceived: 0 };
+        TAB_COUNTS = { bidding: 0, inhand: 0, lost: 0, poreceived: 0 };
+        TAB_LOADED = { bidding: false, inhand: false, lost: false, poreceived: false };
+        SHOW_CURRENT_TAB_ONLY = false;
+        FIRST_HEADER_PRIMED   = false; // allow priming again after filter change
+        updateHeaderBadges();
+    }
+    function updateHeaderBadges(currentTab = null) {
+        let totalCnt, totalSum;
+
+        if (SHOW_CURRENT_TAB_ONLY && currentTab) {
+            totalCnt = TAB_COUNTS[currentTab] || 0;
+            totalSum = TAB_SUMS[currentTab] || 0;
+        } else {
+            // fallback to global already set in dataSrc; nothing to do here
+            return;
+        }
+
         const pEl = document.getElementById('kpiBadgeProjects');
         const vEl = document.getElementById('kpiBadgeValue');
-        if (pEl) pEl.textContent = `Total Quotation No.: ${totalCnt}`;
+        if (pEl) pEl.textContent = `Total Quotation No : ${totalCnt}`;
         if (vEl) vEl.textContent = `Total Quotation Value: ${fmtSAR(totalSum)}`;
     }
-
+    function primeHeaderFromResponse(json) {
+        if (FIRST_HEADER_PRIMED) return;
+        const pEl = document.getElementById('kpiBadgeProjects');
+        const vEl = document.getElementById('kpiBadgeValue');
+        if (pEl) pEl.textContent = `Total Quotation No : ${Number(json?.recordsTotal || 0)}`;
+        // While sums for all tabs load, show "calculating…" or leave as-is
+        if (vEl) vEl.textContent = `Total Quotation Value: calculating…`;
+        FIRST_HEADER_PRIMED = true;
+    }
     function showToast(msg) {
         const toastEl = document.getElementById('successToast');
         if (!toastEl) return;
@@ -1024,6 +1120,7 @@
     /* =============================================================================
      *  SAVE / STATUS HANDLERS
      * ============================================================================= */
+
     document.getElementById('saveBiddingBtn')?.addEventListener('click', async () => {
         if (!CURRENT_PROJECT_ID) return alert('No project selected.');
         const checked = (id) => !!document.getElementById(id)?.checked;

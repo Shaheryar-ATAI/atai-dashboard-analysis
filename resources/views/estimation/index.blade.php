@@ -21,7 +21,7 @@
         }
         .estimator-toolbar.glass-row{
             display:flex;justify-content:space-between;align-items:center;
-            gap:1rem;background:rgba(255,255,255,.6);backdrop-filter:saturate(180%) blur(8px);
+            gap:1rem;background:#faf8f869;backdrop-filter:saturate(180%) blur(8px);
             border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:.75rem 1rem
         }
         .et-left{display:flex;align-items:center;gap:.75rem}
@@ -35,65 +35,83 @@
 
 <nav class="navbar navbar-atai navbar-expand-lg">
     <div class="container-fluid">
+        {{-- Brand (left) --}}
         <a class="navbar-brand d-flex align-items-center" href="{{ route('projects.index') }}">
             <img src="{{ asset('images/atai-logo.png') }}" alt="ATAI" class="brand-logo me-2">
             <span class="brand-word">ATAI</span>
         </a>
 
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                {{-- Always visible --}}
+        {{-- Toggler (mobile) --}}
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#ataiNav"
+                aria-controls="ataiNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        {{-- Collapse --}}
+        <div class="collapse navbar-collapse" id="ataiNav">
+            {{-- Centered nav (desktop); scrollable row (mobile) --}}
+            <ul class="navbar-nav mx-lg-auto mb-2 mb-lg-0">
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}"
                        href="{{ route('projects.index') }}">Quotation KPI</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs(['inquiries.index']) ? 'active' : '' }}"
-                       href="{{ route('inquiries.index') }}">
-                        Quotation Log
-                    </a>
+                       href="{{ route('inquiries.index') }}">Quotation Log</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.kpi') ? 'active' : '' }}"
-                       href="{{ route('salesorders.manager.kpi') }}">
-                        Sales Order Log KPI
-                    </a>
+                       href="{{ route('salesorders.manager.kpi') }}">Sales Order Log KPI</a>
                 </li>
-
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.index') ? 'active' : '' }}"
-                       href="{{ route('salesorders.manager.index') }}">
-                        Sales Order Log
-                    </a>
+                       href="{{ route('salesorders.manager.index') }}">Sales Order Log</a>
                 </li>
-                {{-- Sales roles only --}}
-                {{--                @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">Estimation</a>
                 </li>
 
-                {{-- Sales roles only --}}
-                {{--                @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
-
-
                 @hasanyrole('gm|admin')
-                <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.index') }}">Sales Orders</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('performance.area') }}">Area Summary</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('performance.salesman') }}">Salesman Summary</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('performance.product') }}">Product Summary</a></li>
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}" href="{{ route('powerbi.jump') }}">Accounts Summary</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('powerbi.jump') }}">Power BI Dashboard</a></li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
+                       href="{{ route('salesorders.index') }}">Sales Orders</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
+                       href="{{ route('performance.area') }}">Area summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active' : '' }}"
+                       href="{{ route('performance.salesman') }}">SalesMan summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
+                       href="{{ route('performance.product') }}">Product summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                       href="{{ route('powerbi.jump') }}">Accounts Summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                       href="{{ route('powerbi.jump') }}">Power BI Dashboard</a>
+                </li>
                 @endhasanyrole
             </ul>
 
-            <div class="navbar-text me-2">
-                Logged in as <strong>{{ $u->name ?? '' }}</strong>
-                @if(!empty($u->region)) · <small>{{ $u->region }}</small>@endif
+            {{-- Right block (far-right on desktop; full-width row on mobile) --}}
+            <div class="navbar-right">
+                <div class="navbar-text me-2">
+                    Logged in as <strong>{{ $u->name ?? '' }}</strong>
+                    @if(!empty($u->region))
+                        · <small>{{ $u->region }}</small>
+                    @endif
+                </div>
+                <form method="POST" action="{{ route('logout') }}" class="m-0">@csrf
+                    <button class="btn btn-logout btn-sm" type="submit">Logout</button>
+                </form>
             </div>
-            <form method="POST" action="{{ route('logout') }}">@csrf
-                <button class="btn btn-logout btn-sm">Logout</button>
-            </form>
         </div>
     </div>
 </nav>
@@ -141,7 +159,7 @@
             <div class="card shadow-sm kpi-card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="kpi-title" id="kpi-title">By Estimator (share of value)</span>
+                        <span class="kpi-title fw-semibold" id="kpi-title">By Estimator (share of value)</span>
                         <span class="badge-total text-bg-info" id="kpi-total-value">SAR 0</span>
                     </div>
                     <div id="chart-estimator" class="chart-box"></div>
@@ -155,7 +173,7 @@
             <div class="card kpi-card">
                 <div class="card-body">
                     <div class="fw-semibold mb-2">By Product (Top 10)</div>
-                    <div id="chartProduct" class="chart-box"></div>
+                    <div id="chartProduct" style="height: 240px"></div>
                 </div>
             </div>
         </div>
@@ -287,33 +305,152 @@
                     if (payload.mode === 'all') {
                         if (titleEl) titleEl.textContent = 'By Estimator (share of value)';
                         Highcharts.chart('chart-estimator', {
-                            chart: { type: 'pie', backgroundColor: 'transparent' },
+                            chart: {
+                                type: 'pie',
+                                backgroundColor: 'transparent',
+                                spacing: [10, 10, 10, 10]
+                            },
                             title: { text: null },
+                            credits: { enabled: false },
+
+                            colors: ['#60a5fa', '#8b5cf6', '#34d399', '#f59e0b', '#fb7185'],
+
                             tooltip: {
+                                useHTML: true,
+                                backgroundColor: 'rgba(10,15,45,0.95)',
+                                borderColor: '#334155',
+                                borderRadius: 8,
+                                style: { color: '#E8F0FF', fontSize: '13px' },
                                 pointFormatter: function () {
-                                    return `<span style="color:${this.color}">●</span> ${this.name}: <b>${Highcharts.numberFormat(this.percentage, 1)}%</b><br/>Value: <b>${fmtSAR(this.y)}</b>`;
+                                    return `
+        <div style="margin:2px 0;">
+          <span style="color:${this.color}">●</span>
+          ${this.name}: <b>${Highcharts.numberFormat(this.percentage, 1)}%</b><br/>
+          Value: <b>${fmtSAR(this.y)}</b>
+        </div>
+      `;
                                 }
                             },
+
                             plotOptions: {
-                                pie: { dataLabels: { enabled: true, format: '{point.name}: {point.percentage:.1f}%'} }
+                                pie: {
+                                    allowPointSelect: true,
+                                    size: '80%',
+                                    borderWidth: 0,
+                                    shadow: false,
+                                    dataLabels: {
+                                        enabled: true,
+                                        distance: 20,
+                                        softConnector: true,
+                                        connectorWidth: 1.3,
+                                        connectorColor: 'rgba(255,255,255,0.35)',
+                                        style: {
+                                            color: '#E8F0FF',
+                                            fontWeight: 500,
+                                            fontSize: '14px',
+                                            textOutline: '2px rgba(0,0,0,0.6)'
+                                        },
+                                        format: '{point.name}: {point.percentage:.1f}%'
+                                    }
+                                }
                             },
-                            series: [{ name: 'Share', colorByPoint: true, data: payload.estimatorPie || [] }],
-                            credits: { enabled: false }
+
+                            legend: {
+                                enabled: true,
+                                itemStyle: { color: '#E8F0FF', fontWeight: 600, fontSize: '13px' },
+                                itemHoverStyle: { color: '#FFFFFF' }
+                            },
+
+                            series: [{
+                                name: 'Share',
+                                colorByPoint: true,
+                                data: payload.estimatorPie || []
+                            }],
+
+                            lang: { noData: 'No estimator data available.' },
+                            noData: { style: { fontSize: '14px', color: '#E0E7FF', fontWeight: 600 } }
                         });
+
                     } else {
                         if (titleEl) titleEl.textContent = `${currentEstimator || 'Estimator'} — By Status`;
                         Highcharts.chart('chart-estimator', {
-                            chart: { type: 'pie', backgroundColor: 'transparent' },
+                            chart: {
+                                type: 'pie',
+                                backgroundColor: 'transparent',
+                                spacing: [10, 10, 10, 10]
+                            },
                             title: { text: null },
+                            credits: { enabled: false },
+
+                            // Consistent ATAI palette
+                            colors: ['#60a5fa', '#8b5cf6', '#34d399', '#f59e0b', '#fb7185', '#22d3ee', '#a3e635'],
+
                             tooltip: {
+                                useHTML: true,
+                                backgroundColor: 'rgba(10,15,45,0.95)',
+                                borderColor: '#334155',
+                                borderRadius: 8,
+                                style: { color: '#E8F0FF', fontSize: '13px' },
                                 pointFormatter: function () {
-                                    return `<span style="color:${this.color}">●</span> ${this.name}: <b>${Highcharts.numberFormat(this.y, 0)}</b><br/>Value: <b>${fmtSAR(this.options.value || 0)}</b>`;
+                                    const count = Highcharts.numberFormat(this.y, 0);
+                                    const val   = fmtSAR(this.options.value || 0);
+                                    const pct   = Highcharts.numberFormat(this.percentage, 1) + '%';
+                                    return `
+        <div style="margin:2px 0;">
+          <span style="color:${this.color}">●</span>
+          <b>${this.name}</b><br/>
+          Projects: <b>${count}</b> &nbsp;•&nbsp; Share: <b>${pct}</b><br/>
+          Value: <b>${val}</b>
+        </div>
+      `;
                                 }
                             },
-                            plotOptions: { pie: { dataLabels: { enabled: true, format: '{point.name}: {point.y}' } } },
-                            series: [{ name: 'Projects', colorByPoint: true, data: payload.statusPie || [] }],
-                            credits: { enabled: false }
+
+                            plotOptions: {
+                                pie: {
+                                    allowPointSelect: true,
+                                    size: '80%',
+                                    borderWidth: 0,
+                                    shadow: false,
+                                    dataLabels: {
+                                        enabled: true,
+                                        distance: 20,
+                                        softConnector: true,
+                                        connectorWidth: 1.3,
+                                        connectorColor: 'rgba(255,255,255,0.35)',
+                                        style: {
+                                            color: '#E8F0FF',
+                                            fontWeight: 600,
+                                            fontSize: '14px',
+                                            textOutline: '2px rgba(0,0,0,0.6)'
+                                        },
+                                        // Show Name + Count (and %)
+                                        formatter: function () {
+                                            const count = Highcharts.numberFormat(this.y, 0);
+                                            const pct   = Highcharts.numberFormat(this.percentage, 1);
+                                            return `${this.point.name}: <b>${count}</b> <span style="opacity:.85">(${pct}%)</span>`;
+                                        }
+                                    }
+                                }
+                            },
+
+                            legend: {
+                                enabled: true,
+                                itemStyle: { color: '#E8F0FF', fontWeight: 600, fontSize: '13px' },
+                                itemHoverStyle: { color: '#FFFFFF' }
+                            },
+
+                            // NOTE: payload.statusPie items should look like: { name, y: <count>, value: <sar> }
+                            series: [{
+                                name: 'Projects',
+                                colorByPoint: true,
+                                data: payload.statusPie || []
+                            }],
+
+                            lang: { noData: 'No estimator data available.' },
+                            noData: { style: { fontSize: '14px', color: '#E0E7FF', fontWeight: 600 } }
                         });
+
                     }
 
                     // ===== Monthly Region =====
@@ -333,78 +470,179 @@
                     );
 
                     Highcharts.chart('chartMonthlyRegion', {
-                        chart: { type: 'column', backgroundColor: 'transparent' },
+                        chart: {
+                            type: 'column',
+                            backgroundColor: 'transparent',
+                            spacing: [10, 20, 10, 20]
+                        },
                         title: { text: null },
-                        xAxis: { categories: payload.monthlyRegion?.categories || [] },
+                        credits: { enabled: false },
+
+                        colors: ['#60a5fa', '#8b5cf6', '#34d399', '#f59e0b', '#22d3ee', '#a3e635', '#fb7185'],
+
+                        xAxis: {
+                            categories: payload.monthlyRegion?.categories || [],
+                            lineColor: 'rgba(255,255,255,.15)',
+                            tickColor: 'rgba(255,255,255,.15)',
+                            labels: { style: { color: '#C7D2FE', fontWeight: 600, fontSize: '13px' } }
+                        },
+
                         yAxis: [{
-                            title: { text: 'Value (SAR)' },
-                            labels: { formatter() { return fmtSAR(this.value); } }
-                        }, { title: { text: null }, opposite: true }],
-                        legend: { itemStyle: { fontWeight: 600 } },
+                            title: { text: 'Value (SAR)', style: { color: '#C7D2FE', fontWeight: 700, fontSize: '13px' } },
+                            min: 0,
+                            gridLineColor: 'rgba(255,255,255,.10)',
+                            labels: {
+                                style: { color: '#E0E7FF', fontWeight: 600, fontSize: '12px' },
+                                formatter() { return fmtSAR(this.value); }
+                            }
+                        }, {
+                            title: { text: null },
+                            opposite: true,
+                            gridLineColor: 'transparent',
+                            labels: { style: { color: '#E0E7FF' } }
+                        }],
+
+                        legend: {
+                            itemStyle: { color: '#E8F0FF', fontWeight: 600, fontSize: '13px' },
+                            itemHoverStyle: { color: '#FFFFFF' }
+                        },
+
                         tooltip: {
                             shared: true,
+                            useHTML: true,
+                            backgroundColor: 'rgba(10,15,45,0.95)',
+                            borderColor: '#334155',
+                            borderRadius: 8,
+                            style: { color: '#E8F0FF', fontSize: '13px' },
                             formatter: function () {
-                                const header = `<b>${this.x}</b><br/>`;
-                                const lines = this.points.map(p => `<span style="color:${p.color}">●</span> ${p.series.name}: <b>${fmtSAR(p.y)}</b>`);
-                                return header + lines.join('<br/>');
+                                const header = `<div style="font-weight:700;margin-bottom:4px">${this.x}</div>`;
+                                const lines = this.points.map(p =>
+                                    `<div><span style="color:${p.color}">●</span> ${p.series.name}: <b>${fmtSAR(p.y)}</b></div>`
+                                );
+                                return header + lines.join('');
                             }
                         },
+
                         plotOptions: {
                             column: {
-                                pointPadding: 0.08,
-                                groupPadding: 0.14,
                                 borderWidth: 0,
+                                borderRadius: 3,
+                                pointPadding: 0.05,
+                                groupPadding: 0.18,
+                                states: { hover: { brightness: 0.08 } },
                                 dataLabels: {
                                     enabled: true,
-                                    crop: false,
-                                    overflow: 'none',
                                     rotation: -90,
                                     align: 'center',
                                     verticalAlign: 'bottom',
                                     inside: false,
-                                    y: -6,
-                                    formatter: function () { return this.y >= 2_000_000 ? fmtCompactSAR(this.y) : null; },
-                                    style: { textOutline: 'none', fontWeight: 600, color: '#000', fontSize: '10px' }
+                                    y: -10,
+                                    crop: false,
+                                    overflow: 'none',
+                                    style: {
+                                        color: '#E8F0FF',
+                                        fontSize: '14px',
+
+                                    },
+                                    formatter: function () {
+                                        const v = Number(this.y || 0);
+                                        if (v <= 0) return '';
+                                        // Show compact SAR everywhere; keeps columns readable
+                                        return v >= 1e9 ? `SAR ${(v/1e9).toFixed(1).replace(/\.0$/,'')}B`
+                                            : v >= 1e6 ? `SAR ${(v/1e6).toFixed(1).replace(/\.0$/,'')}M`
+                                                : v >= 1e3 ? `SAR ${(v/1e3).toFixed(1).replace(/\.0$/,'')}K`
+                                                    : `SAR ${v.toFixed(0)}`;
+                                    }
                                 }
                             }
                         },
-                        series: payload.monthlyRegion?.series || [],
-                        credits: { enabled: false }
+
+                        series: payload.monthlyRegion?.series || []
                     });
 
                     // ===== By Product =====
                     Highcharts.chart('chartProduct', {
-                        chart: { type: 'column', backgroundColor: 'transparent' },
+                        chart: {
+                            type: 'column',
+                            backgroundColor: 'transparent',
+                            spacing: [10, 20, 10, 20]
+                        },
                         title: { text: null },
+                        credits: { enabled: false },
+
+                        colors: ['#60a5fa', '#8b5cf6', '#34d399', '#f59e0b', '#22d3ee', '#a3e635', '#fb7185'],
+
                         xAxis: {
                             categories: payload.productSeries?.categories || [],
-                            labels: { rotation: 0 }
+                            lineColor: 'rgba(255,255,255,.15)',
+                            tickColor: 'rgba(255,255,255,.15)',
+                            labels: {
+                                rotation: 0,
+                                style: { color: '#C7D2FE', fontWeight: 600, fontSize: '13px' }
+                            }
                         },
+
                         yAxis: {
-                            title: { text: 'Value (SAR)' },
+                            title: { text: 'Value (SAR)', style: { color: '#C7D2FE', fontWeight: 700, fontSize: '13px' } },
                             min: 0,
-                            labels: { formatter() { return fmtCompactSAR(this.value); } }
+                            gridLineColor: 'rgba(255,255,255,.10)',
+                            labels: {
+                                style: { color: '#E0E7FF', fontWeight: 600, fontSize: '12px' },
+                                formatter() { return fmtCompactSAR(this.value); }
+                            }
                         },
+
+                        legend: {
+                            enabled: false // single series, cleaner look
+                        },
+
                         tooltip: {
                             shared: false,
                             useHTML: true,
-                            pointFormatter: function () { return `<b>${fmtCompactSAR(this.y)}</b>`; }
+                            backgroundColor: 'rgba(10,15,45,0.95)',
+                            borderColor: '#334155',
+                            borderRadius: 8,
+                            style: { color: '#E8F0FF', fontSize: '13px' },
+                            pointFormatter: function () {
+                                return `<b>${this.category}</b><br/>Value: <b>${fmtCompactSAR(this.y)}</b>`;
+                            }
                         },
+
                         plotOptions: {
                             column: {
                                 borderWidth: 0,
-                                pointPadding: 0.08,
-                                groupPadding: 0.16,
+                                borderRadius: 3,
+                                pointPadding: 0.05,
+                                groupPadding: 0.18,
+                                states: { hover: { brightness: 0.08 } },
                                 dataLabels: {
                                     enabled: true,
-                                    style: { fontWeight: 600, fontSize: '11px', textOutline: 'none' },
-                                    formatter: function () { return this.y ? fmtCompactSAR(this.y) : ''; }
+                                    rotation: -90,
+                                    align: 'center',
+                                    verticalAlign: 'bottom',
+                                    inside: false,
+                                    y: -10,
+                                    crop: false,
+                                    overflow: 'none',
+                                    style: {
+                                        color: '#E8F0FF',
+                                        fontWeight: 700,
+                                        fontSize: '12px',
+                                        textOutline: '2px rgba(0,0,0,.7)'
+                                    },
+                                    formatter: function () {
+                                        return this.y ? `SAR ${fmtCompactSAR(this.y)}` : '';
+                                    }
                                 }
                             }
                         },
-                        series: [{ name: 'Value', data: payload.productSeries?.values || [] }],
-                        credits: { enabled: false }
+
+                        series: [{
+                            name: 'Value',
+                            data: payload.productSeries?.values || []
+                        }]
                     });
+
                 }) // <-- closes .then(payload => { ... })
                 .catch(err => console.error('KPIs load failed:', err)); // optional logging
         } // <-- closes function loadKpis

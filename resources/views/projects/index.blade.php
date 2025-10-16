@@ -1,5 +1,4 @@
-{{-- resources/views/projects/index.blade.php --}}
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
 <head>
     {{-- DataTables (Bootstrap 5 build) --}}
@@ -18,7 +17,9 @@
           href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
 
     <style>
-        /* Small helpers for area badges */
+        /* ===============================
+           Global / misc
+           =============================== */
         .area-badge {
             text-transform: uppercase;
             font-weight: 600;
@@ -40,110 +41,193 @@
             color: #b86e00;
         }
 
-        /* Make header filter row look light */
+        body {
+            background-color: #f8fdf8;
+        }
+
         table.dataTable thead tr.filters th {
             background: var(--bs-tertiary-bg);
         }
 
-        table.dataTable thead .form-control-sm, table.dataTable thead .form-select-sm {
+        table.dataTable thead .form-control-sm,
+        table.dataTable thead .form-select-sm {
             height: calc(1.5em + .5rem + 2px);
         }
 
+        .row.g-3.align-items-stretch {
+            margin-bottom: 0;
+        }
 
-        /* Chart cards – compact like Sales Orders dashboard */
-        .kpi-card .hc {
+        /* Shared chart containers (if used elsewhere) */
+        .hc {
             height: 260px;
         }
 
-        .kpi-card .card-body {
-            padding: .75rem 1rem;
+        /* ===============================
+           Cards (gauges + KPI tiles)
+           Single source of truth
+           =============================== */
+        /*:root {*/
+        /*    --card-top: #0b0f3a;*/
+        /*    --card-bottom: #1c2944;*/
+        /*}*/
+
+        /*.kpi-card {*/
+        /*    background: linear-gradient(180deg, var(--card-top) 0%, var(--card-bottom) 100%);*/
+        /*    color: #dbeafe;*/
+        /*    border-radius: 14px;*/
+        /*    border: 1px solid rgba(255, 255, 255, 0.06);*/
+        /*    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);*/
+        /*}*/
+
+
+        /*.kpi-card:hover {*/
+        /*    transform: translateY(-2px);*/
+        /*    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.55);*/
+        /*    transition: transform .2s ease, box-shadow .2s ease;*/
+        /*}*/
+
+        /*.kpi-label {*/
+        /*    font-size: .8rem;*/
+        /*    letter-spacing: .08em;*/
+        /*    text-transform: uppercase;*/
+        /*    color: #93c5fd;*/
+        /*    opacity: .95;*/
+        /*}*/
+
+        /*.kpi-value {*/
+        /*    font-size: 1.6rem;*/
+        /*    font-weight: 800;*/
+        /*}*/
+
+        /* label under each gauge (IN HAND / BIDDING / etc.) */
+
+        /*.kpi-card .text-center {*/
+        /*    color: #e0f2fe !important;*/
+        /*    font-weight: 700;*/
+        /*    text-shadow: 0 0 6px rgba(0, 255, 255, 0.5);*/
+        /*}*/
+
+        /*!* Highcharts canvas background should be transparent *!*/
+        /*!*.highcharts-background{ fill:transparent !important; }*!*/
+
+        /*!* ===============================*/
+        /*   BRIGHT gauge value styling*/
+        /*   (applies to the data label inside solid gauge)*/
+        /*   Keep ONLY this set – no duplicates.*/
+        /*   =============================== *!*/
+        /*.highcharts-data-label text tspan {*/
+
+
         }
+
+        /* percentage (2nd line below the number) */
+        /*.highcharts-data-label text tspan:nth-child(2) {*/
+        /*    fill: #38bdf8 !important; !* bright cyan-blue *!*/
+        /*    font-size: 16px !important;*/
+        /*    font-weight: 700 !important;*/
+        /*    text-shadow: 0 0 8px rgba(56, 189, 248, 0.9);*/
+        /*}*/
+
+        /*!* subtitle inside gauge (3rd line, e.g. IN HAND) *!*/
+        /*.highcharts-data-label text tspan:nth-child(3) {*/
+        /*    fill: #a5f3fc !important; !* soft aqua *!*/
+        /*    font-size: 12px !important;*/
+        /*    letter-spacing: .06em;*/
+        /*    text-transform: uppercase;*/
+        /*    text-shadow: 0 0 4px rgba(165, 243, 252, 0.8);*/
+        /*}*/
     </style>
+
 </head>
 <body>
-
 @php $u = auth()->user(); @endphp
+
 <nav class="navbar navbar-atai navbar-expand-lg">
     <div class="container-fluid">
+        {{-- Brand (left) --}}
         <a class="navbar-brand d-flex align-items-center" href="{{ route('projects.index') }}">
             <img src="{{ asset('images/atai-logo.png') }}" alt="ATAI" class="brand-logo me-2">
             <span class="brand-word">ATAI</span>
         </a>
 
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                {{-- Always visible --}}
+        {{-- Toggler (mobile) --}}
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#ataiNav"
+                aria-controls="ataiNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        {{-- Collapse --}}
+        <div class="collapse navbar-collapse" id="ataiNav">
+            {{-- Centered nav (desktop); scrollable row (mobile) --}}
+            <ul class="navbar-nav mx-lg-auto mb-2 mb-lg-0">
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}"
                        href="{{ route('projects.index') }}">Quotation KPI</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs(['inquiries.index']) ? 'active' : '' }}"
-                       href="{{ route('inquiries.index') }}">
-                        Quotation Log
-                    </a>
+                       href="{{ route('inquiries.index') }}">Quotation Log</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.kpi') ? 'active' : '' }}"
-                       href="{{ route('salesorders.manager.kpi') }}">
-                        Sales Order Log KPI
-                    </a>
+                       href="{{ route('salesorders.manager.kpi') }}">Sales Order Log KPI</a>
                 </li>
-
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.index') ? 'active' : '' }}"
-                       href="{{ route('salesorders.manager.index') }}">
-                        Sales Order Log
-                    </a>
+                       href="{{ route('salesorders.manager.index') }}">Sales Order Log</a>
                 </li>
-                {{-- Sales roles only --}}
-                {{--                @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">Estimation</a>
                 </li>
-                {{--                @endhasanyrole--}}
 
-                {{-- GM/Admin only --}}
                 @hasanyrole('gm|admin')
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
-                                        href="{{ route('salesorders.index') }}">Sales Orders</a></li>
-                {{--                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.index') ? 'active' : '' }}"--}}
-                {{--                                        href="{{ route('performance.index') }}">Performance report</a></li>--}}
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
-                                        href="{{ route('performance.area') }}">Area summary</a></li>
-                <li class="nav-item"><a
-                        class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active' : '' }}"
-                        href="{{ route('performance.salesman') }}">SalesMan summary</a></li>
-                <li class="nav-item"><a
-                        class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
-                        href="{{ route('performance.product') }}">Product summary</a></li>
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
-                                        href="{{ route('powerbi.jump') }}">Accounts Summary</a></li>
-                <li class="nav-item"><a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
-                                        href="{{ route('powerbi.jump') }}">Power BI Dashboard</a></li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
+                       href="{{ route('salesorders.index') }}">Sales Orders</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
+                       href="{{ route('performance.area') }}">Area summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active' : '' }}"
+                       href="{{ route('performance.salesman') }}">SalesMan summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
+                       href="{{ route('performance.product') }}">Product summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                       href="{{ route('powerbi.jump') }}">Accounts Summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                       href="{{ route('powerbi.jump') }}">Power BI Dashboard</a>
+                </li>
                 @endhasanyrole
             </ul>
 
-            <div class="navbar-text me-2">
-                Logged in as <strong>{{ $u->name ?? '' }}</strong>
-                @if(!empty($u->region))
-                    · <small>{{ $u->region }}</small>
-                @endif
+            {{-- Right block (far-right on desktop; full-width row on mobile) --}}
+            <div class="navbar-right">
+                <div class="navbar-text me-2">
+                    Logged in as <strong>{{ $u->name ?? '' }}</strong>
+                    @if(!empty($u->region))
+                        · <small>{{ $u->region }}</small>
+                    @endif
+                </div>
+                <form method="POST" action="{{ route('logout') }}" class="m-0">@csrf
+                    <button class="btn btn-logout btn-sm" type="submit">Logout</button>
+                </form>
             </div>
-
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button class="btn btn-logout btn-sm">Logout</button>
-            </form>
         </div>
     </div>
 </nav>
 
 <main class="container-fluid py-4">
-    {{-- ===== KPI SUMMARY (Highcharts) ===== --}}
-
-
+    {{-- ===================== FILTERS + FAMILY CHIPS ===================== --}}
     <div class="row g-3 mb-3" id="kpiRow" style="display:none">
         <div class="col-12">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2" id="projFilters">
@@ -155,16 +239,15 @@
                 </select>
 
                 <span id="projRegionWrap">
-                      <select id="projRegion" class="form-select form-select-sm" style="width:auto">
-                        <option value="">All Region</option>
-                        <option value="Eastern">Eastern</option>
-                        <option value="Central">Central</option>
-                        <option value="Western">Western</option>
-                      </select>
-                    </span>
+                  <select id="projRegion" class="form-select form-select-sm" style="width:auto">
+                    <option value="">All Region</option>
+                    <option value="Eastern">Eastern</option>
+                    <option value="Central">Central</option>
+                    <option value="Western">Western</option>
+                  </select>
+                </span>
 
                 <div class="d-flex gap-2 align-items-center">
-                    {{-- Month select --}}
                     <select id="monthSelect" class="form-select form-select-sm" style="width:auto">
                         <option value="">All Months</option>
                         @for ($m = 1; $m <= 12; $m++)
@@ -172,28 +255,25 @@
                         @endfor
                     </select>
 
-                    {{-- OR date range (overrides year/month if used) --}}
                     <input type="date" id="dateFrom" class="form-control form-control-sm" style="width:auto"
                            placeholder="From">
                     <input type="date" id="dateTo" class="form-control form-control-sm" style="width:auto"
                            placeholder="To">
 
-                    {{-- GM/Admin: optional free-text salesman filter for forecast --}}
                     <span id="salesmanWrap" class="d-none">
                         <input type="text" id="salesmanInput" class="form-control form-control-sm" style="width:14rem"
                                placeholder="Salesman (GM/Admin)">
-                                 </span>
+                    </span>
 
                     <button class="btn btn-sm btn-primary" id="projApply">Update</button>
                 </div>
+
+
             </div>
 
-            <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
+            {{-- REMOVED: the two badges above family chips (as requested). --}}
 
-                <span id="kpiBadgeProjects" class="badge-total text-bg-info">Total Quotation No.: 0</span>
-                <span id="kpiBadgeValue" class="badge-total text-bg-primary">Total Quotation Value: SAR 0</span>
-            </div>
-            <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
+            <div class="d-flex justify-content-center gap-2 my-2 flex-wrap">
                 <div id="familyChips" class="btn-group" role="group" aria-label="Product family">
                     <button type="button" class="btn btn-sm btn-outline-primary active" data-family="">All</button>
                     <button type="button" class="btn btn-sm btn-outline-primary" data-family="ductwork">Ductwork
@@ -205,597 +285,843 @@
                     </button>
                 </div>
             </div>
-
-
-
-
         </div>
     </div>
 
-    <div class="row mt-3 g-3">
-        <div class="col-md-6">
-            <div id="barByArea" class="hc"></div>
+{{--    <div class="row g-3 align-items-stretch mb-3">--}}
+{{--        <div class="col-lg-6">--}}
+{{--            <div id="barByArea" class="card kpi-card">--}}
+{{--            </div>--}}
+{{--        </div>--}}
+{{--        <div class="col-md-6">--}}
+{{--            <div id="pieByStatus" class="kpi-card-pieByStatus">--}}
+
+{{--            </div>--}}
+{{--        </div>--}}
+{{--    </div>--}}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    {{-- ===================== GAUGES ROW ===================== --}}
+    <div class="row g-3 align-items-stretch mb-3">
+        <div class="col-lg-3">
+            <div class="kpi-card p-3">
+                <div id="g_inhand" style="height:220px"></div>
+                <div class="text-center fw-semibold small text-uppercase mt-2">In Hand</div>
+            </div>
         </div>
-        <div class="col-md-6">
-            <div id="pieByStatus" class="hc"></div>
+        <div class="col-lg-3">
+            <div class="kpi-card p-3">
+                <div id="g_bidding" style="height:220px"></div>
+                <div class="text-center fw-semibold small text-uppercase mt-2">Bidding</div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="kpi-card p-3">
+                <div id="g_convRate" style="height:220px"></div>
+                <div class="text-center fw-semibold small text-uppercase mt-2">Conversion Rate</div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="kpi-card p-3">
+                <div id="g_targetAchieved" style="height:220px"></div>
+                <div class="text-center fw-semibold small text-uppercase mt-2">Target Achieved</div>
+            </div>
         </div>
     </div>
 
-    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
-        <span id="fcBadgeValue" class="badge-total text-bg-primary">Forecast Total: SAR 0</span>
-        <span id="fcBadgeConv" class="badge-total text-bg-info">Conversion Rate: 0%</span>
+    {{-- ===================== KPI CARDS ===================== --}}
+    <div class="row g-3 mb-4 text-center justify-content-center">
+        <div class="col-6 col-md col-lg">
+            <div class="kpi-card shadow-sm p-5 h-150">
+                <div class="kpi-label">Total Quotation Value Received</div>
+                <div id="kpi_totalSales" class="kpi-value">SAR 0</div>
+            </div>
+        </div>
+        <div class="col-6 col-md col-lg">
+            <div class="kpi-card shadow-sm p-5 h-150">
+                <div class="kpi-label">Total Inquiries</div>
+                <div id="kpi_totalInquiries" class="kpi-value">0</div>
+            </div>
+        </div>
+        <div class="col-6 col-md col-lg">
+            <div class="kpi-card shadow-sm p-5 h-150">
+                <div class="kpi-label">Conversion Rate</div>
+                <div id="kpi_conversion" class="kpi-value">0%</div>
+            </div>
+        </div>
+        <div class="col-6 col-md col-lg">
+            <div class="kpi-card shadow-sm p-5 h-150">
+                <div class="kpi-label">Sales Target(Anually)</div>
+                <div id="kpi_target" class="kpi-value">SAR 0</div>
+            </div>
+        </div>
+        <div class="col-6 col-md col-lg">
+            <div class="kpi-card shadow-sm p-5 h-150">
+                <div class="kpi-label">Actual (PO Received)</div>
+                <div class="kpi-value" id="m_actualValue">SAR 0</div>
+            </div>
+        </div>
     </div>
-    <div id="barMonthlyValueTarget" class="hc" style="height:400px"></div>
+    {{--     ===================== OPTIONAL CHARTS =====================--}}
+    {{--         The following sections are left out of the layout per your latest--}}
+    {{--         design, but the JS can still draw them if you uncomment the HTML.--}}
+    {{--         Keep them commented to avoid extra height and payload.--}}
 
 
-    {{--    --}}{{-- ===== FORECAST KPI (Highcharts) ===== --}}
-    {{--    <div class="row g-3 mt-2" id="forecastRow" style="display:none">--}}
-    {{--        <div class="col-12">--}}
-    {{--            <div class="card kpi-card">--}}
-    {{--                <div class="card-body">--}}
-    {{--                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">--}}
-    {{--                        <div>--}}
-    {{--                            <h6 class="mb-1">Sales Forecast Dashboard</h6>--}}
-    {{--                            <div class="text-secondary small">From forecast table (filters & role applied)</div>--}}
-    {{--                        </div>--}}
-    {{--                        <div class="d-flex gap-2">--}}
-    {{--                            <span id="fcBadgeScope" class="badge-total text-bg-secondary">All Salesmen</span>--}}
-    {{--                            <span id="fcBadgeValue" class="badge-total text-bg-primary">Forecast Total: SAR 0</span>--}}
-    {{--                        </div>--}}
-    {{--                    </div>--}}
-    {{--                    <div class="row mt-3 g-3">--}}
-    {{--                        <div class="col-md-6">--}}
-    {{--                            <div id="fcBarByArea" class="hc"></div>--}}
-    {{--                        </div>--}}
-    {{--                        <div class="col-md-6">--}}
-    {{--                            <div id="fcBarBySalesman" class="hc"></div>--}}
-    {{--                        </div>--}}
-    {{--                    </div>--}}
-    {{--                </div>--}}
-    {{--            </div>--}}
-    {{--        </div>--}}
-    {{--    </div>--}}
+    <div class="row g-3 align-items-stretch mb-3">
+        <div class="col-lg-4">
+            <div class="kpi-card p-4">
+                <div id="barByArea" style="height:220px"></div>
 
-    {{-- ===== Family filter chips (All / Ductwork / Dampers / Sound / Accessories) ===== --}}
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="kpi-card p-4">
+                <div id="pieByStatus" style="height:220px"></div>
+
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="kpi-card p-4">
+                <div id="projectsFunnel"  style="height:220px"></div>
+
+            </div>
+        </div>
+
+    </div>
 
 
 
-    {{-- Scripts --}}
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-            crossorigin="anonymous"></script>
-    <script src="https://code.highcharts.com/highcharts.js"></script>
-    <script src="https://code.highcharts.com/modules/no-data-to-display.js"></script>
-    <script>
-        /* =============================================================================
-         *  CONFIG & HELPERS
-         * ============================================================================= */
-        const API = @json(url('/api'));
-        const DT_URL = @json(route('projects.datatable'));
-        const $ = window.jQuery;
-        $.fn.dataTable.ext.errMode = 'console';
-
-        const fmtSAR = (n) => new Intl.NumberFormat('en-SA', {
-            style: 'currency', currency: 'SAR', maximumFractionDigits: 0
-        }).format(Number(n || 0));
-
-        // global state (no window.*)
-        let PROJ_YEAR = '';
-        let PROJ_REGION = '';
-        let ATAI_ME = null;
-        let CAN_VIEW_ALL = false;
-        let currentFamily = ''; // '', 'ductwork','dampers','sound','accessories'
-
-        /* =============================================================================
-         *  KPI CHARTS
-         * ============================================================================= */
+    <div id="barMonthlyValueTarget" class="kpi-card" style="height:400px"></div>
 
 
-        // --- helpers (drop in once, reuse everywhere) ---
-        function fmtCompactSAR(n) {
-            const v = Number(n || 0);
-            const av = Math.abs(v);
-            if (av >= 1_000_000_000) return (v / 1_000_000_000).toFixed(1).replace(/\.0$/, '') + 'B';
-            if (av >= 1_000_000) return (v / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
-            if (av >= 1_000) return (v / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
-            return v.toLocaleString();
+
+</main>
+
+{{-- Scripts --}}
+<script src="https://code.highcharts.com/highcharts.js"></script>
+<script src="https://code.highcharts.com/highcharts-more.js"></script>
+<script src="https://code.highcharts.com/modules/solid-gauge.js"></script>
+<script src="https://code.highcharts.com/modules/no-data-to-display.js"></script>
+<script src="https://code.highcharts.com/modules/funnel.js"></script>
+<script>
+    /* =============================================================================
+     *  CONFIG & HELPERS
+     * ============================================================================= */
+    const API = @json(url('/api'));
+    const DT_URL = @json(route('projects.datatable'));
+    const $ = window.jQuery;
+    $.fn.dataTable.ext.errMode = 'console';
+
+    const fmtSAR = (n) => new Intl.NumberFormat('en-SA', {
+        style: 'currency', currency: 'SAR', maximumFractionDigits: 0
+    }).format(Number(n || 0));
+
+    let PROJ_YEAR = '';
+    let PROJ_REGION = '';
+    let ATAI_ME = null;
+    let CAN_VIEW_ALL = false;
+    let currentFamily = ''; // '', 'ductwork','dampers','sound','accessories'
+
+    function fmtCompactSAR(n) {
+        const v = Number(n || 0), a = Math.abs(v);
+        if (a >= 1e9) return (v / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+        if (a >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (a >= 1e3) return (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+        return v.toLocaleString();
+    }
+
+    function fmtPct(v) {
+        return (v == null || isNaN(v)) ? '' : (Number(v).toFixed(1).replace(/\.0$/, '') + '%');
+    }
+
+    const fmtSARtight = (n) => 'SAR ' + new Intl.NumberFormat('en-SA', {maximumFractionDigits: 0}).format(Number(n || 0));
+
+    /* =============================================================================
+     *  KPI FETCH + UPDATE
+     * ============================================================================= */
+    async function loadKpis() {
+        document.getElementById('kpiRow')?.style?.setProperty('display', '');
+
+        const year = document.querySelector('#projYear')?.value || PROJ_YEAR || '';
+        const month = document.querySelector('#monthSelect')?.value || '';
+        const df = document.querySelector('#dateFrom')?.value || '';
+        const dt = document.querySelector('#dateTo')?.value || '';
+        const family = currentFamily || '';
+        const region = (CAN_VIEW_ALL ? (document.querySelector('#projRegion')?.value || '') : PROJ_REGION) || '';
+
+        const url = new URL("{{ route('projects.kpis') }}", window.location.origin);
+        if (df) url.searchParams.set('date_from', df);
+        if (dt) url.searchParams.set('date_to', dt);
+        if (!df && !dt) {
+            if (month) url.searchParams.set('month', month);
+            if (year) url.searchParams.set('year', year);
         }
+        if (family) url.searchParams.set('family', family);
+        if (region) url.searchParams.set('area', region);
 
-        function fmtPct(v) {
-            if (v == null || isNaN(v)) return '';
-            return Number(v).toFixed(1).replace(/\.0$/, '') + '%';
+        let resp = {};
+        try {
+            const res = await fetch(url, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}});
+            if (!res.ok) throw new Error('fetch failed');
+            resp = await res.json();
+            updateDialsAndCards(resp);
+            // Optional charts are disabled in markup; leave code below commented.
+            renderAreaAndPie(resp);
+            renderMonthlyTarget(resp);
+            renderFunnel(resp);
+        } catch (e) {
+            console.warn('KPI fetch failed', e);
+            return;
         }
-        async function loadKpis() {
-            const row = document.getElementById('kpiRow');
-            if (row) row.style.display = '';
+    }
 
-            const yearSel = document.querySelector('#projYear');
-            const monthSel = document.querySelector('#monthSelect');
-            const dateFromI = document.querySelector('#dateFrom');
-            const dateToI = document.querySelector('#dateTo');
-            const regionSel = document.querySelector('#projRegion');
+    /* =============================================================================
+     *  DASHBOARD DIALS + CARDS
+     * ============================================================================= */
+    function formatShortNumber(num) {
+        num = Number(num || 0);
+        if (num >= 1_000_000_000) return (num / 1_000_000_000).toFixed(1) + 'B';
+        if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M';
+        if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K';
+        return num.toFixed(0);
+    }
 
-            const year = yearSel?.value || PROJ_YEAR || '';
-            const month = monthSel?.value || '';
-            const df = dateFromI?.value || '';
-            const dt = dateToI?.value || '';
-            const family = currentFamily || '';
-            const region = regionSel?.value || PROJ_REGION || '';
+    function solidGaugePercent(el, pct, displayValue, opts = {}) {
+        const color = opts.color || '#00f6f6';
+        const unit = opts.unit || 'SAR';
+        const sub = opts.subtitle || 'IN HAND';
+        const poVal = Number(opts.po_value || 0);
+        const bal = Number(opts.balance_value || 0);
+        const safePct = Math.max(0, Math.min(100, Number(pct) || 0));
+        return Highcharts.chart(el, {
+            chart: {type: 'solidgauge', backgroundColor: 'transparent'},
+            title: null,
+            credits: {enabled: false},
+            pane: {
+                startAngle: -140,
+                endAngle: 140,
+                center: ['50%', '55%'],
+                size: '100%',
+                background: [{
+                    outerRadius: '100%',
+                    innerRadius: '70%',
+                    shape: 'arc',
+                    backgroundColor: 'rgba(255,255,255,0.08)'
+                }]
+            },
+            yAxis: {
+                min: 0, max: 100, lineWidth: 0, tickWidth: 0, labels: {enabled: false},
+                stops: [[0, color], [1, color]]
+            },
+            tooltip: {
+                useHTML: true,
+                pointFormatter: function () {
+                    const fmt = v => {
+                        v = Number(v || 0);
+                        if (v >= 1e9) return (v / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+                        if (v >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+                        if (v >= 1e3) return (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+                        return v.toFixed(0);
+                    };
+                    return `
+          <div><b>${(Number(pct) || 0).toFixed(1)}% achieved</b></div>
+          <div>Total: <b>${fmt(displayValue)}</b> ${unit}</div>
+          <div>PO: <b>${fmt(poVal)}</b> ${unit}</div>
+          <div>Balance: <b>${fmt(bal)}</b> ${unit}</div>
+        `;
+                }
+            },
+            plotOptions: {
+                solidgauge: {
+                    rounded: true,
+                    dataLabels: {
+                        useHTML: true,
+                        y: -10,
+                        borderWidth: 0,
+                        // >>> Bright, readable HTML labels <<<
+                        formatter: function () {
+                            const main = `
+  <div style="
+    font-size:24px;
+    font-weight:800;
+    color:#ffffff;
+    text-shadow:0 0 6px rgba(255,255,255,.9),
+                 0 0 14px rgba(0,255,255,.35),
+                 0 0 22px rgba(0,255,255,.25);
+  ">
+    ${(() => {
+                                const v = Number(displayValue || 0);
+                                // If this gauge is a percent one, keep one decimal
+                                if (unit === '%') return v.toFixed(1);
 
-            const url = new URL("{{ route('projects.kpis') }}", window.location.origin);
-            if (df) url.searchParams.set('date_from', df);
-            if (dt) url.searchParams.set('date_to', dt);
-            if (!df && !dt) {
-                if (month) url.searchParams.set('month', month);
-                if (year) url.searchParams.set('year', year);
-            }
-            if (family) url.searchParams.set('family', family);
-            if (region) url.searchParams.set('area', region);
+                                // Otherwise use compact SAR formatting
+                                const a = Math.abs(v);
+                                if (a >= 1e9) return (v / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+                                if (a >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+                                if (a >= 1e3) return (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+                                return v.toFixed(0);
+                            })()}
+  </div>`;
 
-            let resp = {area: [], status: [], total_value: 0, total_count: 0};
-            try {
-                const res = await fetch(url, {
-                    credentials: 'same-origin',
-                    headers: {'X-Requested-With': 'XMLHttpRequest'}
-                });
-                if (res.ok) resp = await res.json();
-                const payload = resp.monthly_value_status_with_target || {};
-                // prefer the scalar the API used for the chart; fallback to 20M
-                const targetValue = Number(payload.target_value ?? 20000000);
+                            const pctLine = `
+              <div style="
+                font-size:16px;
+                font-weight:700;
+                color:#38bdf8;
+                text-shadow:0 0 8px rgba(56,189,248,.9);
+              ">
+                ${(Number(pct) || 0).toFixed(1)}%
+              </div>`;
 
-                // In-Hand total for conversion rate
-                const colIH = (payload.series || []).find(s => /in-hand/i.test(s.name)) || {data: []};
-                const totalInhandValue = (colIH.data || []).reduce((sum, v) => sum + Number(v || 0), 0);
+                            const subLine = `
+              <div style="
+                font-size:12px;
+                color:#a5f3fc;
+                letter-spacing:.06em;
+                text-transform:uppercase;
+                text-shadow:0 0 4px rgba(165,243,252,.85);
+              ">
+                ${sub}
+              </div>`;
 
-                // Update badges
-                updateForecastBadges(targetValue, totalInhandValue, resp);
-            } catch (e) {
-                console.warn('KPI fetch failed', e);
-            }
-
-            document.getElementById('kpiBadgeProjects').textContent = 'Total Quotation NO.: ' + Number(resp.total_count || 0).toLocaleString();
-            document.getElementById('kpiBadgeValue').textContent = 'Total Quotation Value: ' + fmtSAR(Number(resp.total_value || 0));
-
-            const baseHC = {
-                chart: {height: 260, spacing: [8, 8, 8, 8]},
-                credits: {enabled: false},
-                legend: {enabled: false},
-                plotOptions: {
-                    column: {
-                        dataLabels: {
-                            enabled: true, formatter() {
-                                return (this.y ?? 0).toLocaleString();
-                            }
+                            // return `<div style="text-align:center">${main}${pctLine}${subLine}</div>`;
+                            return `<div style="text-align:center">${main}${pctLine}</div>`;
                         }
                     }
                 }
-            };
+            },
+            series: [{
+                data: [{ y: safePct, color }]
+            }]
+        });
+    }
 
-            {
-                const areaStatus = resp.area_status || {categories: [], series: []};
-                const el = document.getElementById('barByArea');
-                if (el) {
-                    Highcharts.chart('barByArea', {
-                        chart: {type: 'column', height: 260, spacing: [8, 8, 8, 8], backgroundColor: 'transparent'},
-                        title: {text: 'Inquiries by Area'},
-                        credits: {enabled: false},
-                        xAxis: {categories: areaStatus.categories},
-                        yAxis: {
-                            min: 0,
-                            title: {text: 'Count'},
-                            labels: {
-                                formatter() {
-                                    return this.value;
-                                }
-                            }, // keep counts unformatted
-                            stackLabels: {
-                                enabled: true,
-                                style: {fontWeight: '600', textOutline: 'none'},
-                                formatter() {
-                                    return this.total;
-                                }
-                            }
-                        },
-                        legend: {enabled: true},
-                        tooltip: {
-                            shared: true,
-                            useHTML: true,
-                            formatter: function () {
-                                const header = `<b>${this.x}</b>`;
-                                const lines = this.points.map(p => {
-                                    const sar = (p.point && typeof p.point.sar !== 'undefined') ? Number(p.point.sar) : 0;
-                                    return `<span style="color:${p.color}">●</span> ${p.series.name}: `
-                                        + `Count <b>${p.y}</b> • Value <b>${fmtCompactSAR(sar)}</b>`;
-                                });
-                                return [header].concat(lines).join('<br/>');
-                            }
-                        },
-                        plotOptions: {
-                            column: {
-                                grouping: true,
-                                borderWidth: 0,
-                                pointPadding: 0.05,
-                                dataLabels: {
-                                    enabled: true,
-                                    rotation: -90,               // vertical text on the bar
-                                    align: 'center',
-                                    verticalAlign: 'bottom',
-                                    inside: false,               // place above the bar for clarity
-                                    y: -8,
-                                    style: {fontWeight: '600', fontSize: '11px', textOutline: 'none', color: '#111'},
-                                    // Show the SAR value in compact form from point.sar
-                                    formatter: function () {
-                                        const sar = (this.point && typeof this.point.sar !== 'undefined') ? Number(this.point.sar) : 0;
-                                        return sar > 0 ? fmtCompactSAR(sar) : '';
-                                    },
-                                    crop: false,
-                                    overflow: 'none'
-                                }
-                            }
-                        },
-                        // Expect each point like: { y: <count>, sar: <value in SAR> }
-                        series: areaStatus.series
-                    });
-                }
+
+    function setText(id, html) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+    }
+
+    function setTextFirst(ids, html) {
+        for (const id of ids) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerHTML = html;
+                return true;
             }
+        }
+        return false;
+    }
 
-            // -----------------------------
-            // Pie: Value by Status (In-Hand / Bidding / Lost)
-            // -----------------------------
+    function updateDialsAndCards(resp) {
+        const gauges = resp?.gauges || {};
+        const inhandQuotationSumValue=resp?.conversion_totals?.total_quote_value||{}
+        const inhandG = gauges?.inhand || {};   // { pct, display_value, po_value, balance_value, unit }
+        const biddingG = gauges?.bidding || {};
+        const convTotals = resp?.conversion_totals || {};
+        const valueConv = resp?.value_conversion || {};
+
+        // Preferred PO sources (in-hand + bidding), fallback to aggregated matched POs
+        const poInhand = Number(resp?.inhand_po?.inhand_po_sum ?? 0);
+        const poBidding = Number(resp?.bidding_po?.bidding_po_sum ?? 0);
+        const totalPO = (poInhand + poBidding) || Number(valueConv.value_pct ?? 0) || Number(convTotals.total_po_value_matched ?? 0);
+
+        // Targets (business rule: 3M per month == 36M yearly)
+        const monthlyTarget = 3_000_000;
+        //  const yearlyTarget  = monthlyTarget * 12;
+
+
+        const monthsElapsed = new Date().getMonth() + 1; // 1..12
+        const yearlyTarget = monthlyTarget * monthsElapsed;
+        // --- Gauges ---
+        solidGaugePercent('g_inhand',
+            Number(inhandG.pct || 0),
+            Number(inhandG.display_value || 0),
             {
-                const el = document.getElementById('pieByStatus');
-                if (el) {
-                    const rows = resp.status || [];
-                    const buckets = ['In-Hand', 'Bidding', 'Lost'];
-                    const data = buckets.map(b => {
-                        const r = rows.find(x => (x.status_norm || x.status) === b);
-                        return {name: b, y: Number(r?.sum_value || 0)};
-                    });
-                    const hasData = data.some(d => d.y > 0);
-
-                    const chart = Highcharts.chart('pieByStatus', Highcharts.merge(baseHC, {
-                        chart: {type: 'pie', backgroundColor: 'transparent',
-                            plotBackgroundColor: 'transparent'},
-                        title: {text: 'Value by Status'},
-                        tooltip: {pointFormat: '<b>{point.percentage:.1f}%</b><br/>Value: <b>{point.y:,.0f}</b>'},
-                        plotOptions: {
-                            pie: {
-
-                                allowPointSelect: true,
-                                dataLabels: {enabled: true, format: '{point.name}: {point.percentage:.1f}%'}
-                            }
-                        },
-                        series: [{name: 'Value', data}],
-                        lang: {noData: 'No status values.'},
-                        noData: {style: {fontSize: '14px', color: '#6c757d'}}
-                    }));
-
-                    if (!hasData && Highcharts.Chart.prototype.showNoData) chart.showNoData();
-                }
+                color: '#00c9a7',
+                unit: inhandG.unit || 'SAR',
+                subtitle: 'IN HAND',
+                po_value: Number(inhandG.po_value || 0),
+                balance_value: Number(inhandG.balance_value || 0)
             }
+        );
 
-            // // -----------------------------
-            // // Monthly: Grouped (Area) + Stacked (Status). Fallback to simple monthly.
-            // // -----------------------------
-            // {
-            //     const el = document.getElementById('barMonthlyByArea');
-            //     if (el) {
-            //         const val = resp.monthly_area_status_value || {categories: [], series: []};
-            //         const fallback = resp.monthly_area_status || {categories: [], series: []}; // counts fallback
-            //
-            //         const rawCats = (val.categories && val.series?.length) ? val.categories : (fallback.categories || []);
-            //         const series = (val.series && val.series.length) ? val.series : (fallback.series || []);
-            //
-            //         const monthLabel = (ym) => {
-            //             if (!ym || ym.indexOf('-') < 0) return ym || '';
-            //             const [y, m] = ym.split('-').map(Number);
-            //             const d = new Date(y, (m || 1) - 1, 1);
-            //             return d.toLocaleString('en', {month: 'short'}) + ' ' + String(y).slice(-2);
-            //         };
-            //         const categories = rawCats.map(monthLabel);
-            //
-            //         // SAR formatter
-            //         const fmtSARshort = (n) => {
-            //             const x = Number(n || 0);
-            //             if (Math.abs(x) >= 1_000_000) return `SAR ${(x / 1_000_000).toFixed(1)}M`;
-            //             if (Math.abs(x) >= 1_000) return `SAR ${(x / 1_000).toFixed(0)}k`;
-            //             return `SAR ${x.toFixed(0)}`;
-            //         };
-            //
-            //         const hasData = (series || []).some(s => (s.data || []).some(v => Number(v) > 0));
-            //
-            //         Highcharts.chart(el, {
-            //             chart: {type: 'column'},
-            //             title: {text: 'Inquiries Value by Month • Area (stacked by Status)'},
-            //             credits: {enabled: false},
-            //             xAxis: {categories},
-            //             yAxis: {
-            //                 min: 0,
-            //                 title: {text: 'Value (SAR)'},
-            //                 stackLabels: {
-            //                     enabled: true,
-            //                     formatter: function () {
-            //                         return fmtSARshort(this.total);
-            //                     }
-            //                 }
-            //             },
-            //             legend: {align: 'center'}, // only 3 items (In-Hand/Bidding/Lost) via linkedTo
-            //             plotOptions: {
-            //                 column: {
-            //                     stacking: 'normal',
-            //                     borderWidth: 0,
-            //                     dataLabels: {
-            //                         enabled: true,
-            //                         formatter: function () {
-            //                             const v = Number(this.y || 0);
-            //                             return v > 0 ? fmtSARshort(v) : '';
-            //                         }
-            //                     },
-            //                     // Make groups compact and clearly separated per month
-            //                     pointPadding: 0.05,
-            //                     groupPadding: 0.18
-            //                 }
-            //             },
-            //             tooltip: {
-            //                 shared: false,
-            //                 formatter: function () {
-            //                     // Linked series are "Area – Status"
-            //                     if (this.series.name.includes(' – ')) {
-            //                         const [area, status] = this.series.name.split(' – ');
-            //                         return `<b>${this.x}</b><br/>Area: <b>${area}</b><br/>Status: <b>${status}</b><br/>Value: <b>${fmtSARshort(this.y)}</b>`;
-            //                     }
-            //                     return `<b>${this.x}</b><br/>Status: <b>${this.series.name}</b>`;
-            //                 }
-            //             },
-            //
-            //         });
-            //
-            //         if (!hasData && Highcharts.Chart.prototype.showNoData) Highcharts.chart(el).showNoData();
-            //     }
-            // }
-
-
-
-            // -----------------------------
-// Monthly Value vs Target — grouped columns + two % lines
-// -----------------------------
+        solidGaugePercent('g_bidding',
+            Number(biddingG.pct || 0),
+            Number(biddingG.display_value || 0),
             {
-                const el = document.getElementById('barMonthlyValueTarget');
-                if (el) {
-                    const payload = resp.monthly_value_status_with_target || {
-                        categories: [], series: [], target_value: 0
-                    };
-
-                    // month label "Jan 25"
-                    const monthLabel = (ym) => {
-                        if (!ym || ym.indexOf('-') < 0) return ym || '';
-                        const [y, m] = ym.split('-').map(Number);
-                        return new Date(y, (m || 1) - 1, 1)
-                            .toLocaleString('en', {month: 'short'}) + ' ' + String(y).slice(-2);
-                    };
-                    const cats = (payload.categories || []).map(monthLabel);
-
-                    // 3 column series by status (clustered)
-                    const colIH = (payload.series || []).find(s => /in-hand/i.test(s.name)) || {data: []};
-                    const colBD = (payload.series || []).find(s => /bidding/i.test(s.name)) || {data: []};
-                    const colLT = (payload.series || []).find(s => /lost/i.test(s.name)) || {data: []};
-
-                    // totals & MoM%
-                    const totals = cats.map((_, i) =>
-                        Number(colIH.data?.[i] || 0) + Number(colBD.data?.[i] || 0) + Number(colLT.data?.[i] || 0)
-                    );
-                    const momPct = totals.map((t, i) => (i === 0 || !totals[i - 1]) ? 0
-                        : Math.round(((t - totals[i - 1]) / totals[i - 1]) * 1000) / 10); // 1 decimal
-
-                    // Target % from API if present
-                    const targetLine = (payload.series || []).find(s => /target.*%/i.test(s.name));
-                    const targetPct = targetLine?.data || [];
-
-                    Highcharts.chart(el, {
-                        chart: {zoomType: 'x', backgroundColor: 'transparent'},
-                        title: {text: 'Quotation vs Target'},
-                        credits: {enabled: false},
-                        xAxis: {
-                            categories: cats,
-                            tickInterval: 1,
-                            minPadding: 0.1,
-                            maxPadding: 0.1,
-                            labels: {rotation: 0}
-                        },
-                        yAxis: [{
-                            title: {text: 'Value (SAR)'}, min: 0,
-                            labels: {
-                                formatter() {
-                                    return fmtCompactSAR(this.value);
-                                }
-                            }
-                        }, {
-                            title: {text: 'Percent (%)'}, opposite: true, min: 0,
-                            labels: {
-                                formatter() {
-                                    return fmtPct(this.value);
-                                }
-                            }
-                        }],
-                        legend: {align: 'center'},
-                        tooltip: {
-                            shared: false,
-                            useHTML: true,
-                            formatter: function () {
-                                const isPct = this.series.yAxis.opposite;
-                                return `<b>${this.x}</b><br/>${
-                                    isPct
-                                        ? `${this.series.name}: <b>${fmtPct(this.y)}</b>`
-                                        : `${this.series.name}: <b>SAR ${fmtCompactSAR(this.y)}</b>`
-                                }`;
-                            }
-                        },
-                        plotOptions: {
-                            column: {
-                                grouping: true,
-                                borderWidth: 0,
-                                pointPadding: 0.08,
-                                groupPadding: 0.16,
-                                dataLabels: {
-                                    enabled: true,
-                                    rotation: -90,
-                                    align: 'center',
-                                    verticalAlign: 'bottom',
-                                    inside: false,
-                                    y: -8,
-                                    style: {fontWeight: '600', fontSize: '11px', textOutline: 'none'},
-                                    formatter() {
-                                        return this.y > 0 ? `SAR ${fmtCompactSAR(this.y)}` : '';
-                                    }
-                                }
-                            },
-                            spline: {
-                                marker: {enabled: false},
-                                dataLabels: {
-                                    enabled: true,
-                                    style: {fontWeight: '600', fontSize: '11px', textOutline: 'none'},
-                                    formatter() {
-                                        return fmtPct(this.y);
-                                    }
-                                }
-                            }
-                        },
-                        series: [
-                            // three clustered columns on SAR axis (NO stack)
-                            {type: 'column', name: 'In-Hand (SAR)', data: colIH.data || []},
-                            {type: 'column', name: 'Bidding (SAR)', data: colBD.data || []},
-                            {type: 'column', name: 'Lost (SAR)', data: colLT.data || []},
-
-                            // MoM % derived line (optional: include both MoM and Target if you want)
-                            // {type: 'spline', name: 'MoM %', yAxis: 1, data: momPct, dashStyle: 'ShortDot'},
-
-                            // Target % line from API (if available)
-                            ...(targetPct.length ? [{
-                                type: 'spline',
-                                name: 'Target Attainment %',
-                                yAxis: 1,
-                                data: targetPct
-                            }] : [])
-                        ]
-                    });
-                }
+                color: '#3b82f6',
+                unit: biddingG.unit || 'SAR',
+                subtitle: 'BIDDING',
+                po_value: Number(biddingG.po_value || 0),
+                balance_value: Number(biddingG.balance_value || 0)
             }
+        );
 
+        const conversionPct = Number(
+            convTotals?.value_conversion_pct ||
+            valueConv?.value_pct ||
+            gauges?.conversion?.value ||
+            0
+        );
+        solidGaugePercent('g_convRate',
+            Math.max(0, Math.min(100, conversionPct)),
+            conversionPct.toFixed(1), // ✅ show exact decimal
+            { color: '#38bdf8', unit: '%', subtitle: 'VALUE CONV %' }
+        );
 
+        const targetAchPct = yearlyTarget > 0 ? (totalPO / yearlyTarget) * 100 : 0;
+        solidGaugePercent('g_targetAchieved',
+            Math.max(0, Math.min(100, targetAchPct)),
+            Number(totalPO || 0),
+            {color: '#f59e0b', unit: 'SAR', subtitle: 'TARGET ACHIEVED'}
+        );
+
+        // --- KPI Cards ---
+        const totalOrdersValue =
+            Number(inhandG.po_value ?? 0) ||
+            Number(valueConv.po_value_sum ?? 0) ||
+            Number(convTotals.total_po_value_matched ?? 0);
+
+        setText('kpi_totalSales', fmtSAR(inhandQuotationSumValue));
+        setText('kpi_totalInquiries', Number(convTotals.total_inquiries ?? resp.total_count ?? 0).toLocaleString());
+        setText('kpi_conversion', (Number(conversionPct?? 0)).toFixed(1) + '%');
+        setText('kpi_target', fmtSAR(yearlyTarget));
+        setText('m_actualValue', fmtSARtight(totalPO));
+    }
+
+    /* =============================================================================
+     *  OPTIONAL CHART RENDERERS (HTML is commented out above)
+     *  Keep these functions for future use; currently not called.
+     * ============================================================================= */
+    function renderAreaAndPie(resp) {
+        const areaStatus = resp.area_status || {categories: [], series: []};
+        Highcharts.chart('barByArea', {
+            chart: {
+                type: 'column',
+                height: 260,
+                spacing: [8, 16, 8, 16],
+                backgroundColor: 'transparent'
+            },
+            title: {
+                text: 'Regional Inquiry Distribution',
+                style: { color: '#E8F0FF', fontSize: '16px', fontWeight: 700 }
+            },
+            credits: { enabled: false },
+
+            colors: ['#60a5fa', '#8b5cf6', '#34d399'], // In-Hand, Bidding, Lost
+
+            xAxis: {
+                categories: areaStatus.categories,
+                lineColor: 'rgba(255,255,255,.14)',
+                tickColor: 'rgba(255,255,255,.14)',
+                labels: { style: { color: '#C7D2FE', fontWeight: 600, fontSize: '13px' } }
+            },
+
+            yAxis: {
+                min: 0,
+                title: { text: 'Count', style: { color: '#C7D2FE', fontWeight: 700, fontSize: '13px' } },
+                gridLineColor: 'rgba(255,255,255,.12)',
+                labels: { style: { color: '#E0E7FF', fontWeight: 600, fontSize: '12px' } },
+                stackLabels: {
+                    enabled: true,
+                    style: { color: '#E8F0FF', fontWeight: 700, textOutline: '2px rgba(0,0,0,.7)' },
+                    formatter() { return this.total; }
+                }
+            },
+
+            legend: {
+                enabled: true,
+                itemStyle: { color: '#E8F0FF', fontWeight: 600, fontSize: '13px' },
+                itemHoverStyle: { color: '#FFFFFF' }
+            },
+
+            tooltip: {
+                shared: true,
+                useHTML: true,
+                backgroundColor: 'rgba(10,15,45,.95)',
+                borderColor: '#334155',
+                borderRadius: 8,
+                style: { color: '#E8F0FF', fontSize: '13px' },
+                formatter: function () {
+                    const header = `<div style="font-weight:700;margin-bottom:4px">${this.x}</div>`;
+                    const fmt = v => (v >= 1e9 ? (v/1e9).toFixed(1).replace(/\.0$/,'')+'B'
+                        : v >= 1e6 ? (v/1e6).toFixed(1).replace(/\.0$/,'')+'M'
+                            : v >= 1e3 ? (v/1e3).toFixed(1).replace(/\.0$/,'')+'K'
+                                : Number(v||0).toFixed(0));
+                    const lines = this.points.map(p => {
+                        const sar = (p.point && typeof p.point.sar !== 'undefined') ? Number(p.point.sar) : 0;
+                        return `<div><span style="color:${p.color}">●</span>
+                ${p.series.name}: Count <b>${p.y}</b> • Value <b>${fmt(sar)}</b></div>`;
+                    });
+                    return header + lines.join('');
+                }
+            },
+
+            plotOptions: {
+                column: {
+                    grouping: true,
+                    borderWidth: 0,
+                    borderRadius: 3,
+                    pointPadding: 0.06,
+                    groupPadding: 0.18,
+                    states: { hover: { brightness: 0.08 } },
+                    dataLabels: {
+                        enabled: true,
+
+                        align: 'center',
+                        verticalAlign: 'bottom',
+                        inside: false,
+                        y: -8,
+                        crop: false,
+                        overflow: 'none',
+                        style: {
+                            color: '#E8F0FF',
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            textOutline: '2px rgba(0,0,0,.7)'
+                        },
+                        formatter: function () {
+                            const sar = (this.point && typeof this.point.sar !== 'undefined') ? Number(this.point.sar) : 0;
+                            if (sar <= 0) return '';
+                            return sar >= 1e9 ? `SAR ${(sar/1e9).toFixed(1).replace(/\.0$/,'')}B`
+                                : sar >= 1e6 ? `SAR ${(sar/1e6).toFixed(1).replace(/\.0$/,'')}M`
+                                    : sar >= 1e3 ? `SAR ${(sar/1e3).toFixed(1).replace(/\.0$/,'')}K`
+                                        : `SAR ${sar.toFixed(0)}`;
+                        }
+                    }
+                }
+            },
+
+            series: areaStatus.series
+        });
+
+        const rows = resp.status || [];
+        const buckets = ['In-Hand', 'Bidding', 'Lost'];
+        const data = buckets.map(b => {
+            const r = rows.find(x => (x.status_norm || x.status) === b);
+            return {name: b, y: Number(r?.sum_value || 0)};
+        });
+        const hasData = data.some(d => d.y > 0);
+        const chart = Highcharts.chart('pieByStatus', {
+            chart: {
+                type: 'pie',
+                backgroundColor: 'transparent',
+                spacing: [10, 10, 10, 10]
+            },
+            title: {
+                text: 'Quotations  Distribution by Status',
+                style: { color: '#E8F0FF', fontSize: '16px', fontWeight: '700' }
+            },
+            credits: { enabled: false },
+            tooltip: {
+                useHTML: true,
+                backgroundColor: 'rgba(10,15,45,0.95)',
+                borderColor: '#334155',
+                borderRadius: 8,
+                style: { color: '#E8F0FF', fontSize: '13px' },
+                pointFormat: '<b>{point.percentage:.1f}%</b><br/>Value: <b>SAR {point.y:,.0f}</b>'
+            },
+            plotOptions: {
+                pie: {
+                    allowPointSelect: true,
+                    borderWidth: 0,
+                    size: '80%',
+                    shadow: false,
+                    colors: ['#60a5fa', '#8b5cf6', '#34d399', '#f59e0b'],
+                    dataLabels: {
+                        enabled: true,
+                        distance: 18,
+                        connectorWidth: 1.2,
+                        connectorColor: 'rgba(255,255,255,0.35)',
+                        style: {
+                            color: '#E8F0FF',
+                            fontWeight: 300,
+                            fontSize: '15px',
+                            textOutline: '2px rgba(0,0,0,0.6)'
+                        },
+                        format: '{point.name}: {point.percentage:.1f}%'
+                    }
+                }
+            },
+            legend: {
+                enabled: false,
+                itemStyle: { color: '#E8F0FF', fontWeight: 600, fontSize: '13px' }
+            },
+            series: [{ name: 'Value', data }],
+            lang: { noData: 'No status values.' },
+            noData: {
+                style: { fontSize: '14px', color: '#E0E7FF', fontWeight: 600 }
+            }
+        });
+        if (!hasData && Highcharts.Chart.prototype.showNoData) chart.showNoData();
+    }
+
+    function renderMonthlyTarget(resp) {
+        const payload = resp.monthly_value_status_with_target || {categories: [], series: [], target_value: 0};
+        const monthLabel = (ym) => {
+            if (!ym || ym.indexOf('-') < 0) return ym || '';
+            const [y, m] = ym.split('-').map(Number);
+            return new Date(y, (m || 1) - 1, 1).toLocaleString('en', {month: 'short'}) + ' ' + String(y).slice(-2);
+        };
+        const cats = (payload.categories || []).map(monthLabel);
+
+        const colIH = (payload.series || []).find(s => /in-hand/i.test(s.name)) || {data: []};
+        const colBD = (payload.series || []).find(s => /bidding/i.test(s.name)) || {data: []};
+        const colLT = (payload.series || []).find(s => /lost/i.test(s.name)) || {data: []};
+        const targetPct = ((payload.series || []).find(s => /target.*%/i.test(s.name))?.data) || [];
+
+        const series = [
+            {type: 'column', name: 'In-Hand (SAR)', data: colIH.data || []},
+            {type: 'column', name: 'Bidding (SAR)', data: colBD.data || []},
+            {type: 'column', name: 'Lost (SAR)', data: colLT.data || []}
+        ];
+        if (Array.isArray(targetPct) && targetPct.length) {
+            series.push({type: 'spline', name: 'Target Attainment %', yAxis: 1, data: targetPct});
         }
 
+        Highcharts.chart('barMonthlyValueTarget', {
+            chart: {
+                zoomType: 'x',
+                backgroundColor: 'transparent',
+                spacing: [10, 20, 10, 20]
+            },
+            title: {
+                text: 'Quotation vs Target',
+                style: { color: '#E8F0FF', fontSize: '16px', fontWeight: '700' }
+            },
+            credits: { enabled: false },
 
-        // Family chips → refresh DT + KPI
-        $(document).on('click', '#familyChips [data-family]', function (e) {
-            e.preventDefault();
-            $('#familyChips [data-family]').removeClass('active');
-            this.classList.add('active');
-            currentFamily = this.getAttribute('data-family') || '';
-            // getDT('#tblBidding')?.ajax.reload(null, false);
-            // getDT('#tblInhand')?.ajax.reload(null, false);
-            // getDT('#tblLost')?.ajax.reload(null, false);
-            loadKpis();
-        });
-
-        // Apply filters
-        document.getElementById('projApply')?.addEventListener('click', () => {
-            PROJ_YEAR = document.getElementById('projYear')?.value || '';
-            PROJ_REGION = CAN_VIEW_ALL ? (document.getElementById('projRegion')?.value || '') : '';
-            loadKpis();
-            if (dtBid) dtBid.ajax.reload(null, false);
-            if (dtIn) dtIn.ajax.reload(null, false);
-            if (dtLost) dtLost.ajax.reload(null, false);
-        });
-
-        /* =============================================================================
-         *  BOOT
-         * ============================================================================= */
-        (async function boot() {
-            try {
-                const res = await fetch('/me', {credentials: 'same-origin'});
-                if (!res.ok) throw new Error('Not authenticated');
-                ATAI_ME = await res.json();
-            } catch {
-                window.location.href = '{{ route('login') }}';
-                return;
-            }
-
-            CAN_VIEW_ALL = !!(ATAI_ME?.canViewAll);
-            if (!CAN_VIEW_ALL) {
-                document.getElementById('projRegionWrap')?.classList.add('d-none');
-            } else {
-                document.getElementById('salesmanWrap')?.classList.remove('d-none');
-            }
-
-
-            await loadKpis();
-        })();
-
-
-        async function saveProject(projectId) {
-            const payload = {
-                comments: document.querySelector('#comments').value || '',
-                checklist: {
-                    mep_contractor_appointed: document.querySelector('#chk_mep')?.checked ?? false,
-                    boq_quoted: document.querySelector('#chk_boq_quoted')?.checked ?? false,
-                    boq_submitted: document.querySelector('#chk_boq_submitted')?.checked ?? false,
-                    priced_at_discount: document.querySelector('#chk_discount')?.checked ?? false,
+            xAxis: {
+                categories: cats,
+                tickInterval: 1,
+                minPadding: 0.1,
+                maxPadding: 0.1,
+                lineColor: 'rgba(255,255,255,.15)',
+                tickColor: 'rgba(255,255,255,.15)',
+                labels: {
+                    rotation: 0,
+                    style: { color: '#C7D2FE', fontSize: '13px', fontWeight: 600 }
                 }
-                // Optional: status if user explicitly picked it on UI
-                // status: document.querySelector('#statusSelect')?.value || null,
-            };
+            },
 
-            const res = await fetch(`/projects/${projectId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            yAxis: [
+                {
+                    title: {
+                        text: 'Value (SAR)',
+                        style: { color: '#C7D2FE', fontWeight: 700, fontSize: '13px' }
+                    },
+                    min: 0,
+                    gridLineColor: 'rgba(255,255,255,.10)',
+                    labels: {
+                        style: { color: '#E0E7FF', fontWeight: 600, fontSize: '12px' },
+                        formatter() { return fmtCompactSAR(this.value); }
+                    }
                 },
-                body: JSON.stringify(payload)
+                {
+                    title: {
+                        text: 'Percent (%)',
+                        style: { color: '#F59E0B', fontWeight: 700, fontSize: '13px' }
+                    },
+                    opposite: true,
+                    min: 0,
+                    gridLineColor: 'transparent',
+                    labels: {
+                        style: { color: '#FBBF24', fontWeight: 600, fontSize: '12px' },
+                        formatter() { return fmtPct(this.value); }
+                    }
+                }
+            ],
+
+            legend: {
+                align: 'center',
+                itemStyle: { color: '#E8F0FF', fontWeight: 600, fontSize: '13px' },
+                itemHoverStyle: { color: '#FFFFFF' }
+            },
+
+            tooltip: {
+                shared: false,
+                useHTML: true,
+                backgroundColor: 'rgba(10,15,45,0.95)',
+                borderColor: '#334155',
+                borderRadius: 8,
+                style: { color: '#E8F0FF', fontSize: '13px' },
+                formatter: function () {
+                    const isPct = this.series.yAxis.opposite;
+                    return `<b>${this.x}</b><br/>${
+                        isPct
+                            ? `${this.series.name}: <b>${fmtPct(this.y)}</b>`
+                            : `${this.series.name}: <b>SAR ${fmtCompactSAR(this.y)}</b>`
+                    }`;
+                }
+            },
+
+            plotOptions: {
+                column: {
+                    grouping: true,
+                    borderWidth: 0,
+                    borderRadius: 3,
+                    pointPadding: 0.05,
+                    groupPadding: 0.18,
+                    states: { hover: { brightness: 0.08 } },
+                    dataLabels: {
+                        enabled: true,
+                        rotation: -90,
+                        align: 'center',
+                        verticalAlign: 'bottom',
+                        inside: false,
+                        y: -10,
+                        crop: false,
+                        overflow: 'none',
+                        style: {
+                            color: '#E8F0FF',
+                            fontWeight: 100,
+                            fontSize: '15px',
+
+                        },
+                        formatter() {
+                            return this.y > 0 ? `SAR ${fmtCompactSAR(this.y)}` : '';
+                        }
+                    }
+                },
+                spline: {
+                    lineWidth: 3,
+                    color: '#f59e0b',
+                    marker: { enabled: true, radius: 4, fillColor: '#fff', lineColor: '#f59e0b', lineWidth: 2 },
+                    dataLabels: {
+                        enabled: true,
+                        y: -8,
+                        style: {
+                            color: '#FBBF24',
+
+                            fontSize: '12px',
+
+                        },
+                        formatter() {
+                            return fmtPct(this.y);
+                        }
+                    }
+                }
+            },
+
+            colors: ['#60a5fa', '#8b5cf6', '#34d399', '#f59e0b'],
+            series
+        });
+    }
+    function renderFunnel(resp) {
+        // Pull stages from your existing /projects.kpis response
+        const stages = (resp?.funnel_value?.stages || []).map(s => ({
+            name: s.name,
+            y: Number(s.value || 0)
+        }));
+
+        // If container is missing or there’s no data, bail gracefully
+        if (!document.getElementById('projectsFunnel')) return;
+        if (!stages.length) {
+            Highcharts.chart('projectsFunnel', {
+                title: { text: 'Quotation By Value' },
+                chart: { type: 'funnel', backgroundColor: 'transparent' },
+                credits: { enabled: false },
+                lang: { noData: 'No funnel data.' },
+                noData: { style: { color: '#c28b01', fontWeight: 600 } }
             });
-
-            const json = await res.json();
-            if (json?.ok) {
-                // update row in DataTable and close modal
-                // dt.row(rowIndex).data(json.project).draw(false);
-                // show toast with json.project.checklist_progress + json.project.status
-            }
-        }
-        function updateForecastBadges(totalForecast, totalInhand, resp) {
-            const fcBadge   = document.getElementById('fcBadgeValue');
-            const convBadge = document.getElementById('fcBadgeConv');
-
-            // 1) Forecast total (target for the month)
-            const forecastVal = Number(totalForecast || 0);
-            if (fcBadge) fcBadge.textContent = 'Forecast Total: ' + fmtSAR(forecastVal);
-
-            // 2) (Optional) Target attainment if you want to show it later
-            const inhandVal = Number(totalInhand || 0);
-            const targetAttainPct = forecastVal > 0 ? (inhandVal / forecastVal) * 100 : 0;
-
-            // 3) Conversions from API (value + count)
-            const conv   = (resp && resp.conversion_totals) ? resp.conversion_totals : {};
-            const qVal   = Number(conv.total_quote_value || 0);
-            const poVal  = Number(conv.total_po_value_matched || 0);
-            const valPct = Number(conv.value_conversion_pct || 0);
-            const cntPct = Number(conv.count_conversion_pct || 0);
-            const total  = Number(conv.total_inquiries || 0);
-            const won    = Number(conv.projects_with_po || 0);
-
-            if (convBadge) {
-                convBadge.innerHTML =
-                    `<b>Total Quotation Value:</b> ${fmtSAR(qVal)}<br>` +
-                    `<b>Total PO Value (matched):</b> ${fmtSAR(poVal)}<br>` +
-                    `<b>Value Conversion:</b> ${valPct.toFixed(1)}%<br>` +
-                    `<b>Projects:</b> ${won}/${total} &nbsp;(<b>${cntPct.toFixed(1)}%</b>)`;
-                // If you also want to show target attainment, add one more line:
-                // + `<br><b>Target Attainment:</b> ${targetAttainPct.toFixed(1)}%`
-            }
+            return;
         }
 
+        Highcharts.chart('projectsFunnel', {
+            chart: { type: 'funnel', backgroundColor: 'transparent' },
+            title: { text: 'Project Lifecycle Value Distribution', style: { color: '#E8F0FF', fontWeight: 700 } },
+            credits: { enabled: false },
+            tooltip: {
+                pointFormatter() { return `<b>${fmtSAR(this.y)}</b>`; }
+            },
+            plotOptions: {
+                series: {
+                    borderWidth: 0,
+                    dataLabels: {
+                        enabled: true,
+                              // ✅ center text inside the funnel
+                        softConnector: false,      // removes the connector lines
+                        align: 'center',           // horizontally center text
+                        verticalAlign: 'middle',   // vertically center text
+                        style: {
+                            color: '#95c53d',      // text color for dark background
+                            fontWeight: '100',
+                            textOutline: 'none',
+                            fontSize: '11px'
+                        },
+                        formatter: function () {
+                            const v = this.point.y || 0;
+                            const a = Math.abs(v);
+                            const compact =
+                                a >= 1e9 ? (v / 1e9).toFixed(1).replace(/\.0$/, '') + 'B' :
+                                    a >= 1e6 ? (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' :
+                                        a >= 1e3 ? (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'K' :
+                                            v.toLocaleString();
 
-    </script>
+                            return `<b>${this.point.name}</b><br>SAR ${compact}`;
+                        }
+                    },
+                    neckWidth: '30%',
+                    neckHeight: '25%',
+                    width: '80%'
+                }
+            },
+            series: [{ name: 'Value', data: stages }]
+        });
+    }
+    /* =============================================================================
+     *  EVENTS & BOOT
+     * ============================================================================= */
+    $(document).on('click', '#familyChips [data-family]', function (e) {
+        e.preventDefault();
+        $('#familyChips [data-family]').removeClass('active');
+        this.classList.add('active');
+        currentFamily = this.getAttribute('data-family') || '';
+        loadKpis();
+    });
 
+    document.getElementById('projApply')?.addEventListener('click', () => {
+        PROJ_YEAR = document.getElementById('projYear')?.value || '';
+        PROJ_REGION = CAN_VIEW_ALL ? (document.getElementById('projRegion')?.value || '') : '';
+        loadKpis();
+    });
 
+    (async function boot() {
+        try {
+            const res = await fetch('/me', {credentials: 'same-origin'});
+            if (!res.ok) throw new Error('Not authenticated');
+            ATAI_ME = await res.json();
+        } catch {
+            window.location.href = '{{ route('login') }}';
+            return;
+        }
+        CAN_VIEW_ALL = !!(ATAI_ME?.canViewAll);
+        if (!CAN_VIEW_ALL) {
+            document.getElementById('projRegionWrap')?.classList.add('d-none');
+        } else {
+            document.getElementById('salesmanWrap')?.classList.remove('d-none');
+        }
+        await loadKpis();
+    })();
+</script>
 </body>
 </html>

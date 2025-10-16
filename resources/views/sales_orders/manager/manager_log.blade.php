@@ -24,51 +24,83 @@
 @php $u = auth()->user(); @endphp
 <nav class="navbar navbar-atai navbar-expand-lg">
     <div class="container-fluid">
+        {{-- Brand (left) --}}
         <a class="navbar-brand d-flex align-items-center" href="{{ route('projects.index') }}">
-            <img src="{{ asset('images/atai-logo.png') }}" class="brand-logo me-2" alt="ATAI">
+            <img src="{{ asset('images/atai-logo.png') }}" alt="ATAI" class="brand-logo me-2">
             <span class="brand-word">ATAI</span>
         </a>
 
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        {{-- Toggler (mobile) --}}
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#ataiNav"
+                aria-controls="ataiNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        {{-- Collapse --}}
+        <div class="collapse navbar-collapse" id="ataiNav">
+            {{-- Centered nav (desktop); scrollable row (mobile) --}}
+            <ul class="navbar-nav mx-lg-auto mb-2 mb-lg-0">
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('projects.index') ? 'active' : '' }}"
                        href="{{ route('projects.index') }}">Quotation KPI</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs(['inquiries.index']) ? 'active' : '' }}"
-                       href="{{ route('inquiries.index') }}">
-                        Quotation Log
-                    </a>
+                       href="{{ route('inquiries.index') }}">Quotation Log</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.kpi') ? 'active' : '' }}"
-                       href="{{ route('salesorders.manager.kpi') }}">
-                        Sales Order Log KPI
-                    </a>
+                       href="{{ route('salesorders.manager.kpi') }}">Sales Order Log KPI</a>
                 </li>
-
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('salesorders.manager.index') ? 'active' : '' }}"
-                       href="{{ route('salesorders.manager.index') }}">
-                        Sales Order Log
-                    </a>
+                       href="{{ route('salesorders.manager.index') }}">Sales Order Log</a>
                 </li>
-                {{-- Sales roles only --}}
-                {{--                @hasanyrole('sales|sales_eastern|sales_central|sales_western')--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">Estimation</a>
                 </li>
+
+                @hasanyrole('gm|admin')
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
+                       href="{{ route('salesorders.index') }}">Sales Orders</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
+                       href="{{ route('performance.area') }}">Area summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active' : '' }}"
+                       href="{{ route('performance.salesman') }}">SalesMan summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('performance.product*') ? 'active' : '' }}"
+                       href="{{ route('performance.product') }}">Product summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                       href="{{ route('powerbi.jump') }}">Accounts Summary</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active' : '' }}"
+                       href="{{ route('powerbi.jump') }}">Power BI Dashboard</a>
+                </li>
+                @endhasanyrole
             </ul>
 
-            <div class="navbar-text me-2">
-                Logged in as <strong>{{ $u->name ?? '' }}</strong>
-                @if(!empty($u->region)) · <small>{{ $u->region }}</small>@endif
+            {{-- Right block (far-right on desktop; full-width row on mobile) --}}
+            <div class="navbar-right">
+                <div class="navbar-text me-2">
+                    Logged in as <strong>{{ $u->name ?? '' }}</strong>
+                    @if(!empty($u->region))
+                        · <small>{{ $u->region }}</small>
+                    @endif
+                </div>
+                <form method="POST" action="{{ route('logout') }}" class="m-0">@csrf
+                    <button class="btn btn-logout btn-sm" type="submit">Logout</button>
+                </form>
             </div>
-            <form method="POST" action="{{ route('logout') }}">@csrf
-                <button class="btn btn-logout btn-sm">Logout</button>
-            </form>
         </div>
     </div>
 </nav>
@@ -98,10 +130,38 @@
 
 
     </div>
-    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
-        <span id="badgeCount"  class="badge-total text-bg-info">Total Sales-Order No: 0</span>
-        <span id="badgeValue"  class="badge-total text-bg-primary">Total Sales-Order Value: SAR 0</span>
+{{--    <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">--}}
+{{--        <span id="badgeCount"  class="badge-total text-bg-info">Total Sales-Order No: 0</span>--}}
+{{--        <span id="badgeValue"  class="badge-total text-bg-primary">Total Sales-Order Value: SAR 0</span>--}}
+{{--    </div>--}}
+
+    <div class="row g-3 mb-4 text-center justify-content-center">
+        <div class="col-6 col-md col-lg">
+            <div class="kpi-card shadow-sm p-5 h-150">
+{{--                <div class="kpi-label">Total Quotation Value </div>--}}
+                <div id="badgeCount"   class="kpi-value">SAR 0</div>
+            </div>
+        </div>
+        <div class="col-6 col-md col-lg">
+            <div class="kpi-card shadow-sm p-5 h-150">
+{{--                <div class="kpi-label">Total Quotation Count</div>--}}
+                <div id="badgeValue" class="kpi-value">0</div>
+            </div>
+        </div>
+
     </div>
+
+
+
+
+
+
+
+
+
+
+
+
     {{-- Family chips --}}
     <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
         <div id="familyChips" class="btn-group" role="group" aria-label="Product family">
@@ -117,6 +177,7 @@
     </div>
 
     {{-- Status tabs --}}
+
     <ul class="nav nav-tabs mb-3" id="statusTabs" role="tablist">
         <li class="nav-item">
             <button class="nav-link active" data-status="" type="button">All</button>

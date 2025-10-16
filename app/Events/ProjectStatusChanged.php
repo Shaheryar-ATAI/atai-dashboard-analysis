@@ -1,11 +1,19 @@
 <?php
-// app/Events/ProjectStatusChanged.php
+
+namespace App\Events;
+
 use App\Models\Project;
-use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 class ProjectStatusChanged
 {
     use Dispatchable, SerializesModels;
-    public function __construct(public Project $project, public string $from, public string $to, public int $userId){}
+
+    public function __construct(
+        public readonly Project $project,
+        public readonly string  $fromStatus,
+        public readonly string  $toStatus,
+        public readonly int     $changedByUserId,
+    ) {}
 }
