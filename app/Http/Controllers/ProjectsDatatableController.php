@@ -8,7 +8,47 @@ use Illuminate\Support\Facades\DB;
 
 class ProjectsDatatableController extends Controller
 {
+    /* =========================================================
+        * SALESPERSON REGION ALIAS HELPERS (same as SalesOrderManagerController)
+        * ========================================================= */
 
+    /** Region → salesperson aliases */
+    protected function salesAliasesForRegion(?string $regionNorm): array
+    {
+        return match ($regionNorm) {
+            'eastern' => ['SOHAIB', 'SOAHIB'],
+            'central' => ['TARIQ', 'TAREQ', 'JAMAL'],
+            'western' => ['ABDO', 'ABDUL', 'ABDOU', 'AHMED'],
+            default   => [],
+        };
+    }
+
+    /** Map canonical salesperson → home region (lowercase) */
+    protected function homeRegionBySalesperson(): array
+    {
+        return [
+            // Eastern
+            'SOHAIB' => 'eastern',
+            'SOAHIB' => 'eastern',
+
+            // Central
+            'TARIQ'  => 'central',
+            'TAREQ'  => 'central',
+            'JAMAL'  => 'central',
+
+            // Western
+            'ABDO'   => 'western',
+            'ABDUL'  => 'western',
+            'ABDOU'  => 'western',
+            'AHMED'  => 'western',
+        ];
+    }
+
+    /** Canonicalize salesperson name (UPPERCASE, remove spaces) */
+    protected function canonSalesKey(?string $name): string
+    {
+        return strtoupper(preg_replace('/\s+/', '', (string)$name));
+    }
 
 
     public function data(Request $req)
@@ -79,10 +119,39 @@ class ProjectsDatatableController extends Controller
         // ========== Common filters (date/family/salesman) – applied to both global & tab queries ==========
         $applyCommonFilters = function ($q) use ($req, $dateExpr, $user) {
             // Salesman (GM/Admin can see all unless salesman is provided)
+            // --- Salesman (respect aliases) ---
             if ($req->filled('salesman')) {
-                $q->where('salesman', $req->input('salesman'));
+                $salesman = strtoupper(trim($req->input('salesman')));
+                $aliases  = [];
+
+                // detect which region they belong to via alias map
+                foreach (['eastern','central','western'] as $region) {
+                    $set = $this->salesAliasesForRegion($region);
+                    if (in_array($salesman, $set, true)) {
+                        $aliases = $set;
+                        break;
+                    }
+                }
+
+                if (!empty($aliases)) {
+                    $q->where(function($qq) use ($aliases) {
+                        foreach ($aliases as $a) {
+                            $qq->orWhereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$a]);
+                        }
+                    });
+                } else {
+                    $q->whereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$salesman]);
+                }
             } elseif (!$user->hasAnyRole(['gm','admin'])) {
-                $q->where('salesman', $user->name);
+                $userKey = strtoupper(trim($user->name ?? ''));
+                $region  = $this->homeRegionBySalesperson()[$userKey] ?? null;
+                $aliases = $region ? $this->salesAliasesForRegion($region) : [$userKey];
+
+                $q->where(function($qq) use ($aliases) {
+                    foreach ($aliases as $a) {
+                        $qq->orWhereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$a]);
+                    }
+                });
             }
 
             // Dates

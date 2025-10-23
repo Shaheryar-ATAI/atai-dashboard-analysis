@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\ForecastPdfController;
 use Illuminate\Support\Facades\Route;
 
 // Controllers
@@ -143,6 +145,20 @@ Route::middleware('web')->group(function () {
         Route::get('/forecast/kpis', [ForecastApiController::class, 'kpis'])->name('forecast.kpis');
         Route::get('/forecast/totals', [ForecastApiController::class, 'totals'])->name('forecast.totals');
         Route::get('/forecast/by-salesman', [ForecastApiController::class, 'bySalesman'])->name('forecast.bySalesman');
+
+
+// web.php
+
+
+        Route::prefix('forecast')->group(function () {
+            Route::get('/new', [ForecastController::class, 'create'])->name('forecast.create'); // show form
+            Route::post('/', [ForecastController::class, 'save'])->name('forecast.save');       // save rows
+            Route::match(['GET', 'POST'], '/pdf', [ForecastController::class, 'pdf'])->name('forecast.pdf'); // generate PDF
+        });
+
+
+
+
 
         /* ===================================================================
          | ESTIMATION (Sales + GM/Admin)

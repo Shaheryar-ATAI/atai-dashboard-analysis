@@ -181,6 +181,11 @@
                     <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">Estimation</a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('forecast.*') ? 'active' : '' }}" href="{{ route('forecast.create') }}">
+                        Forecast
+                    </a>
+                </li>
 
                 @hasanyrole('gm|admin')
                 <li class="nav-item">
@@ -350,13 +355,13 @@
     <div class="row g-3 mb-4 text-center justify-content-center">
         <div class="col-6 col-md col-lg">
             <div class="kpi-card shadow-sm p-5 h-150">
-                <div class="kpi-label">Total Quotation Value Received</div>
+                <div class="kpi-label">Total Quotation Value </div>
                 <div id="kpi_totalSales" class="kpi-value">SAR 0</div>
             </div>
         </div>
         <div class="col-6 col-md col-lg">
             <div class="kpi-card shadow-sm p-5 h-150">
-                <div class="kpi-label">Total Inquiries</div>
+                <div class="kpi-label">Total Quotation Count</div>
                 <div id="kpi_totalInquiries" class="kpi-value">0</div>
             </div>
         </div>
@@ -372,12 +377,12 @@
                 <div id="kpi_target" class="kpi-value">SAR 0</div>
             </div>
         </div>
-        <div class="col-6 col-md col-lg">
-            <div class="kpi-card shadow-sm p-5 h-150">
-                <div class="kpi-label">Actual (PO Received)</div>
-                <div class="kpi-value" id="m_actualValue">SAR 0</div>
-            </div>
-        </div>
+{{--        <div class="col-6 col-md col-lg">--}}
+{{--            <div class="kpi-card shadow-sm p-5 h-150">--}}
+{{--                <div class="kpi-label">Actual (PO Received)</div>--}}
+{{--                <div class="kpi-value" id="m_actualValue">SAR 0</div>--}}
+{{--            </div>--}}
+{{--        </div>--}}
     </div>
     {{--     ===================== OPTIONAL CHARTS =====================--}}
     {{--         The following sections are left out of the layout per your latest--}}
@@ -410,7 +415,17 @@
 
 
     <div id="barMonthlyValueTarget" class="kpi-card" style="height:400px"></div>
-
+    <!-- AFTER the Monthly Value vs Target card -->
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span></span>
+{{--            <span>Product-wise Inquiry Value (Monthly) — Eastern / Salesman Scope</span>--}}
+{{--            <small class="text-muted">stacked columns by product + total spline</small>--}}
+        </div>
+        <div class="card-body">
+            <div id="kpi_productwise" style="height: 420px;"></div>
+        </div>
+    </div>
 
 
 </main>
@@ -487,6 +502,7 @@
             renderAreaAndPie(resp);
             renderMonthlyTarget(resp);
             renderFunnel(resp);
+            renderMonthlyProductWiseChart(resp);
         } catch (e) {
             console.warn('KPI fetch failed', e);
             return;
@@ -531,24 +547,26 @@
                 min: 0, max: 100, lineWidth: 0, tickWidth: 0, labels: {enabled: false},
                 stops: [[0, color], [1, color]]
             },
-            tooltip: {
-                useHTML: true,
-                pointFormatter: function () {
-                    const fmt = v => {
-                        v = Number(v || 0);
-                        if (v >= 1e9) return (v / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
-                        if (v >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
-                        if (v >= 1e3) return (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
-                        return v.toFixed(0);
-                    };
-                    return `
-          <div><b>${(Number(pct) || 0).toFixed(1)}% achieved</b></div>
-          <div>Total: <b>${fmt(displayValue)}</b> ${unit}</div>
-          <div>PO: <b>${fmt(poVal)}</b> ${unit}</div>
-          <div>Balance: <b>${fmt(bal)}</b> ${unit}</div>
-        `;
-                }
-            },
+    //         tooltip: {
+    //             useHTML: true,
+    // //             pointFormatter: function () {
+    // //                 const fmt = v => {
+    // //                     v = Number(v || 0);
+    // //                     if (v >= 1e9) return (v / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+    // //                     if (v >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+    // //                     if (v >= 1e3) return (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+    // //                     return v.toFixed(0);
+    // //                 };
+    // //                 // NOTE: `unit` is for the center value; PO & Quotation are SAR figures
+    // //                 return `
+    // //
+    // //   <div><b>${(Number(pct) || 0).toFixed(1)}% achieved</b></div>
+    // //   <div>Center value: <b>${fmt(displayValue)}</b> ${unit}</div>
+    // //   <div>PO (latest rev): <b>${fmt(poVal)}</b> SAR</div>
+    // //   <div>Quotation Sum: <b>${fmt(bal)}</b> SAR</div>
+    // // `;
+    // //             }
+    //         },
             plotOptions: {
                 solidgauge: {
                     rounded: true,
@@ -556,54 +574,23 @@
                         useHTML: true,
                         y: -10,
                         borderWidth: 0,
-                        // >>> Bright, readable HTML labels <<<
                         formatter: function () {
                             const main = `
-  <div style="
-    font-size:24px;
-    font-weight:800;
-    color:#ffffff;
-    text-shadow:0 0 6px rgba(255,255,255,.9),
-                 0 0 14px rgba(0,255,255,.35),
-                 0 0 22px rgba(0,255,255,.25);
-  ">
-    ${(() => {
-                                const v = Number(displayValue || 0);
-                                // If this gauge is a percent one, keep one decimal
-                                if (unit === '%') return v.toFixed(1);
-
-                                // Otherwise use compact SAR formatting
-                                const a = Math.abs(v);
-                                if (a >= 1e9) return (v / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
-                                if (a >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
-                                if (a >= 1e3) return (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+          <div style="
+            font-size:24px;font-weight:800;color:#fff;
+            text-shadow:0 0 6px rgba(255,255,255,.9),0 0 14px rgba(0,255,255,.35),0 0 22px rgba(0,255,255,.25);
+          ">
+            ${unit === '%' ? Number(displayValue || 0).toFixed(1) : (() => {
+                                const v = Number(displayValue || 0), a = Math.abs(v);
+                                if (a >= 1e9) return (v/1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+                                if (a >= 1e6) return (v/1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+                                if (a >= 1e3) return (v/1e3).toFixed(1).replace(/\.0$/, '') + 'K';
                                 return v.toFixed(0);
                             })()}
-  </div>`;
-
-                            const pctLine = `
-              <div style="
-                font-size:16px;
-                font-weight:700;
-                color:#38bdf8;
-                text-shadow:0 0 8px rgba(56,189,248,.9);
-              ">
-                ${(Number(pct) || 0).toFixed(1)}%
-              </div>`;
-
-                            const subLine = `
-              <div style="
-                font-size:12px;
-                color:#a5f3fc;
-                letter-spacing:.06em;
-                text-transform:uppercase;
-                text-shadow:0 0 4px rgba(165,243,252,.85);
-              ">
-                ${sub}
-              </div>`;
-
-                            // return `<div style="text-align:center">${main}${pctLine}${subLine}</div>`;
-                            return `<div style="text-align:center">${main}${pctLine}</div>`;
+          </div>`;
+                            const unitLine = `<div style="font-size:14px;color:#a5f3fc">${unit}</div>`;
+                            const subLine  = sub ? `<div style="font-size:12px;color:#a5f3fc;letter-spacing:.06em;text-transform:uppercase">${sub}</div>` : '';
+                            return `<div style="text-align:center">${main}${unitLine}${subLine}</div>`;
                         }
                     }
                 }
@@ -633,25 +620,20 @@
 
     function updateDialsAndCards(resp) {
         const gauges = resp?.gauges || {};
-        const inhandQuotationSumValue=resp?.conversion_totals?.total_quote_value||{}
-        const inhandG = gauges?.inhand || {};   // { pct, display_value, po_value, balance_value, unit }
-        const biddingG = gauges?.bidding || {};
         const convTotals = resp?.conversion_totals || {};
-        const valueConv = resp?.value_conversion || {};
+        const qp = resp?.quote_phase || {};
 
-        // Preferred PO sources (in-hand + bidding), fallback to aggregated matched POs
-        const poInhand = Number(resp?.inhand_po?.inhand_po_sum ?? 0);
-        const poBidding = Number(resp?.bidding_po?.bidding_po_sum ?? 0);
-        const totalPO = (poInhand + poBidding) || Number(valueConv.value_pct ?? 0) || Number(convTotals.total_po_value_matched ?? 0);
+        // ---------- Canonical values from backend ----------
+        const totalQuotedValue  = Number(qp.total_quoted_value || 0);
+        const conversionPct     = Number(qp.conversion_pct || 0);       // In-Hand / Total
+        const ytdTargetValue    = Number(qp.ytd_target_value || 0);
+        const targetAchPct      = Number(qp.target_achieved_pct || 0);  // Total / YTD target
+        const monthlyQuoteTarget= Number(qp.monthly_quote_target || 3_000_000);
 
-        // Targets (business rule: 3M per month == 36M yearly)
-        const monthlyTarget = 3_000_000;
-        //  const yearlyTarget  = monthlyTarget * 12;
+        // ---------- In-Hand & Bidding gauges (already server-computed as % of total) ----------
+        const inhandG  = gauges?.inhand  || {};
+        const biddingG = gauges?.bidding || {};
 
-
-        const monthsElapsed = new Date().getMonth() + 1; // 1..12
-        const yearlyTarget = monthlyTarget * monthsElapsed;
-        // --- Gauges ---
         solidGaugePercent('g_inhand',
             Number(inhandG.pct || 0),
             Number(inhandG.display_value || 0),
@@ -659,8 +641,7 @@
                 color: '#00c9a7',
                 unit: inhandG.unit || 'SAR',
                 subtitle: 'IN HAND',
-                po_value: Number(inhandG.po_value || 0),
-                balance_value: Number(inhandG.balance_value || 0)
+
             }
         );
 
@@ -671,42 +652,46 @@
                 color: '#3b82f6',
                 unit: biddingG.unit || 'SAR',
                 subtitle: 'BIDDING',
-                po_value: Number(biddingG.po_value || 0),
-                balance_value: Number(biddingG.balance_value || 0)
+                po_value: 0,
+                balance_value: 0
             }
         );
 
-        const conversionPct = Number(
-            convTotals?.value_conversion_pct ||
-            valueConv?.value_pct ||
-            gauges?.conversion?.value ||
-            0
-        );
-        solidGaugePercent('g_convRate',
-            Math.max(0, Math.min(100, conversionPct)),
-            conversionPct.toFixed(1), // ✅ show exact decimal
-            { color: '#38bdf8', unit: '%', subtitle: 'VALUE CONV %' }
-        );
-
-        const targetAchPct = yearlyTarget > 0 ? (totalPO / yearlyTarget) * 100 : 0;
-        solidGaugePercent('g_targetAchieved',
-            Math.max(0, Math.min(100, targetAchPct)),
-            Number(totalPO || 0),
-            {color: '#f59e0b', unit: 'SAR', subtitle: 'TARGET ACHIEVED'}
+        // ---------- Conversion gauge (use the SAME % for arc and label) ----------
+        const cg = qp.conversion_pct || {};
+        solidGaugePercent(
+            'g_convRate',
+            Number(cg || 0),        // arc %
+            Number(cg || 0),        // center text shows same %
+            {
+                color: '#38bdf8',
+                unit: '%',                // this unit is only for the center text
+                subtitle: 'QUOTE CONV %',
+                po_value: Number(cg.po_user_region_last ?? cg.po_user_region_raw ?? 0), // SAR
+                balance_value: Number(cg.quotes_region_sar || 0),                        // SAR
+            }
         );
 
-        // --- KPI Cards ---
-        const totalOrdersValue =
-            Number(inhandG.po_value ?? 0) ||
-            Number(valueConv.po_value_sum ?? 0) ||
-            Number(convTotals.total_po_value_matched ?? 0);
+        // ---------- Target Achieved gauge (quotes vs YTD target) ----------
+        solidGaugePercent(
+            'g_targetAchieved',
+            Math.max(0, Math.min(100, targetAchPct)),  // arc = Total / YTD target × 100
+            totalQuotedValue,                           // center value shows actual quoted SAR
+            { color: '#f59e0b', unit: 'SAR', subtitle: 'TARGET ACHIEVED' }
+        );
 
-        setText('kpi_totalSales', fmtSAR(inhandQuotationSumValue));
-        setText('kpi_totalInquiries', Number(convTotals.total_inquiries ?? resp.total_count ?? 0).toLocaleString());
-        setText('kpi_conversion', (Number(conversionPct?? 0)).toFixed(1) + '%');
-        setText('kpi_target', fmtSAR(yearlyTarget));
-        setText('m_actualValue', fmtSARtight(totalPO));
+        // ---------- KPI cards ----------
+        setText('kpi_totalSales', fmtSAR(totalQuotedValue));
+        setText(
+            'kpi_totalInquiries',
+            Number(convTotals.total_inquiries ?? resp.total_count ?? 0).toLocaleString()
+        );
+        setText('kpi_conversion', conversionPct.toFixed(1) + '%');  // same as gauge
+        setText('kpi_target', fmtSAR(ytdTargetValue));
+        setText('m_actualValue', fmtSARtight(totalQuotedValue));    // “Actual” = quotes in quote phase
     }
+
+
 
     /* =============================================================================
      *  OPTIONAL CHART RENDERERS (HTML is commented out above)
@@ -1026,6 +1011,238 @@
             series
         });
     }
+
+    function renderMonthlyProductWiseChart(resp) {
+        const mpv = resp?.monthly_product_value;
+        const containerId = 'kpi_productwise';
+        if (!mpv || !Array.isArray(mpv.categories) || !Array.isArray(mpv.series)) return;
+
+        // --- helpers ---
+        const fmtCompact = (n) => {
+            const v = Number(n || 0), a = Math.abs(v);
+            if (a >= 1e9) return (v/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
+            if (a >= 1e6) return (v/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+            if (a >= 1e3) return (v/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+            return v.toLocaleString();
+        };
+
+        // --- find a global y max over all COLUMN series to set a visibility threshold ---
+        const columnSeriesOnly = (mpv.series || []).filter(s => (s.type || 'column') === 'column' && !/total/i.test(s.name || ''));
+        let globalMax = 0;
+        columnSeriesOnly.forEach(s => {
+            (s.data || []).forEach(v => { globalMax = Math.max(globalMax, Number(v || 0)); });
+        });
+        // Show labels only if a bar is >= 6% of the largest bar (tune as needed)
+        const DL_THRESHOLD = globalMax * 0.06;
+
+        // --- rebuild series: keep columns as columns; convert "Total" to MoM spline ---
+        // --- rebuild series: keep columns as columns; convert "Total" to MoM spline ---
+        const rebuilt = (mpv.series || []).map(s => {
+            if (s.type === 'spline' || /total/i.test(s.name || '')) {
+                return {
+                    ...s,
+                    type: 'spline',
+                    yAxis: 1,
+                    zIndex: 6,
+                    color: '#facc15',
+                    lineWidth: 3,
+                    marker: { enabled: true, radius: 3 },
+                    dataLabels: {
+                        enabled: true,
+                        // show them all
+                        allowOverlap: true,
+                        crop: false,
+                        // keep readable chip
+                        backgroundColor: 'rgba(17,24,39,.92)',
+                        borderColor: 'rgba(255,255,255,.18)',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        padding: 3,
+                        y: -10,
+                        style: { color: '#fff', fontWeight: 700, textOutline: 'none', fontSize: '11px' },
+                        formatter() {
+                            const mom = Number(this.y || 0);
+                            const sign = mom > 0 ? '▲' : (mom < 0 ? '▼' : '•');
+                            return `${sign} ${Highcharts.numberFormat(mom, 1)}%`;
+                        }
+                    },plotOptions: {
+                        column: {
+                            groupPadding: 0.2,
+                            pointPadding: 0.1,
+                            borderRadius: 2,
+                            pointWidth: 26,    // optional for uniform look
+                        },
+                        series: {
+                            clip: false ,
+                            states: { hover: { brightness: 5} },
+                        }
+                    },
+                    tooltip: {
+                        pointFormatter: function () {
+                            const mom = Number(this.y || 0);
+                            const sar = Number(this.point?.sar || 0);
+                            return `<span style="color:${this.color}">●</span> ${Highcharts.escapeHTML(this.series.name)}:
+                  <b>${Highcharts.numberFormat(mom,1)}%</b><br/>
+                  <span style="opacity:.85">Total: SAR ${Highcharts.numberFormat(sar,0)}</span><br/>`;
+                        }
+                    }
+                };
+            }
+
+            // Column series (products)
+            return {
+                ...s,
+                type: 'column',
+                borderWidth: 0,
+                // TWO labels per bar, both forced visible
+                dataLabels: [
+                    // 1) inside bar: % contribution
+                    {
+                        enabled: true,
+                        inside: true,
+                        align: 'center',
+                        verticalAlign: 'middle',
+                        allowOverlap: true,   // <- never hide
+                        crop: false,
+                        overflow: 'none',
+                        style: {
+                            color: '#0b132b',
+                            fontWeight: 200,
+                            textOutline: 'none',
+                            fontSize: '9px'
+                        },
+                        formatter() {
+                            const total = monthTotalAt(this.series.chart, this.point.index);
+                            const v = Number(this.y || 0);
+                            if (!total || v <= 0) return '';
+                            const pct = (v / total) * 100;
+                            return Highcharts.numberFormat(pct, 1) + '%';
+                        }
+                    },
+                    // 2) above bar: SAR value
+                    {
+                        enabled: true,
+                        inside: false,
+                        align: 'center',
+                        y: -6,
+                        allowOverlap: true,   // <- never hide
+                        crop: false,
+                        rotation:-90,
+                        overflow: 'none',
+                        backgroundColor: 'rgba(178,174,174,0.99)',
+                        borderColor: 'rgba(255,255,255,.18)',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        padding: 3,
+                        style: {
+                            color: '#000000',
+                            fontWeight: 600,
+                            textOutline: 'none',
+                            fontSize: '12px'
+                        },
+                        formatter() {
+                            const v = Number(this.y || 0);
+                            if (v >= 1e9) return 'SAR ' + (v/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
+                            if (v >= 1e6) return 'SAR ' + (v/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+                            if (v >= 1e3) return 'SAR ' + (v/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+                            return 'SAR ' + v.toFixed(0);
+                        }
+                    }
+                ],
+                tooltip: {
+                    pointFormatter: function () {
+                        const total = monthTotalAt(this.series.chart, this.point.index);
+                        const pct = total ? (this.y / total) * 100 : 0;
+                        const valM = Highcharts.numberFormat((this.y || 0) / 1e6, 2);
+                        return `<span style="color:${this.color}">●</span> ${Highcharts.escapeHTML(this.series.name)}:
+                <b>SAR ${valM}M</b> (${Highcharts.numberFormat(pct,1)}%)<br/>`;
+                    }
+                }
+            };
+        });
+
+
+        const chart = Highcharts.chart(containerId, {
+            chart: { backgroundColor: 'transparent', spacing: [8, 10, 10, 10] },
+            title: {
+                text: 'Monthly Product Performance & Trendline',
+                style: { color: '#E8F0FF', fontWeight: 'bold' }
+            },
+            subtitle: { text: '' },
+            xAxis: {
+                categories: mpv.categories,
+                labels: {
+                    style: { color: '#A7B5CC' },
+                    rotation: 0,
+                    autoRotation: undefined, // keep horizontal
+                    step: mpv.categories.length > 14 ? 2 : 1 // show every 2nd label if crowded
+                },
+                tickLength: 0,
+                lineColor: 'rgba(255,255,255,0.2)'
+            },
+            yAxis: [{
+                title: { text: 'Value (SAR)', style: { color: '#A7B5CC' } },
+                labels: {
+                    style: { color: '#A7B5CC' },
+                    formatter() { return Highcharts.numberFormat(this.value / 1e6, 0) + 'M'; }
+                },
+                gridLineColor: 'rgba(255,255,255,0.08)'
+            }, {
+                title: { text: 'MoM (%)', style: { color: '#facc15' } },
+                labels: {
+                    style: { color: '#facc15' },
+                    formatter() { return Highcharts.numberFormat(this.value, 0) + '%'; }
+                },
+                maxPadding: 0.1,
+                opposite: true
+            }],
+            legend: {
+                itemStyle: { color: '#E8F0FF', fontWeight: 500 },
+                itemHoverStyle: { color: '#FFF' },
+                backgroundColor: 'transparent'
+            },
+            tooltip: {
+                shared: true,
+                backgroundColor: 'rgba(15,23,42,0.95)',
+                borderColor: '#475569',
+                style: { color: '#E8F0FF', fontSize: '12px' },
+                crosshairs: [{ width: 1, color: 'rgba(255,255,255,.15)' }]
+            },
+            plotOptions: {
+                column: {
+                    groupPadding: 0.12,
+                    pointPadding: 0.05,
+                    borderRadius: 2
+                },
+                series: {
+                    states: { hover: { brightness: 0 } },
+                    events: {
+                        show() { updateContribution(this.chart); },
+                        hide() { updateContribution(this.chart); }
+                    }
+                },
+                spline: { states: { hover: { lineWidthPlus: 0 } } }
+            },
+            series: rebuilt
+        });
+
+        function monthTotalAt(chart, pointIndex) {
+            return chart.series
+                .filter(s => s.type === 'column' && s.visible !== false)
+                .reduce((sum, s) => sum + Number(s.yData?.[pointIndex] || 0), 0);
+        }
+
+        function updateContribution(chartInstance) {
+            // no per-series toggling of datalabels; we already reduce clutter with a threshold
+            chartInstance.redraw();
+        }
+    }
+
+
+
+
+
+
     function renderFunnel(resp) {
         // Pull stages from your existing /projects.kpis response
         const stages = (resp?.funnel_value?.stages || []).map(s => ({
@@ -1122,6 +1339,11 @@
         }
         await loadKpis();
     })();
+
+
+
+
+
 </script>
 </body>
 </html>

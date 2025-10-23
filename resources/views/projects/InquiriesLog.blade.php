@@ -69,6 +69,11 @@
                     <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">Estimation</a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('forecast.*') ? 'active' : '' }}" href="{{ route('forecast.create') }}">
+                        Forecast
+                    </a>
+                </li>
 
                 @hasanyrole('gm|admin')
                 <li class="nav-item">
