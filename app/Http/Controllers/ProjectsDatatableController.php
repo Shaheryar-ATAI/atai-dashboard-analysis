@@ -78,7 +78,7 @@ class ProjectsDatatableController extends Controller
 
         // Base scope + global search
         $base = Project::query()
-            ->forUserRegion($user)
+          //  ->forUserRegion($user)
             ->search(data_get($req->input('search'), 'value', ''));
 
         // === PO JOIN ===

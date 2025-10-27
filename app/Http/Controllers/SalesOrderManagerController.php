@@ -267,8 +267,8 @@ class SalesOrderManagerController extends Controller
             ->filterColumn('region',           fn($q,$k)=>$q->whereRaw('s.`region` LIKE ?', ["%$k%"]))
             ->filterColumn('date_rec',         fn($q,$k)=>$q->whereRaw('DATE_FORMAT(s.`date_rec`,"%Y-%m-%d") LIKE ?', ["%$k%"]))
 
-            ->editColumn('value_with_vat', fn($row)=>(float)($row->value_with_vat ?? 0))
-            ->editColumn('po_value',       fn($row)=>(float)($row->po_value ?? 0));
+            ->editColumn('value_with_vat', fn($row)=>(int)($row->value_with_vat ?? 0))
+            ->editColumn('po_value',       fn($row)=>(int)($row->po_value ?? 0));
 
         return $dt->toJson();
     }
@@ -380,17 +380,85 @@ class SalesOrderManagerController extends Controller
             ->groupBy('ym')->orderBy('ym')->get();
 
         $forecastByMonth = [];
-        foreach ($forecastRows as $fr) $forecastByMonth[$fr->ym] = (float)$fr->val;
+        foreach ($forecastRows as $fr) $forecastByMonth[$fr->ym] = (int)$fr->val;
 
-        $monthsAll      = collect($monthsP)->merge(array_keys($forecastByMonth))->unique()->sort()->values()->all();
-        $targetPerMonth = (float) ($r->input('monthly_target', 3_000_000));
+        //$monthsAll      = collect($monthsP)->merge(array_keys($forecastByMonth))->unique()->sort()->values()->all();
+        $monthsAll = collect($monthsP)->merge(array_keys($forecastByMonth))
+            ->unique()->sort()->values()->all();
 
+        /* =========================
+         * Dynamic Targets (by region)
+         * - Eastern: 35M / year
+         * - Central: 37M / year
+         * - Western: 30M / year
+         * Resolution order:
+         *   1) If ?monthly_target given → use it (manual override)
+         *   2) Else pick region:
+         *        - If admin can view all: use ?region=eastern|central|western if provided
+         *        - Else use logged-in user's region
+         *        - If user's region empty, infer from canonical salesperson (homeRegionBySalesperson)
+         * ========================= */
+        $annualTargets = [
+            'eastern' => 35_000_000.0,
+            'central' => 37_000_000.0,
+            'western' => 30_000_000.0,
+        ];
+
+// Resolve region for target
+        $regionQuery = strtolower(trim((string) $r->query('region', '')));     // may be 'all' or specific
+        $regionForTarget = null;
+
+        if ($r->filled('monthly_target')) {
+            // explicit override will be used below, region selection is irrelevant
+            $regionForTarget = $regionNorm ?: null;
+        } else {
+            if ($isAdmin) {
+                // Admin: honor explicit region if valid; ignore 'all'
+                if (in_array($regionQuery, ['eastern','central','western'], true)) {
+                    $regionForTarget = $regionQuery;
+                } else {
+                    // fallback to user’s own region if available
+                    $regionForTarget = in_array($regionNorm, ['eastern','central','western'], true) ? $regionNorm : null;
+                }
+            } else {
+                // Non-admin: user pin
+                if (in_array($regionNorm, ['eastern','central','western'], true)) {
+                    $regionForTarget = $regionNorm;
+                } else {
+                    // try infer from salesperson canonical name
+                    $canon = $this->resolveSalespersonCanonical($user->name ?? null);
+                    $homeMap = $this->homeRegionBySalesperson();
+                    $regionForTarget = $canon && isset($homeMap[$canon]) ? $homeMap[$canon] : null;
+                }
+            }
+        }
+
+
+        // Derive monthly target
+        $derivedMonthly = $regionForTarget && isset($annualTargets[$regionForTarget])
+            ? ($annualTargets[$regionForTarget] / 12.0)
+            : 0.0;
+        //$targetPerMonth = (int) ($r->input('monthly_target', 3_000_000));
+        $targetPerMonth = $r->filled('monthly_target')
+            ? (int) $r->input('monthly_target')
+            : $derivedMonthly;
         $seriesPo = $seriesFc = $seriesTgt = [];
         foreach ($monthsAll as $ym) {
-            $seriesPo[]  = (float)($poByMonth[$ym]       ?? 0);
-            $seriesFc[]  = (float)($forecastByMonth[$ym] ?? 0);
+            $seriesPo[]  = (int)($poByMonth[$ym]       ?? 0);
+            $seriesFc[]  = (int)($forecastByMonth[$ym] ?? 0);
             $seriesTgt[] = $targetPerMonth;
         }
+//        $poFcTarget = [
+//            'categories'     => $monthsAll,
+//            'series'         => [
+//                ['type'=>'column','name'=>'PO (SAR)','data'=>$seriesPo],
+//                ['type'=>'column','name'=>'Forecast (SAR)','data'=>$seriesFc],
+//                ['type'=>'column','name'=>'Target (SAR)','data'=>$seriesTgt],
+//            ],
+//            'monthly_target' => $targetPerMonth,
+//        ];
+
+        // Include helpful metadata (no UI breakage)
         $poFcTarget = [
             'categories'     => $monthsAll,
             'series'         => [
@@ -399,15 +467,19 @@ class SalesOrderManagerController extends Controller
                 ['type'=>'column','name'=>'Target (SAR)','data'=>$seriesTgt],
             ],
             'monthly_target' => $targetPerMonth,
+            'target_meta'    => [
+                'region_used'   => $regionForTarget,
+                'annual_target' => $regionForTarget ? ($annualTargets[$regionForTarget] ?? 0.0) : 0.0,
+                'override'      => $r->filled('monthly_target'),
+            ],
         ];
-
         /* ---------- simple monthly (all statuses) ---------- */
         $monthlyRows = (clone $filtered)
             ->selectRaw("DATE_FORMAT($dateExprSql, '%Y-%m') AS ym, COALESCE(SUM($valExprSql),0) AS val")
             ->groupBy(DB::raw('ym'))->orderBy(DB::raw('ym'))->get();
 
         $labels = []; $values = [];
-        foreach ($monthlyRows as $row) { $labels[] = $row->ym; $values[] = (float)$row->val; }
+        foreach ($monthlyRows as $row) { $labels[] = $row->ym; $values[] = (int)$row->val; }
 
         /* ---------- top products ---------- */
         $topProductsKpi = (clone $filtered)
@@ -418,7 +490,7 @@ class SalesOrderManagerController extends Controller
         $byStatus = (clone $filtered)
             ->selectRaw("TRIM(COALESCE(s.`Status`,'Unknown')) AS status, COALESCE(SUM($valExprSql),0) AS val")
             ->groupBy('status')->get();
-        $statusPie = $byStatus->map(fn($r2)=>['name'=>$r2->status, 'y'=>(float)$r2->val])->values()->toArray();
+        $statusPie = $byStatus->map(fn($r2)=>['name'=>$r2->status, 'y'=>(int)$r2->val])->values()->toArray();
 
         /* ---------- projects_region pie ---------- */
         $byProjectsRegion = (clone $filteredTotals)
@@ -427,9 +499,9 @@ class SalesOrderManagerController extends Controller
             ->groupBy('project_region')
             ->get();
 
-        $totalProjectsRegionVal = max(1.0, (float)$byProjectsRegion->sum('val')); // guard div/0
+        $totalProjectsRegionVal = max(1.0, (int)$byProjectsRegion->sum('val')); // guard div/0
         $projectsRegionPie = $byProjectsRegion->map(function($r) use ($totalProjectsRegionVal){
-            $v = (float)$r->val;
+            $v = (int)$r->val;
             return [
                 'name'  => (string)$r->projects_region,
                 'y'     => round(($v / $totalProjectsRegionVal) * 100, 2),
@@ -451,7 +523,7 @@ class SalesOrderManagerController extends Controller
             ->when($r->filled('from'),  fn($q)=>$q->whereRaw("$projDateExpr >= ?", [$r->input('from')]))
             ->when($r->filled('to'),    fn($q)=>$q->whereRaw("$projDateExpr <= ?", [$r->input('to')]))
             ->when($familySel !== '',   fn($q)=>$q->whereRaw('LOWER(atai_products) LIKE ?', ['%'.strtolower($familySel).'%']));
-        $quotationSum_simple = (float) (clone $projSimpleScope)
+        $quotationSum_simple = (int) (clone $projSimpleScope)
             ->selectRaw('COALESCE(SUM(COALESCE(quotation_value,price,0)),0) AS t')
             ->value('t');
 
@@ -473,7 +545,7 @@ class SalesOrderManagerController extends Controller
             ->when($familySel !== '',   fn($q)=>$this->applyFamilyFilter($q, $familySel))
             ->when($filterByStatus,     fn($q)=>$q->whereRaw('LOWER(TRIM(s.`Status`)) = ?', [$selectedStatus]));
 
-        $poSum_simple = (float) (clone $soSimpleScope)
+        $poSum_simple = (int) (clone $soSimpleScope)
             ->selectRaw("COALESCE(SUM($solValExpr),0) AS t")
             ->value('t');
 
@@ -526,7 +598,7 @@ class SalesOrderManagerController extends Controller
             ->when($filterByStatus,     fn($q)=>$q->whereRaw('LOWER(TRIM(s.`Status`)) = ?', [$selectedStatus]))
             ->groupBy('base_key');
 
-        $poSum_latestOnly = (float) DB::query()
+        $poSum_latestOnly = (int) DB::query()
             ->fromSub($scoped, 'n')
             ->joinSub($latest, 'm', fn($j)=>$j->on('n.base_key','=','m.base_key')->on('n.rev_n','=','m.max_rev'))
             ->selectRaw('COALESCE(SUM(n.po_value),0) AS t')
@@ -581,7 +653,7 @@ class SalesOrderManagerController extends Controller
                 ) AS p_base
             ");
 
-        $projInHandSum = (float) (clone $baseProjects)
+        $projInHandSum = (int) (clone $baseProjects)
             ->whereRaw("LOWER(TRIM(REPLACE(REPLACE(p.project_type,'-',' '),'_',' '))) REGEXP '^in[[:space:]]*hand$'")
             ->selectRaw('COALESCE(SUM(p.quotation_value),0) AS t')
             ->value('t');
@@ -603,7 +675,7 @@ class SalesOrderManagerController extends Controller
                 ) AS p_base
             ");
 
-        $projBiddingSum = (float) (clone $baseProjects)
+        $projBiddingSum = (int) (clone $baseProjects)
             ->whereRaw("LOWER(TRIM(p.project_type)) = 'bidding'")
             ->selectRaw('COALESCE(SUM(p.quotation_value),0) AS t')
             ->value('t');
@@ -667,7 +739,7 @@ class SalesOrderManagerController extends Controller
         $inhandJoinResult = [
             'rows'          => $inhandMatchedRows,
             'matched_rows'  => (int)   ($inhandTotals->matched_rows   ?? 0),
-            'po_sum_sar'    => (float) ($inhandTotals->total_po_value ?? 0),
+            'po_sum_sar'    => (int) ($inhandTotals->total_po_value ?? 0),
         ];
 
         // Bidding join
@@ -696,19 +768,19 @@ class SalesOrderManagerController extends Controller
         $biddingJoinResult = [
             'rows'          => $biddingMatchedRows,
             'matched_rows'  => (int)   ($biddingTotals->matched_rows   ?? 0),
-            'po_sum_sar'    => (float) ($biddingTotals->total_po_value ?? 0),
+            'po_sum_sar'    => (int) ($biddingTotals->total_po_value ?? 0),
         ];
 
         $out['conversion_gauge_inhand_bidding'] = [
             'inhand' => [
-                'quotes_total_sar' => (float) ($out['projects_sums']['inhand']['sum_sar']  ?? 0),
-                'po_total_sar'     => (float) ($inhandJoinResult['po_sum_sar']            ?? 0),
+                'quotes_total_sar' => (int) ($out['projects_sums']['inhand']['sum_sar']  ?? 0),
+                'po_total_sar'     => (int) ($inhandJoinResult['po_sum_sar']            ?? 0),
                 'pct'              => 0.0,
                 'rows'             => $inhandJoinResult['rows'] ?? [],
             ],
             'bidding' => [
-                'quotes_total_sar' => (float) ($out['projects_sums']['bidding']['sum_sar'] ?? 0),
-                'po_total_sar'     => (float) ($biddingJoinResult['po_sum_sar']           ?? 0),
+                'quotes_total_sar' => (int) ($out['projects_sums']['bidding']['sum_sar'] ?? 0),
+                'po_total_sar'     => (int) ($biddingJoinResult['po_sum_sar']           ?? 0),
                 'pct'              => 0.0,
                 'rows'             => $biddingJoinResult['rows'] ?? [],
             ],
@@ -728,7 +800,7 @@ class SalesOrderManagerController extends Controller
 
         $months = $prodRows->pluck('ym')->unique()->sort()->values()->all();
 
-        $totalsByProduct = $prodRows->groupBy('product')->map(fn($g)=>(float)$g->sum('val'));
+        $totalsByProduct = $prodRows->groupBy('product')->map(fn($g)=>(int)$g->sum('val'));
         $topN = 8;
         $topProductsForMonthlyValue = $totalsByProduct->sortDesc()->keys()->take($topN)->values();
         $otherNames = $totalsByProduct->keys()->diff($topProductsForMonthlyValue);
@@ -737,7 +809,7 @@ class SalesOrderManagerController extends Controller
         foreach ($prodRows as $r3) {
             $isTop = in_array($r3->product, $topProductsForMonthlyValue->all(), true);
             $pName = $isTop ? $r3->product : ($otherNames->isNotEmpty() ? 'Others' : $r3->product);
-            $idx[$r3->ym][$pName] = ($idx[$r3->ym][$pName] ?? 0.0) + (float)$r3->val;
+            $idx[$r3->ym][$pName] = ($idx[$r3->ym][$pName] ?? 0.0) + (int)$r3->val;
         }
 
         $productsForSeries = $topProductsForMonthlyValue->all();
@@ -745,14 +817,14 @@ class SalesOrderManagerController extends Controller
 
         $productSeriesMonthly = [];
         foreach ($productsForSeries as $pn) {
-            $data=[]; foreach ($months as $ym) $data[] = round((float)($idx[$ym][$pn] ?? 0.0), 2);
+            $data=[]; foreach ($months as $ym) $data[] = round((int)($idx[$ym][$pn] ?? 0.0), 2);
             $productSeriesMonthly[] = ['type'=>'column','name'=>$pn,'stack'=>'Products','data'=>$data];
         }
 
         $totalPoints=[]; $prev=null;
         foreach ($months as $ym) {
             $total=0.0;
-            foreach ($productsForSeries as $pn) $total += (float)($idx[$ym][$pn] ?? 0.0);
+            foreach ($productsForSeries as $pn) $total += (int)($idx[$ym][$pn] ?? 0.0);
             $total = round($total,2);
             $mom = ($prev && $prev>0) ? round((($total-$prev)/$prev)*100,1) : 0.0;
             $totalPoints[]=['y'=>$total,'mom'=>$mom];
@@ -793,7 +865,7 @@ class SalesOrderManagerController extends Controller
         foreach ($rowsCluster as $r4) {
             $st = in_array($r4->status,$statusOrder,true) ? $r4->status : 'Unknown';
             $i  = array_search($r4->product,$productCats,true);
-            if ($i!==false) $matrix[$st][$i]=(float)$r4->val;
+            if ($i!==false) $matrix[$st][$i]=(int)$r4->val;
         }
         $productClusterSeries=[]; foreach ($statusOrder as $st) {
         $productClusterSeries[]=['type'=>'bar','name'=>$st,'data'=>$matrix[$st]];
@@ -837,7 +909,7 @@ class SalesOrderManagerController extends Controller
         foreach ($rowsMonthly as $r5) {
             if (!isset($seriesOut[$r5->product])) continue;
             $i = $pos[$r5->ym] ?? null;
-            if ($i!==null) $seriesOut[$r5->product][$i]=(float)$r5->val;
+            if ($i!==null) $seriesOut[$r5->product][$i]=(int)$r5->val;
         }
         $monthlyProductCluster = [
             'categories'=>$monthsArr,
@@ -866,7 +938,7 @@ class SalesOrderManagerController extends Controller
         foreach ($monthlyStatus as $r2) {
             $st = in_array($r2->status, $statusOrder, true) ? $r2->status : 'Unknown';
             if (!isset($bySt[$st])) $bySt[$st] = array_fill_keys($monthsMM, 0.0);
-            $bySt[$st][$r2->ym] = (float)$r2->val;
+            $bySt[$st][$r2->ym] = (int)$r2->val;
         }
         $barSeries = [];
         foreach ($statusOrder as $st) {
@@ -891,10 +963,10 @@ class SalesOrderManagerController extends Controller
         /* ==============================
          * NEW: Shared PO Pool Conversion
          * ============================== */
-        $po_pool_shared = (float) ($soTotalsScoped->orders_sum ?? 0);
+        $po_pool_shared = (int) ($soTotalsScoped->orders_sum ?? 0);
 
-        $q_inhand  = (float) ($out['projects_sums']['inhand']['sum_sar']  ?? 0.0);
-        $q_bidding = (float) ($out['projects_sums']['bidding']['sum_sar'] ?? 0.0);
+        $q_inhand  = (int) ($out['projects_sums']['inhand']['sum_sar']  ?? 0.0);
+        $q_bidding = (int) ($out['projects_sums']['bidding']['sum_sar'] ?? 0.0);
         $q_total   = $q_inhand + $q_bidding;
 
         $overall_pct_shared = $q_total   > 0 ? round(100 * $po_pool_shared / $q_total,   2) : 0.0;
@@ -955,20 +1027,20 @@ class SalesOrderManagerController extends Controller
                 ];
             }
             $tmp[$k]['counts'][$reg] += (int)$r->cnt;
-            $tmp[$k]['values'][$reg] += (float)$r->val;
-            $tmp[$k]['total']        += (float)$r->val;   // using value as weight
+            $tmp[$k]['values'][$reg] += (int)$r->val;
+            $tmp[$k]['total']        += (int)$r->val;   // using value as weight
         }
 
         $THRESH = 50.0; // warn if home share < 50%
         foreach ($tmp as $k => $row) {
-            $tot = max(1.0, (float)$row['total']); // guard div/0
+            $tot = max(1.0, (int)$row['total']); // guard div/0
             $pct = [
                 'eastern' => round(($row['values']['eastern'] / $tot) * 100, 2),
                 'central' => round(($row['values']['central'] / $tot) * 100, 2),
                 'western' => round(($row['values']['western'] / $tot) * 100, 2),
             ];
             $home    = $row['home_region'];
-            $homePct = $home && isset($pct[$home]) ? (float)$pct[$home] : 0.0;
+            $homePct = $home && isset($pct[$home]) ? (int)$pct[$home] : 0.0;
 
             $salespersonRegionMix[] = [
                 'salesperson' => $row['salesperson'],
@@ -1013,7 +1085,7 @@ class SalesOrderManagerController extends Controller
             'monthly' => ['categories' => $labels, 'values' => $values],
             'productSeries' => [
                 'categories' => $topProductsKpi->pluck('product')->toArray(),
-                'values'     => $topProductsKpi->pluck('val')->map(fn($v)=>(float)$v)->toArray(),
+                'values'     => $topProductsKpi->pluck('val')->map(fn($v)=>(int)$v)->toArray(),
             ],
             'allFamilies'  => $allFamilies,
             'activeFamily' => $familySel,

@@ -41,7 +41,7 @@ class PerformanceController extends Controller
     // Normalized area for salesorderlog: prefer Region (normalized), else region
     private function poAreaExpr(string $alias = 's'): string
     {
-        $norm = $this->qual($alias, 'Region (normalized)'); // -> `s`.`Region (normalized)`
+        $norm = $this->qual($alias, 'region'); // -> `s`.`Region (normalized)`
         $raw  = $this->qual($alias, 'region');               // -> `s`.`region`
 
         return "LOWER(TRIM(CONVERT(COALESCE(NULLIF($norm,''), $raw, 'Not Mentioned') USING utf8mb4))) COLLATE utf8mb4_unicode_ci";

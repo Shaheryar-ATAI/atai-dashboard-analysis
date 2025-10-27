@@ -186,25 +186,23 @@
 <script>
     (() => {
         const fmtSAR = n => 'SAR ' + Math.round(Number(n || 0)).toLocaleString();
-        // Fallback list (used only if API doesn't send allFamilies)
-        const FALLBACK_PRODUCTS = [
-            'Ductwork','Round Duct','SEMI',
-            'Dampers','Volume Dampers','Fire / Smoke Dampers',
-            'Sound Attenuators',
-            'Accessories','Access Doors','Actuators','Louvers'
-        ];
+        const FALLBACK_PRODUCTS = [ /* ... */ ];
+
+        // ✅ default landing year
+        const DEFAULT_YEAR = '2025';
 
         let currentFamily = '';
         let currentStatus = '';
 
         function filters(){
             const f = {
-                year:  $('#fYear').val()  || '',
+                // ✅ if dropdown is empty, send 2025 by default
+                year:  $('#fYear').val()  || DEFAULT_YEAR,
                 month: $('#fMonth').val() || '',
                 from:  $('#fFrom').val()  || '',
                 to:    $('#fTo').val()    || ''
             };
-            if (currentFamily) f.family = currentFamily;   // pass EXACT chip text
+            if (currentFamily) f.family = currentFamily;
             if (currentStatus) f.status = currentStatus;
             return f;
         }
@@ -255,7 +253,7 @@
 
             Highcharts.chart('hcMonthly', {
                 chart:{ backgroundColor:'transparent', spacing:[10,20,10,20] },
-                title:{ text:'Sales Order Monthly Comparison', align:'left', style:{ color:'#E8F0FF', fontSize:'16px', fontWeight:'700' }, margin:10 },
+                title:{ text:'Sales Order Monthly Comparison', align:'left', style:{ color:'#95c53d', fontSize:'16px', fontWeight:'700' }, margin:10 },
                 credits:{ enabled:false }, colors:['#60a5fa','#f59e0b'],
                 xAxis:{ categories: cats.map(ym => { const [y,m]=(ym||'').split('-'); return (y&&m)?new Date(y,m-1,1).toLocaleString('en',{month:'short'})+' '+String(y).slice(-2):ym; }),
                     lineColor:'rgba(255,255,255,.15)', tickColor:'rgba(255,255,255,.15)', labels:{ style:{ color:'#C7D2FE', fontSize:'13px', fontWeight:600 } } },
@@ -275,7 +273,9 @@
                     spline:{ lineWidth:3, marker:{ enabled:true, radius:4, fillColor:'#fff', lineColor:'#f59e0b', lineWidth:2 },
                         dataLabels:{ enabled:true, y:-6, style:{ color:'#FBBF24', fontWeight:700, fontSize:'12px', textOutline:'2px rgba(0,0,0,.55)' }, formatter(){ return fmtPct(this.y); } } }
                 },
-                series:[ { type:'column', name:'Value (SAR)', data:vals }, { type:'spline', name:'MoM %', yAxis:1, data:mom, dashStyle:'ShortDot' } ]
+                series:[ { type:'column', name:'Value (SAR)', data:vals },
+                    // { type:'spline', name:'MoM %', yAxis:1, data:mom, dashStyle:'ShortDot' }
+                ]
             });
 
             // === Render status chart inside the switcher, then init monthly cards ===
@@ -294,6 +294,8 @@
 
         // events
         $('#btnApply').on('click', loadKPIs);
+        // ✅ show 2025 preselected on first load
+        if (!$('#fYear').val()) $('#fYear').val(DEFAULT_YEAR);
         loadKPIs();
 
         // ===== status chart (for switcher) =====

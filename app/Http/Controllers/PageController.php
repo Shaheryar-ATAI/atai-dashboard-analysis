@@ -88,7 +88,7 @@ class PageController extends Controller
 
         // Pass the signed-in name to the navbar button (your blade expects $user)
         $user = Auth::user()?->name ?? 'User';
-        return view('projects.inquiriesLog', [
+        return view('projects.inquiries_log', [
             'user' => $user,
         ]); // resources/views/projects/inquiries_log.blade.php
     }

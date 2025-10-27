@@ -180,7 +180,7 @@
         <div class="col-lg-3">
             <div class="kpi-card p-3">
                 <div id="convGauge" style="height:260px"></div>
-                <div class="kpi-card-title">Conversion (Quotations → PO's)</div>
+                <div class="kpi-card-title">Conversion (Quotations → Sales Order)</div>
             </div>
         </div>
 
@@ -301,10 +301,11 @@
     const $month = $('#fMonth');
     const $from  = $('#fFrom');
     const $to    = $('#fTo');
-
+    const DEFAULT_YEAR = '2025';
     function buildFilters(){
         return {
-            year:  $year.val()  || '',
+            // ✅ fall back to 2025 if no year picked
+            year:  $year.val()  || DEFAULT_YEAR,
             month: $month.val() || '',
             from:  $from.val()  || '',
             to:    $to.val()    || '',
@@ -312,7 +313,6 @@
             status: currentStatus
         };
     }
-
     /* ================= Charts ================= */
 
     /** PO vs Forecast vs Target (unchanged) */
@@ -447,8 +447,9 @@
                 useHTML:true,
                 pointFormatter:function(){
                     return `<div><b>${pct.toFixed(1)}% converted</b></div>
+                        <div>PO Value <b>${sar(po)}</b></div>
                         <div>Quotation Value <b>${sar(quotes)}</b></div>
-                        <div>PO Value <b>${sar(po)}</b></div>`;
+                       `;
                 }
             },
             plotOptions:{
@@ -604,7 +605,7 @@
                 paintRegionShareAlert({
                     home: j.user_region_warning.home || '',
                     home_pct: j.user_region_warning.home_pct || 0,
-                    reason: j.user_region_warning.reason || ''
+                //    reason: j.user_region_warning.reason || ''
                 });
             } else {
                 // If your alert has a “hide” method or you remove content:
@@ -828,6 +829,8 @@
 
     // Initial boot
     (async function boot(){
+        // ✅ show 2025 selected when the page opens (if nothing chosen yet)
+        if (!$year.val()) $year.val(DEFAULT_YEAR);
         await loadKpisAndCharts();
     })();
 </script>

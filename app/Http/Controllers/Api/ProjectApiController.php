@@ -71,65 +71,83 @@ class ProjectApiController extends Controller
         $effectiveArea = null;
 
         /* ===================== 1) Base query (Projects only) ===================== */
-        $q = Project::query();
+        $q = Project::query()->whereNull('deleted_at'); // exclude soft-deleted
 
-        // Region
-        if (!$isAdmin) {
-            if ($user && !empty($user->region)) {
-                $q->where('area', $user->region);
-                $effectiveArea = $user->region;
+        /* ===================== Region ===================== */
+        if ($isAdmin) {
+            // Admins: only filter by area when explicitly provided and not 'All'
+            if ($req->filled('area') && strcasecmp($req->input('area'), 'all') !== 0) {
+                $q->where('area', $req->input('area'));
+                $effectiveArea = $req->input('area');
             }
-        } else if ($req->filled('area') && strtoupper($req->input('area')) !== 'ALL') {
-            $q->where('area', $req->input('area'));
-            $effectiveArea = $req->input('area');
         }
 
-        // Salesman
-        // --- Salesman (respect aliases) ---
-        if ($req->filled('salesman')) {
-            $salesman = strtoupper(trim($req->input('salesman')));
-            $aliases  = [];
 
-            // detect which region they belong to via alias map
+//        else {
+//            // Non-admins: lock to user's region if present
+//            if ($user && !empty($user->region)) {
+//                $q->where('area', $user->region);
+//                $effectiveArea = $user->region;
+//            }
+//        }
+
+        /* ===================== Salesman (dynamic, alias-aware) ===================== */
+        // Helper: build full alias set for a provided name (region-aware), otherwise fallback to the normalized token
+        $buildAliasSet = function (?string $name) {
+            if ($name === null || $name === '') return [];
+            $key = strtoupper(preg_replace('/\s+/', '', $name)); // remove spaces, uppercase
             foreach (['eastern','central','western'] as $region) {
                 $set = $this->salesAliasesForRegion($region);
-                if (in_array($salesman, $set, true)) {
-                    $aliases = $set;
-                    break;
+                if (in_array($key, $set, true)) {
+                    return $set; // return full alias set for that region (e.g., SOHAIB/SOAHIB)
                 }
             }
+            return [$key];
+        };
 
+        if ($req->filled('salesman')) {
+            // Explicit salesman filter (admins & non-admins)
+            $aliases = $buildAliasSet($req->input('salesman'));
             if (!empty($aliases)) {
-                $q->where(function($qq) use ($aliases) {
+                $q->where(function ($qq) use ($aliases) {
                     foreach ($aliases as $a) {
                         $qq->orWhereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$a]);
                     }
                 });
-            } else {
-                $q->whereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$salesman]);
             }
-        } elseif (!$user->hasAnyRole(['gm','admin'])) {
-            $userKey = strtoupper(trim($user->name ?? ''));
-            $region  = $this->homeRegionBySalesperson()[$userKey] ?? null;
-            $aliases = $region ? $this->salesAliasesForRegion($region) : [$userKey];
+        } else if (!$isAdmin) {
+            // No salesman param: for non-admins, infer from logged-in user
+            $first = strtoupper(trim(explode(' ', (string)($user->name ?? ''))[0] ?? ''));
+            $home  = $this->homeRegionBySalesperson();
+            $userHomeRegion = $home[$first] ?? null;
 
-            $q->where(function($qq) use ($aliases) {
-                foreach ($aliases as $a) {
-                    $qq->orWhereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$a]);
-                }
-            });
+            $regionForAliases = $userHomeRegion ?: (isset($user->region) ? strtolower($user->region) : null);
+            $aliases = $regionForAliases ? $this->salesAliasesForRegion($regionForAliases) : [];
+
+            if (!empty($aliases)) {
+                $q->where(function ($qq) use ($aliases) {
+                    foreach ($aliases as $a) {
+                        $qq->orWhereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$a]);
+                    }
+                });
+            } elseif (!empty($first)) {
+                // last-resort: exact canonicalized first token
+                $q->whereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$first]);
+            }
         }
 
-        // One date expression (as SQL string) – no DB::raw objects in strings
-        $dateExprSql = "COALESCE(
-        STR_TO_DATE(quotation_date,'%Y-%m-%d'),
-        STR_TO_DATE(quotation_date,'%d-%m-%Y'),
-        STR_TO_DATE(quotation_date,'%d/%m/%Y'),
-        DATE(created_at)
-    )";
+        /* ===================== Dates & Filters ===================== */
+// Use normalized quotation_date only (loader outputs YYYY-MM-DD)
+        $dateExprSql = "STR_TO_DATE(quotation_date,'%Y-%m-%d')";
 
-        // Filters
-        $y  = $req->integer('year') ?: null;
+        $defaultYear = 2025;
+
+// detect if caller explicitly sent any date constraint
+        $hasExplicitRange = $req->filled('date_from') || $req->filled('date_to')
+            || $req->filled('month') || $req->filled('year');
+
+// if no explicit constraints, default to 2025; else honor caller's year (or null)
+        $y  = $req->integer('year') ?: ($hasExplicitRange ? null : $defaultYear);
         $m  = $req->integer('month') ?: null;
         $df = $req->input('date_from') ?: null;
         $dt = $req->input('date_to')   ?: null;
@@ -139,10 +157,13 @@ class ProjectApiController extends Controller
         if ($df) $q->whereRaw("$dateExprSql >= ?", [$df]);
         if ($dt) $q->whereRaw("$dateExprSql <= ?", [$dt]);
 
-        if ($fam = trim((string)$req->input('family'))) {
-            $q->whereRaw('LOWER(atai_products) LIKE ?', ['%'.strtolower($fam).'%']);
+// Family filter – ignore "All"
+        if ($req->filled('family')) {
+            $fam = strtolower(trim($req->input('family')));
+            if ($fam !== 'all') {
+                $q->whereRaw('LOWER(atai_products) LIKE ?', ['%'.$fam.'%']);
+            }
         }
-
         /* ===================== 2) Status buckets ===================== */
         $pt = "LOWER(TRIM(projects.project_type))";
         $st = "LOWER(TRIM(projects.status))";
@@ -153,17 +174,18 @@ class ProjectApiController extends Controller
 
         $computedStatus = "
         CASE
-          WHEN $st IN ($lostList)    THEN 'Lost'
-          WHEN $pt IN ($inHandList)  THEN 'In-Hand'
-          WHEN $pt IN ($biddingList) THEN 'Bidding'
+          WHEN $st IN ($lostList) OR $pt IN ($lostList) THEN 'Lost'
+          WHEN $st IN ($inHandList) OR $pt IN ($inHandList) THEN 'In-Hand'
+          WHEN $st IN ($biddingList) OR $pt IN ($biddingList) THEN 'Bidding'
           ELSE 'Other'
         END
     ";
 
-        // Value expression as a PLAIN SQL STRING
-        $valExprSql = "COALESCE(quotation_value, price, 0)";
+        /* ===================== 3) Value expression ===================== */
+        // quotation_value only (matches your cleaned CSV/dashboard)
+        $valExprSql = "COALESCE(quotation_value, 0)";
 
-        /* ===================== 3) Quote-phase totals (RAW) ===================== */
+        /* ===================== 4) Quote-phase totals ===================== */
         $totalQuotedValue   = (float) ((clone $q)->selectRaw("SUM($valExprSql) AS t")->value('t') ?? 0);
         $inhandQuotedValue  = (float) ((clone $q)->whereRaw("( $computedStatus )='In-Hand'")
             ->selectRaw("SUM($valExprSql) AS t")->value('t') ?? 0);
@@ -174,7 +196,7 @@ class ProjectApiController extends Controller
 
         $totalCount = (clone $q)->count();
 
-        /* ===================== 4) Area & status breakdowns ===================== */
+        /* ===================== 5) Area & status breakdowns ===================== */
         $byStatus = (clone $q)
             ->selectRaw("($computedStatus) AS status_norm, SUM($valExprSql) AS sum_value")
             ->groupBy('status_norm')
@@ -188,8 +210,7 @@ class ProjectApiController extends Controller
         SUM(CASE WHEN (($computedStatus)='In-Hand') THEN $valExprSql ELSE 0 END) AS inhand_val,
         SUM(CASE WHEN (($computedStatus)='Bidding') THEN $valExprSql ELSE 0 END) AS bidding_val,
         SUM(CASE WHEN (($computedStatus)='Lost')    THEN $valExprSql ELSE 0 END) AS lost_val
-    ")
-            ->groupBy('area')->orderBy('area')->get();
+    ")->groupBy('area')->orderBy('area')->get();
 
         $preferredOrder = ['Eastern','Central','Western'];
         $mapArea        = collect($rowsArea)->keyBy('area');
@@ -205,16 +226,17 @@ class ProjectApiController extends Controller
             $seriesLost[]    = ['y' => (int)($r->lost_cnt    ?? 0), 'sar' => (float)($r->lost_val ?? 0)];
         }
 
-        /* ===================== 5) Monthly window (for charts) ===================== */
+        /* ===================== 6) Monthly window (for charts) ===================== */
         if ($df && $dt) {
-            $start = Carbon::parse($df)->startOfMonth();
-            $end   = Carbon::parse($dt)->endOfMonth();
+            $start = \Carbon\Carbon::parse($df)->startOfMonth();
+            $end   = \Carbon\Carbon::parse($dt)->endOfMonth();
         } elseif ($y) {
-            $start = Carbon::create($y,1,1)->startOfMonth();
-            $end   = Carbon::create($y,12,1)->endOfMonth();
+            $start = \Carbon\Carbon::create($y,1,1)->startOfMonth();
+            $end   = \Carbon\Carbon::create($y,12,1)->endOfMonth();
         } else {
-            $start = now()->startOfYear();
-            $end   = now()->endOfYear();
+            // if we reached here, no explicit range and $y is null → use the same default year
+            $start = \Carbon\Carbon::create($defaultYear,1,1)->startOfMonth();
+            $end   = \Carbon\Carbon::create($defaultYear,12,1)->endOfMonth();
         }
 
         $months = [];
@@ -240,7 +262,7 @@ class ProjectApiController extends Controller
             $seriesMonthly[] = ['name'=>$a,'data'=>$data];
         }
 
-        // Monthly value by status + target % line (as before)
+        // Monthly value by status + target % line
         $valRows = (clone $q)
             ->selectRaw("DATE_FORMAT($dateExprSql,'%Y-%m') AS ym, ($computedStatus) AS status_norm, SUM($valExprSql) AS amt")
             ->whereRaw("$dateExprSql BETWEEN ? AND ?", [$start->toDateString(), $end->toDateString()])
@@ -252,7 +274,43 @@ class ProjectApiController extends Controller
         $colInHand = $colBidding = $colLost = [];
         $linePct   = [];
 
-        $targetPerMonth = (float) $req->input('monthly_quote_target', 3_000_000);
+        $annualTargets = [
+            'eastern' => 35_000_000.0,
+            'central' => 37_000_000.0,
+            'western' => 30_000_000.0,
+        ];
+
+        // Determine region for target derivation
+        $regionForTarget = null;
+        if ($req->filled('monthly_quote_target')) {
+            $regionForTarget = null; // manual override wins
+        } else {
+            if (!$isAdmin && !empty($user?->region)) {
+                $regionForTarget = strtolower(trim($user->region));
+            } else {
+                $areaParam = strtolower(trim((string) $req->query('area', '')));
+                if (in_array($areaParam, ['eastern','central','western'], true)) {
+                    $regionForTarget = $areaParam;
+                } elseif (!empty($effectiveArea) && in_array(strtolower($effectiveArea), ['eastern','central','western'], true)) {
+                    $regionForTarget = strtolower($effectiveArea);
+                }
+            }
+        }
+
+        $derivedMonthlyTarget = ($regionForTarget && isset($annualTargets[$regionForTarget]))
+            ? ($annualTargets[$regionForTarget] / 12.0)
+            : 0.0;
+
+        $targetPerMonth = $req->filled('monthly_quote_target')
+            ? (float) $req->input('monthly_quote_target')
+            : $derivedMonthlyTarget;
+
+        $targetMeta = [
+            'region_used'   => $regionForTarget,
+            'annual_target' => $regionForTarget ? ($annualTargets[$regionForTarget] ?? 0.0) : 0.0,
+            'override'      => $req->filled('monthly_quote_target'),
+        ];
+
         foreach ($months as $ym) {
             $ih = (float) ($idxVal[$ym]['In-Hand'] ?? 0);
             $bd = (float) ($idxVal[$ym]['Bidding'] ?? 0);
@@ -263,17 +321,15 @@ class ProjectApiController extends Controller
             $colBidding[] = $bd;
             $colLost[]    = $lt;
 
-            // Keep your previous “% vs annual target” behaviour
+            // percentage vs ANNUAL target (kept your logic)
             $ytdAnnualTarget = $targetPerMonth * 12;
             $linePct[] = $ytdAnnualTarget > 0 ? round(($total / $ytdAnnualTarget) * 100, 2) : 0.0;
         }
 
-        $today = now();
-        $targetValueForLegend = $targetPerMonth * ((int)$today->month);
-
         $monthlyValueWithTarget = [
             'categories'   => $months,
-            'target_value' => $targetValueForLegend,
+            'target_value' => $targetPerMonth * ((int) now()->month),
+            'target_meta'  => $targetMeta,
             'series'       => [
                 ['type' => 'column', 'name' => 'In-Hand (SAR)', 'stack' => 'Value', 'data' => $colInHand],
                 ['type' => 'column', 'name' => 'Bidding (SAR)', 'stack' => 'Value', 'data' => $colBidding],
@@ -282,19 +338,16 @@ class ProjectApiController extends Controller
             ],
         ];
 
-        /* ===================== 6) Funnel value (bring back) ===================== */
-        // Normalize quote nos the same way on both sides
+        /* ===================== 7) Funnel value ===================== */
         $normProjExpr = "UPPER(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(projects.quotation_no),' ',''),'.',''),'-',''),'/',''))";
         $normSoExpr   = "UPPER(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(`Quote No.`),' ',''),'.',''),'-',''),'/',''))";
 
-        // PO received sum
         $poRecvAgg = DB::table('salesorderlog as s')
             ->selectRaw("$normSoExpr AS q_key")
             ->selectRaw("SUM(COALESCE(`PO Value`,0)) AS po_sum")
             ->whereRaw("`Quote No.` IS NOT NULL AND TRIM(`Quote No.`) <> ''")
             ->groupBy('q_key');
 
-        // PO cancelled sum
         $poCancelAgg = DB::table('salesorderlog as s')
             ->selectRaw("$normSoExpr AS q_key")
             ->selectRaw("SUM(COALESCE(`PO Value`,0)) AS po_sum")
@@ -302,7 +355,6 @@ class ProjectApiController extends Controller
             ->whereRaw("LOWER(COALESCE(`Status`,'')) IN ('cancelled','canceled')")
             ->groupBy('q_key');
 
-        // Keep the same filtered project ids as the rest of the payload
         $filteredIds = (clone $q)->pluck('projects.id');
 
         $poReceivedSum = DB::table('projects')
@@ -329,15 +381,15 @@ class ProjectApiController extends Controller
             ]
         ];
 
-        /* ===================== 7) Gauges + derived fields your Blade reads ===================== */
-        $monthsElapsed       = (int) now()->month;
-        $monthlyQuoteTarget  = (float) $req->input('monthly_quote_target', 3_000_000);
-        $ytdTargetValue      = $monthlyQuoteTarget * $monthsElapsed;
+        /* ===================== 8) Gauges & cards ===================== */
+        $monthsElapsed      = (int) now()->month;
+        $monthlyQuoteTarget = (int) $targetPerMonth;
+        $ytdTargetValue     = $monthlyQuoteTarget * $monthsElapsed;
 
-        $conversionPct       = $totalQuotedValue > 0 ? round(100.0 * $inhandQuotedValue / $totalQuotedValue, 1) : 0.0;
-        $targetAchievedPct   = $ytdTargetValue     > 0 ? round(100.0 * $totalQuotedValue  / $ytdTargetValue, 1) : 0.0;
+        $conversionPct      = $totalQuotedValue > 0 ? round(100.0 * $inhandQuotedValue / $totalQuotedValue, 1) : 0.0;
+        $targetAchievedPct  = $ytdTargetValue > 0 ? round(100.0 * $inhandQuotedValue / $ytdTargetValue, 1) : 0.0;
 
-        /* ===================== 8) Response ===================== */
+        /* ===================== 9) Response ===================== */
         return response()->json([
             'total_count' => (int) $totalCount,
             'total_value' => (float) $totalQuotedValue,
@@ -357,13 +409,11 @@ class ProjectApiController extends Controller
             ],
             'monthly_value_status_with_target' => $monthlyValueWithTarget,
 
-            // Cards (counts/values only)
             'conversion_totals' => [
                 'total_inquiries'   => (int) $totalCount,
                 'total_quote_value' => (float) $totalQuotedValue,
             ],
 
-            // Gauges (server provides % + value so your Blade can render now)
             'gauges' => [
                 'inhand' => [
                     'display_value' => (float) $inhandQuotedValue,
@@ -377,30 +427,29 @@ class ProjectApiController extends Controller
                 ],
             ],
 
-            // Quote-phase fields consumed by updateDialsAndCards()
             'quote_phase' => [
-                'total_quoted_value'  => (float) $totalQuotedValue,
-                'inhand_quoted_value' => (float) $inhandQuotedValue,
-                'bidding_quoted_value'=> (float) $biddingQuotedValue,
-                'lost_quoted_value'   => (float) $lostQuotedValue,
+                'total_quoted_value'   => (float) $totalQuotedValue,
+                'inhand_quoted_value'  => (float) $inhandQuotedValue,
+                'bidding_quoted_value' => (float) $biddingQuotedValue,
+                'lost_quoted_value'    => (float) $lostQuotedValue,
 
-                'monthly_quote_target'=> (float) $monthlyQuoteTarget,
-                'ytd_target_value'    => (float) $ytdTargetValue,
-                'conversion_pct'      => (float) $conversionPct,      // In-Hand / Total × 100
-                'target_achieved_pct' => (float) $targetAchievedPct,  // Total / YTD target × 100
+                'monthly_quote_target' => (int) $monthlyQuoteTarget,
+                'ytd_target_value'     => (int) $ytdTargetValue,
+                'conversion_pct'       => (int) $conversionPct,
+                'target_achieved_pct'  => (float) $targetAchievedPct,
+                'target_meta'          => $targetMeta,
             ],
 
-            // Funnel used by renderFunnel()
-            'funnel_value' => $funnelValue,
-
-            // Product chart (unchanged from prior working build)
-            'monthly_product_value' => $this->buildMonthlyProductSeries($q, $dateExprSql, $valExprSql, $months),
-            'region_scope'   => $isAdmin ? 'ALL' : 'LOCKED',
-            'effective_area' => $effectiveArea,
-            'user_region'    => $user ? $user->region : null,
-            'user_roles'     => ($user && method_exists($user, 'getRoleNames')) ? $user->getRoleNames() : [],
+            'funnel_value'           => $funnelValue,
+            'monthly_product_value'  => $this->buildMonthlyProductSeries($q, $dateExprSql, $valExprSql, $months),
+            'region_scope'           => $isAdmin ? 'ALL' : 'LOCKED',
+            'effective_area'         => $effectiveArea,
+            'user_region'            => $user ? $user->region : null,
+            'user_roles'             => ($user && method_exists($user, 'getRoleNames')) ? $user->getRoleNames() : [],
         ]);
     }
+
+
 
     /**
      * Helper to build product-wise series (unchanged behaviour).

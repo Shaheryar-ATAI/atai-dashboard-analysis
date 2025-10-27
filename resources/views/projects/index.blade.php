@@ -449,7 +449,7 @@
         style: 'currency', currency: 'SAR', maximumFractionDigits: 0
     }).format(Number(n || 0));
 
-    let PROJ_YEAR = '';
+    let PROJ_YEAR = '2025';
     let PROJ_REGION = '';
     let ATAI_ME = null;
     let CAN_VIEW_ALL = false;
@@ -520,88 +520,156 @@
         return num.toFixed(0);
     }
 
-    function solidGaugePercent(el, pct, displayValue, opts = {}) {
-        const color = opts.color || '#00f6f6';
-        const unit = opts.unit || 'SAR';
-        const sub = opts.subtitle || 'IN HAND';
-        const poVal = Number(opts.po_value || 0);
-        const bal = Number(opts.balance_value || 0);
-        const safePct = Math.max(0, Math.min(100, Number(pct) || 0));
-        return Highcharts.chart(el, {
-            chart: {type: 'solidgauge', backgroundColor: 'transparent'},
+    // function solidGaugePercent(el, pct, displayValue, opts = {}) {
+    //     const color = opts.color || '#00f6f6';
+    //     const unit = opts.unit || 'SAR';
+    //     const sub = opts.subtitle || 'IN HAND';
+    //     const poVal = Number(opts.po_value || 0);
+    //     const bal = Number(opts.balance_value || 0);
+    //     const safePct = Math.max(0, Math.min(100, Number(pct) || 0));
+    //     return Highcharts.chart(el, {
+    //         chart: {type: 'solidgauge', backgroundColor: 'transparent'},
+    //         title: null,
+    //         credits: {enabled: false},
+    //         pane: {
+    //             startAngle: -140,
+    //             endAngle: 140,
+    //             center: ['50%', '55%'],
+    //             size: '100%',
+    //             background: [{
+    //                 outerRadius: '100%',
+    //                 innerRadius: '70%',
+    //                 shape: 'arc',
+    //                 backgroundColor: 'rgba(255,255,255,0.08)'
+    //             }]
+    //         },
+    //         yAxis: {
+    //             min: 0, max: 100, lineWidth: 0, tickWidth: 0, labels: {enabled: false},
+    //             stops: [[0, color], [1, color]]
+    //         },
+    // //         tooltip: {
+    // //             useHTML: true,
+    // // //             pointFormatter: function () {
+    // // //                 const fmt = v => {
+    // // //                     v = Number(v || 0);
+    // // //                     if (v >= 1e9) return (v / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+    // // //                     if (v >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+    // // //                     if (v >= 1e3) return (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+    // // //                     return v.toFixed(0);
+    // // //                 };
+    // // //                 // NOTE: `unit` is for the center value; PO & Quotation are SAR figures
+    // // //                 return `
+    // // //
+    // // //   <div><b>${(Number(pct) || 0).toFixed(1)}% achieved</b></div>
+    // // //   <div>Center value: <b>${fmt(displayValue)}</b> ${unit}</div>
+    // // //   <div>PO (latest rev): <b>${fmt(poVal)}</b> SAR</div>
+    // // //   <div>Quotation Sum: <b>${fmt(bal)}</b> SAR</div>
+    // // // `;
+    // // //             }
+    // //         },
+    //         plotOptions: {
+    //             solidgauge: {
+    //                 rounded: true,
+    //                 dataLabels: {
+    //                     useHTML: true,
+    //                     y: -10,
+    //                     borderWidth: 0,
+    //                     formatter: function () {
+    //                         const main = `
+    //       <div style="
+    //         font-size:24px;font-weight:800;color:#fff;
+    //         text-shadow:0 0 6px rgba(255,255,255,.9),0 0 14px rgba(0,255,255,.35),0 0 22px rgba(0,255,255,.25);
+    //       ">
+    //         ${unit === '%' ? Number(displayValue || 0).toFixed(1) : (() => {
+    //                             const v = Number(displayValue || 0), a = Math.abs(v);
+    //                             if (a >= 1e9) return (v/1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+    //                             if (a >= 1e6) return (v/1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+    //                             if (a >= 1e3) return (v/1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+    //                             return v.toFixed(0);
+    //                         })()}
+    //       </div>`;
+    //                         const unitLine = `<div style="font-size:14px;color:#a5f3fc">${unit}</div>`;
+    //                         const subLine  = sub ? `<div style="font-size:12px;color:#a5f3fc;letter-spacing:.06em;text-transform:uppercase">${sub}</div>` : '';
+    //                         return `<div style="text-align:center">${main}${unitLine}${subLine}</div>`;
+    //                     }
+    //                 }
+    //             }
+    //         },
+    //         series: [{
+    //             data: [{ y: safePct, color }]
+    //         }]
+    //     });
+    // }
+
+    function solidGaugePercent(renderTo, percent, valueSAR, {
+        color = '#3b82f6',
+        unit = 'SAR',
+        subtitle = ''
+    } = {}) {
+        Highcharts.chart(renderTo, {
+            chart: { type: 'solidgauge', backgroundColor: 'transparent' },
             title: null,
-            credits: {enabled: false},
+            credits: { enabled: false },
             pane: {
-                startAngle: -140,
-                endAngle: 140,
-                center: ['50%', '55%'],
+                center: ['50%', '60%'],
                 size: '100%',
-                background: [{
-                    outerRadius: '100%',
-                    innerRadius: '70%',
-                    shape: 'arc',
-                    backgroundColor: 'rgba(255,255,255,0.08)'
-                }]
+                startAngle: -120,
+                endAngle: 120,
+                background: { innerRadius: '70%', outerRadius: '100%', shape: 'arc', borderWidth: 0 }
             },
             yAxis: {
-                min: 0, max: 100, lineWidth: 0, tickWidth: 0, labels: {enabled: false},
-                stops: [[0, color], [1, color]]
+                min: 0, max: 100,
+                lineWidth: 0, tickWidth: 0,
+                stops: [[0, color],[1, color]],
+                labels: { enabled: false }
             },
-    //         tooltip: {
-    //             useHTML: true,
-    // //             pointFormatter: function () {
-    // //                 const fmt = v => {
-    // //                     v = Number(v || 0);
-    // //                     if (v >= 1e9) return (v / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
-    // //                     if (v >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
-    // //                     if (v >= 1e3) return (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
-    // //                     return v.toFixed(0);
-    // //                 };
-    // //                 // NOTE: `unit` is for the center value; PO & Quotation are SAR figures
-    // //                 return `
-    // //
-    // //   <div><b>${(Number(pct) || 0).toFixed(1)}% achieved</b></div>
-    // //   <div>Center value: <b>${fmt(displayValue)}</b> ${unit}</div>
-    // //   <div>PO (latest rev): <b>${fmt(poVal)}</b> SAR</div>
-    // //   <div>Quotation Sum: <b>${fmt(bal)}</b> SAR</div>
-    // // `;
-    // //             }
-    //         },
+
+            // ✅ SHOW TOOLTIP ON HOVER
+            tooltip: {
+                enabled: true,
+                useHTML: true,
+                backgroundColor: 'rgba(30,30,30,0.95)',
+                borderColor: '#111',
+                borderRadius: 6,
+                style: { color: '#fff' },
+                formatter: function() {
+                    const pct = fmtPct(this.point.y);
+                    const sar = `SAR ${fmtCompactSAR(this.point.options.sar || 0)}`;
+                    return `<div style="min-width:140px">
+                  <div style="font-weight:700;margin-bottom:4px">${subtitle || 'Value'}</div>
+                  <div>Percent: <b>${pct}</b></div>
+                  <div>Total: <b>${sar}</b></div>
+                </div>`;
+                }
+            },
+
+            // ✅ CENTER LABEL SHOWS PERCENT WITH %
             plotOptions: {
                 solidgauge: {
-                    rounded: true,
                     dataLabels: {
                         useHTML: true,
                         y: -10,
                         borderWidth: 0,
+                        style: { textAlign: 'center' },
                         formatter: function () {
-                            const main = `
-          <div style="
-            font-size:24px;font-weight:800;color:#fff;
-            text-shadow:0 0 6px rgba(255,255,255,.9),0 0 14px rgba(0,255,255,.35),0 0 22px rgba(0,255,255,.25);
-          ">
-            ${unit === '%' ? Number(displayValue || 0).toFixed(1) : (() => {
-                                const v = Number(displayValue || 0), a = Math.abs(v);
-                                if (a >= 1e9) return (v/1e9).toFixed(1).replace(/\.0$/, '') + 'B';
-                                if (a >= 1e6) return (v/1e6).toFixed(1).replace(/\.0$/, '') + 'M';
-                                if (a >= 1e3) return (v/1e3).toFixed(1).replace(/\.0$/, '') + 'K';
-                                return v.toFixed(0);
-                            })()}
-          </div>`;
-                            const unitLine = `<div style="font-size:14px;color:#a5f3fc">${unit}</div>`;
-                            const subLine  = sub ? `<div style="font-size:12px;color:#a5f3fc;letter-spacing:.06em;text-transform:uppercase">${sub}</div>` : '';
-                            return `<div style="text-align:center">${main}${unitLine}${subLine}</div>`;
+                            const pct = fmtPct(this.y);
+                            const cap = `<div style="font-size:14px;color:#cbd5e1">${subtitle}</div>`;
+                            const big = `<div style="font-size:28px;font-weight:800;color:#fff">${pct}</div>`;
+                            return cap + big;
                         }
                     }
                 }
             },
+
             series: [{
-                data: [{ y: safePct, color }]
+                name: subtitle,
+                data: [{ y: Number(percent||0), sar: Number(valueSAR||0) }],
+                innerRadius: '70%',
+                radius: '100%',
+                color
             }]
         });
     }
-
-
     function setText(id, html) {
         const el = document.getElementById(id);
         if (el) el.innerHTML = html;
@@ -627,8 +695,8 @@
         const totalQuotedValue  = Number(qp.total_quoted_value || 0);
         const conversionPct     = Number(qp.conversion_pct || 0);       // In-Hand / Total
         const ytdTargetValue    = Number(qp.ytd_target_value || 0);
-        const targetAchPct      = Number(qp.target_achieved_pct || 0);  // Total / YTD target
-        const monthlyQuoteTarget= Number(qp.monthly_quote_target || 3_000_000);
+        const targetAchPct      = Number(qp.target_achieved_pct || 0);  // Total / YTD taret
+     //   const monthlyQuoteTarget= Number(qp.monthly_quote_target || 3_000_000);g
 
         // ---------- In-Hand & Bidding gauges (already server-computed as % of total) ----------
         const inhandG  = gauges?.inhand  || {};
@@ -639,7 +707,7 @@
             Number(inhandG.display_value || 0),
             {
                 color: '#00c9a7',
-                unit: inhandG.unit || 'SAR',
+                unit: '%',
                 subtitle: 'IN HAND',
 
             }
@@ -666,19 +734,32 @@
             {
                 color: '#38bdf8',
                 unit: '%',                // this unit is only for the center text
-                subtitle: 'QUOTE CONV %',
+                subtitle: 'Conversion %',
                 po_value: Number(cg.po_user_region_last ?? cg.po_user_region_raw ?? 0), // SAR
                 balance_value: Number(cg.quotes_region_sar || 0),                        // SAR
             }
         );
 
         // ---------- Target Achieved gauge (quotes vs YTD target) ----------
-        solidGaugePercent(
-            'g_targetAchieved',
-            Math.max(0, Math.min(100, targetAchPct)),  // arc = Total / YTD target × 100
-            totalQuotedValue,                           // center value shows actual quoted SAR
+        // solidGaugePercent(
+        //     'g_targetAchieved',
+        //     Math.max(0, Math.min(100, targetAchPct)),  // arc = Total / YTD target × 100
+        //     targetAchPct,                           // center value shows actual quoted SAR
+        //     { color: '#f59e0b', unit: 'SAR', subtitle: 'TARGET ACHIEVED' }
+        // );
+
+        solidGaugePercent('g_targetAchieved',
+            Math.max(0, Math.min(100, targetAchPct)),   // % for the arc
+            Number(qp.total_quoted_value || 0),         // SAR value to show in tooltip
             { color: '#f59e0b', unit: 'SAR', subtitle: 'TARGET ACHIEVED' }
         );
+
+
+
+
+
+
+
 
         // ---------- KPI cards ----------
         setText('kpi_totalSales', fmtSAR(totalQuotedValue));
@@ -1129,13 +1210,13 @@
                         crop: false,
                         rotation:-90,
                         overflow: 'none',
-                        backgroundColor: 'rgba(178,174,174,0.99)',
+                        backgroundColor: 'rgba(110,110,110,0)',
                         borderColor: 'rgba(255,255,255,.18)',
                         borderWidth: 1,
                         borderRadius: 6,
                         padding: 3,
                         style: {
-                            color: '#000000',
+                            color: '#ffffff',
                             fontWeight: 600,
                             textOutline: 'none',
                             fontSize: '12px'
@@ -1337,9 +1418,17 @@
         } else {
             document.getElementById('salesmanWrap')?.classList.remove('d-none');
         }
+
+        // ✅ make the dropdown visually show 2025 on first load
+        const yearSel = document.getElementById('projYear');
+        if (yearSel && !yearSel.value) {
+            // if 2025 exists in the options, select it
+            const opt = [...yearSel.options].find(o => o.value === '2025');
+            if (opt) yearSel.value = '2025';
+        }
+
         await loadKpis();
     })();
-
 
 
 

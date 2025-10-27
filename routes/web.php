@@ -109,9 +109,11 @@ Route::middleware('web')->group(function () {
         Route::get('/projects', [\App\Http\Controllers\PageController::class, 'projects'])
             ->name('projects.index');
 
-        Route::get('/projectslog', [\App\Http\Controllers\PageController::class, 'inquiriesLog'])
-            ->name('inquiries.index');
+//        Route::get('/projectslog', [PageController::class, 'inquiriesLog'])
+//            ->name('inquiries.index');
 
+        Route::get('/projectslog', [PageController::class, 'inquiriesLog'])
+            ->name('inquiries.index');
 // DataTables JSON endpoint (used by your view JS)
         Route::get(
             '/projects/datatable',

@@ -8,162 +8,124 @@ use Yajra\DataTables\Facades\DataTables;
 
 class SalesmanPerformanceController extends Controller
 {
-    /**
-     * Month aliases (safe, readable — we avoid using 'dec' because it can collide
-     * with DEC type token on some MariaDB builds).
-     */
     private array $monthAliases = [
-        1 => 'jan',  2 => 'feb',  3 => 'mar',  4 => 'apr',
-        5 => 'may',  6 => 'jun',  7 => 'jul',  8 => 'aug',
-        9 => 'sep', 10 => 'oct', 11 => 'nov', 12 => 'december',
+        1=>'jan',2=>'feb',3=>'mar',4=>'apr',5=>'may',6=>'jun',
+        7=>'jul',8=>'aug',9=>'sep',10=>'oct',11=>'nov',12=>'december'
     ];
 
-    /** Build SUM(CASE WHEN MONTH(...) = n THEN value ELSE 0 END) columns + total. */
-    private function monthlySums(string $dateCol, string $valueCol): string
-    {
-        $parts = [];
-        foreach ($this->monthAliases as $num => $alias) {
-            $parts[] = "SUM(CASE WHEN MONTH($dateCol) = $num THEN COALESCE($valueCol,0) ELSE 0 END) AS $alias";
+    private function monthlySums(string $dateCol, string $valExpr): string {
+        $parts=[];
+        foreach($this->monthAliases as $m=>$a){
+            $parts[]="SUM(CASE WHEN MONTH($dateCol)=$m THEN $valExpr ELSE 0 END) AS $a";
         }
-        $parts[] = "SUM(COALESCE($valueCol,0)) AS total";
-        return implode(",\n", $parts);
+        $parts[]="SUM($valExpr) AS total";
+        return implode(",",$parts);
     }
 
-    /**
-     * Normalize a string column for grouping (lower + trim + fallback).
-     * Keep it simple to avoid "illegal mix of collations" across servers.
-     */
-    private function salesmanNormExpr(string $col): string
-    {
-        return "LOWER(TRIM(COALESCE($col, 'Not Mentioned')))";
+    private function norm(string $expr):string{
+        return "LOWER(TRIM($expr))";
     }
 
-    /** Page */
-    public function index(Request $request)
-    {
-        $year = (int) ($request->query('year') ?? now()->year);
-
-        return view('performance.salesman', [
-            'year' => $year,
-        ]);
+    private function poAmountExpr(string $alias='s'):string{
+        return "CAST(NULLIF(REPLACE(REPLACE($alias.value_with_vat,',',''),' ',''),'') AS DECIMAL(18,2))";
     }
 
-    /**
-     * DataTables source
-     * GET /performance/salesman/data?kind=inq|po&year=2025
-     */
-    public function data(Request $request)
+    public function index(Request $r){
+        $year=(int)($r->query('year')??now()->year);
+        return view('performance.salesman',['year'=>$year]);
+    }
+
+    public function data(Request $r)
     {
-        $kind = (string) $request->query('kind', 'inq');             // "inq" or "po"
-        $year = (int) $request->query('year', now()->year);
+        $kind=$r->query('kind','inq');
+        $year=(int)$r->query('year',now()->year);
 
-        if ($kind === 'po') {
-            // ---- POs by salesman (sales_orders) ----
-            $normExpr      = $this->salesmanNormExpr('s.sales_man');                         // <— change here if different
-            $labelExpr     = "COALESCE(s.sales_man, 'Not Mentioned')";                       // <— change here if different
-            $monthlySelect = $this->monthlySums('s.date_rec', 's.value_with_vat');                    // <— change here if different
+        if($kind==='po'){
+            // ---------- Sales Order Log ----------
+            $label="COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
+            $norm=$this->norm($label);
+            $amount=$this->poAmountExpr('s');
+            $monthly=$this->monthlySums('s.date_rec',$amount);
 
-            $q = DB::table('salesorderlog as s')
-                ->selectRaw("$normExpr AS norm, $labelExpr AS salesman, $monthlySelect")
-                ->whereYear('s.date_rec', $year)
-                ->groupBy('norm', 'salesman');
+            $query=DB::table('salesorderlog as s')
+                ->selectRaw("$norm AS norm,$label AS salesman,$monthly")
+                ->whereYear('s.date_rec',$year)
+                ->groupByRaw("$norm,$label");
 
-            $sum = (float) DB::table('salesorderlog as s')
-                ->whereYear('s.date_rec', $year)
-                ->sum(DB::raw('COALESCE(s.value_with_vat,0)'));
+            $sum=(float)DB::table('salesorderlog as s')
+                ->whereYear('s.date_rec',$year)
+                ->selectRaw("SUM($amount) AS s")->value('s');
+        }
+        else{
+            // ---------- Projects / Inquiries ----------
+            $label="COALESCE(NULLIF(p.salesman,''),NULLIF(p.salesperson,''),'Not Mentioned')";
+            $norm=$this->norm($label);
+            $val='COALESCE(p.quotation_value,0)';
+            $monthly=$this->monthlySums('p.quotation_date',$val);
 
-        } else {
-            // ---- Inquiries by salesman (projects) ----
-            $normExpr      = $this->salesmanNormExpr('p.salesman');                          // <— change here if different
-            $labelExpr     = "COALESCE(p.salesman, 'Not Mentioned')";                        // <— change here if different
-            $monthlySelect = $this->monthlySums('p.quotation_date', 'p.quotation_value');    // <— change here if different
+            $query=DB::table('projects as p')
+                ->selectRaw("$norm AS norm,$label AS salesman,$monthly")
+                ->whereYear('p.quotation_date',$year)
+                ->groupByRaw("$norm,$label");
 
-            $q = DB::table('projects as p')
-                ->selectRaw("$normExpr AS norm, $labelExpr AS salesman, $monthlySelect")
-                ->whereYear('p.quotation_date', $year)
-                ->groupBy('norm', 'salesman');
-
-            $sum = (float) DB::table('projects as p')
-                ->whereYear('p.quotation_date', $year)
-                ->sum(DB::raw('COALESCE(p.quotation_value,0)'));
+            $sum=(float)DB::table('projects as p')
+                ->whereYear('p.quotation_date',$year)
+                ->selectRaw("SUM($val) AS s")->value('s');
         }
 
-        return DataTables::of($q)
-            // Unify the HTML badge for the salesman column
-            ->editColumn('salesman', function ($row) {
-                $txt = strtoupper($row->salesman ?? 'Not Mentioned');
-                return '<span class="badge text-bg-secondary">'.$txt.'</span>';
-            })
+        // force-disable strict mode in session for this query
+        DB::statement("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
+
+        return DataTables::of($query)
+            ->editColumn('salesman',fn($r)=>'<span class="badge text-bg-secondary">'.strtoupper($r->salesman??'Not Mentioned').'</span>')
             ->rawColumns(['salesman'])
-            ->with(['sum_total' => $sum])
+            ->with(['sum_total'=>$sum])
             ->make(true);
     }
 
-    /**
-     * KPIs / Chart data:
-     * GET /performance/salesman/kpis?year=2025
-     *
-     * Returns:
-     *  - categories: [ "Aamer", "Tareq", ... ]
-     *  - inquiries:  [ 1000, 500, ... ]   (sum of quotation_value)
-     *  - pos:        [ 600, 800, ... ]    (sum of PO amount)
-     *  - sum_inquiries, sum_pos
-     */
-    public function kpis(Request $request)
+    public function kpis(Request $r)
     {
-        $year = (int) $request->query('year', now()->year);
+        $year=(int)$r->query('year',now()->year);
 
-        // Aggregate inquiries per salesman (use projects.salesman)
-        $inq = DB::table('projects as p')
-            ->selectRaw($this->salesmanNormExpr('p.salesman') . " AS norm")
-            ->selectRaw("COALESCE(p.salesman, 'Not Mentioned') AS label")
-            ->selectRaw("SUM(COALESCE(p.quotation_value,0)) AS total")
-            ->whereYear('p.quotation_date', $year)
-            ->groupBy('norm', 'label')
+        // disable strict grouping
+        DB::statement("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
+
+        // --- Inquiries ---
+        $projLabel="COALESCE(NULLIF(p.salesman,''),NULLIF(p.salesperson,''),'Not Mentioned')";
+        $projNorm=$this->norm($projLabel);
+
+        $inq=DB::table('projects as p')
+            ->selectRaw("$projNorm AS norm,$projLabel AS label,SUM(COALESCE(p.quotation_value,0)) AS total")
+            ->whereYear('p.quotation_date',$year)
+            ->groupByRaw("$projNorm,$projLabel")
             ->get();
 
-        // Aggregate POs per salesman (use salesorderlog.sales_man — backfilled)
-        $po = DB::table('salesorderlog as s')
-            ->selectRaw($this->salesmanNormExpr('s.sales_man') . " AS norm")
-            ->selectRaw("COALESCE(s.sales_man, 'Not Mentioned') AS label")
-            ->selectRaw("SUM(COALESCE(s.value_with_vat,0)) AS total")
-            ->whereYear('s.date_rec', $year)
-            ->where('Status', 'Accepted')
-            ->groupBy('norm', 'label')
+        // --- POs ---
+        $poLabel="COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
+        $poNorm=$this->norm($poLabel);
+        $amt=$this->poAmountExpr('s');
+
+        $po=DB::table('salesorderlog as s')
+            ->selectRaw("$poNorm AS norm,$poLabel AS label,SUM($amt) AS total")
+            ->whereYear('s.date_rec',$year)
+            ->where('Status','Accepted')
+            ->groupByRaw("$poNorm,$poLabel")
             ->get();
 
-        // Index by 'norm' to avoid label/collation mismatches across tables
-        $inqMap = []; $labelMap = [];
-        foreach ($inq as $r) {
-            $inqMap[$r->norm]   = (float) $r->total;
-            $labelMap[$r->norm] = $r->label;
-        }
+        $inqMap=$poMap=$labelMap=[];
+        foreach($inq as $r){$inqMap[$r->norm]=(float)$r->total;$labelMap[$r->norm]=$r->label;}
+        foreach($po as $r){$poMap[$r->norm]=(float)$r->total;$labelMap[$r->norm]=$r->label;}
 
-        $poMap = [];
-        foreach ($po as $r) {
-            $poMap[$r->norm]    = (float) $r->total;
-            $labelMap[$r->norm] = $r->label;
-        }
-
-        // Merge category keys
-        $norms = array_keys($labelMap);
-        sort($norms, SORT_NATURAL);
-
-        $categories = [];
-        $inqSeries  = [];
-        $poSeries   = [];
-        foreach ($norms as $k) {
-            $categories[] = $labelMap[$k];
-            $inqSeries[]  = $inqMap[$k] ?? 0;
-            $poSeries[]   = $poMap[$k]  ?? 0;
-        }
+        $keys=array_keys($labelMap);sort($keys,SORT_NATURAL);
+        $cats=$inqSeries=$poSeries=[];
+        foreach($keys as $k){$cats[]=$labelMap[$k];$inqSeries[]=$inqMap[$k]??0;$poSeries[]=$poMap[$k]??0;}
 
         return response()->json([
-            'categories'    => $categories,
-            'inquiries'     => $inqSeries,
-            'pos'           => $poSeries,
-            'sum_inquiries' => array_sum($inqSeries),
-            'sum_pos'       => array_sum($poSeries),
+            'categories'=>$cats,
+            'inquiries'=>$inqSeries,
+            'pos'=>$poSeries,
+            'sum_inquiries'=>array_sum($inqSeries),
+            'sum_pos'=>array_sum($poSeries)
         ]);
     }
 }

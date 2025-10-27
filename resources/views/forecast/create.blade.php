@@ -123,15 +123,15 @@
 
     {{-- KPI glance (kept minimal to match dashboard look) --}}
     <div class="row g-3 mb-4 text-center justify-content-start">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-6">
             <div class="kpi-card p-4">
                 <div class="kpi-label text-secondary small text-uppercase">Region</div>
                 <div id="kpiRegion" class="kpi-value">{{ $u->region ?? '—' }}</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-6">
             <div class="kpi-card p-4">
-                <div class="kpi-label text-secondary small text-uppercase">This Month Total (A + B)</div>
+                <div class="kpi-label text-secondary small text-uppercase">This Month Total </div>
                 <div id="kpiTotal" class="kpi-value">SAR 0</div>
             </div>
         </div>
@@ -328,22 +328,22 @@
             </div>
         </div>
 
-        {{-- C) Quotations --}}
-        <div class="card section-card mb-4">
-            <div class="card-header"><strong>C) Quotations</strong></div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-12 col-md-6 col-xxl-4">
-                        <label class="form-label small text-uppercase">Current Month’s Quotation Number</label>
-                        <input name="quotations[number]" class="form-control form-control-sm" placeholder="e.g. 20970">
-                    </div>
-                    <div class="col-12 col-md-6 col-xxl-4">
-                        <label class="form-label small text-uppercase">Current Month’s Quotation Value (SAR)</label>
-                        <input name="quotations[value]" class="form-control form-control-sm" placeholder="SAR 0">
-                    </div>
-                </div>
-            </div>
-        </div>
+{{--        --}}{{-- C) Quotations --}}
+{{--        <div class="card section-card mb-4">--}}
+{{--            <div class="card-header"><strong>C) Quotations</strong></div>--}}
+{{--            <div class="card-body">--}}
+{{--                <div class="row g-3">--}}
+{{--                    <div class="col-12 col-md-6 col-xxl-4">--}}
+{{--                        <label class="form-label small text-uppercase">Current Month’s Quotation Number</label>--}}
+{{--                        <input name="quotations[number]" class="form-control form-control-sm" placeholder="e.g. 20970">--}}
+{{--                    </div>--}}
+{{--                    <div class="col-12 col-md-6 col-xxl-4">--}}
+{{--                        <label class="form-label small text-uppercase">Current Month’s Quotation Value (SAR)</label>--}}
+{{--                        <input name="quotations[value]" class="form-control form-control-sm" placeholder="SAR 0">--}}
+{{--                    </div>--}}
+{{--                </div>--}}
+{{--            </div>--}}
+{{--        </div>--}}
 
         {{-- Actions --}}
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-5">

@@ -271,7 +271,7 @@
     <tr class="no-b">
         <td class="no-b"></td>
         <td class="no-b" style="text-align:right; font-weight:700;">
-            This Month Total (A + B):
+            This Month Total :
         </td>
         <td class="no-b" style="width:160px;">
             <div class="ibox">
