@@ -1020,3 +1020,41 @@ td.wrap, th.wrap {
     font-weight: 600;
 }
 
+
+
+.kpi-card, #projectsFunnel .highcharts-container {  }
+.progress.progress-thin { height: 8px; background: rgba(255,255,255,.12); }
+.progress.progress-thin .progress-bar { line-height: 8px; font-size: 10px; }
+.submittal-preview {
+    position: relative;
+    max-height: 420px;      /* match your JS */
+    overflow: auto;
+}
+
+
+
+
+/* Keep PDF area boxed and non-overlapping */
+.submittal-preview {
+    position: relative;
+    max-height: 420px;
+    overflow: auto;
+}
+
+/* Predictable frame box */
+.submittal-preview iframe,
+.submittal-preview object,
+.submittal-preview embed {
+    width: 100%;
+    height: 420px;
+    display: block;
+    border: 0;
+}
+
+/* Make sure footer always wins */
+.modal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    background: var(--bs-body-bg);
+}

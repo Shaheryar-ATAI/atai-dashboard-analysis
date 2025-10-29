@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\ForecastPdfController;
+use App\Http\Controllers\ProjectSubmittalController;
 use Illuminate\Support\Facades\Route;
 
 // Controllers
@@ -134,12 +135,15 @@ Route::middleware('web')->group(function () {
             ->name('projects.update');
 
 
+        Route::post('/projects/{project}/checklist/bidding', [ProjectController::class, 'saveBiddingChecklist']);
+        Route::post('/projects/{project}/checklist/inhand',  [ProjectController::class, 'saveInhandChecklist']);
 
-
-
-
-
-
+        Route::post('/projects/{project}/submittal', [ProjectSubmittalController::class, 'store'])
+            ->name('projects.submittal.store');               // upload
+        Route::get('/projects/{project}/submittal/{phase?}', [ProjectSubmittalController::class, 'showLatest'])
+            ->where(['phase'=>'.*'])->name('projects.submittal.show'); // fetch latest (json)
+        Route::get('/submittals/stream/{id}', [ProjectSubmittalController::class, 'stream'])
+            ->name('submittals.stream'); // fallback that always works
         /* ===================================================================
          | FORECAST (APIs consumed by projects page)
          * =================================================================== */

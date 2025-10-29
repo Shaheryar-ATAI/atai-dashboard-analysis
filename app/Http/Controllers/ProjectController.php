@@ -162,7 +162,7 @@ class ProjectController extends Controller
     }
 
 
-    protected function saveBiddingChecklist(Request $request, Project $project)
+    public  function saveBiddingChecklist(Request $request, Project $project)
     {
         $items = [
             'mep_contractor_appointed' => $request->boolean('mep_contractor_appointed'),
@@ -213,7 +213,7 @@ class ProjectController extends Controller
     }
 
 
-    protected function saveInhandChecklist(Request $request, Project $project)
+    public  function saveInhandChecklist(Request $request, Project $project)
     {
         // Define In-Hand checklist items and their weights (percent)
         $defs = [
@@ -280,7 +280,7 @@ class ProjectController extends Controller
     }
 
 
-    protected function addProjectNote(Request $request, Project $project)
+    public  function addProjectNote(Request $request, Project $project)
     {
         $data = $request->validate([
             'note' => ['required', 'string', 'max:5000'],
@@ -304,7 +304,7 @@ class ProjectController extends Controller
         ]);
     }
 
-    protected function logProgressChange(int $projectId, string $phase, int $progress, int $userId): void
+    public  function logProgressChange(int $projectId, string $phase, int $progress, int $userId): void
     {
         // only insert when it actually changed
         $last = DB::table('project_status_history')

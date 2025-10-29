@@ -1,17 +1,16 @@
 <?php
 
 namespace App\Http\Controllers\Api;
+
 use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Support\RegionScope;   // ⬅️ same helper used in your DT controller
+use App\Support\RegionScope;
 use App\Models\Project;
 
 class ProjectApiController extends Controller
 {
-
-
     /* =========================================================
      * SALESPERSON REGION ALIAS HELPERS (same as SalesOrderManagerController)
      * ========================================================= */
@@ -81,25 +80,24 @@ class ProjectApiController extends Controller
                 $effectiveArea = $req->input('area');
             }
         }
-
-
-//        else {
-//            // Non-admins: lock to user's region if present
-//            if ($user && !empty($user->region)) {
-//                $q->where('area', $user->region);
-//                $effectiveArea = $user->region;
-//            }
-//        }
+        // If you want to lock non-admins to their region, uncomment:
+        /*
+        else {
+            if ($user && !empty($user->region)) {
+                $q->where('area', $user->region);
+                $effectiveArea = $user->region;
+            }
+        }
+        */
 
         /* ===================== Salesman (dynamic, alias-aware) ===================== */
-        // Helper: build full alias set for a provided name (region-aware), otherwise fallback to the normalized token
         $buildAliasSet = function (?string $name) {
             if ($name === null || $name === '') return [];
             $key = strtoupper(preg_replace('/\s+/', '', $name)); // remove spaces, uppercase
             foreach (['eastern','central','western'] as $region) {
                 $set = $this->salesAliasesForRegion($region);
                 if (in_array($key, $set, true)) {
-                    return $set; // return full alias set for that region (e.g., SOHAIB/SOAHIB)
+                    return $set; // full alias set for that region (e.g., SOHAIB/SOAHIB)
                 }
             }
             return [$key];
@@ -137,16 +135,26 @@ class ProjectApiController extends Controller
         }
 
         /* ===================== Dates & Filters ===================== */
-// Use normalized quotation_date only (loader outputs YYYY-MM-DD)
-        $dateExprSql = "STR_TO_DATE(quotation_date,'%Y-%m-%d')";
+        // Use normalized quotation_date only (loader outputs YYYY-MM-DD)
+        $dateExprSql   = "STR_TO_DATE(quotation_date,'%Y-%m-%d')";
+        $defaultYear   = 2025;
 
-        $defaultYear = 2025;
+        // Family % shares (used for “family target” mode)
+        $familyPctMap = [
+            'ductwork'          => 0.60,
+            'accessories'       => 0.15,
+            'sound'             => 0.10,               // in case chip sends 'sound'
+            'sound_attenuators' => 0.10,
+            'attenuators'       => 0.10,
+            'dampers'           => 0.15,
+        ];
+        $familyParam = strtolower(trim((string) $req->query('family', 'all')));
 
-// detect if caller explicitly sent any date constraint
+        // detect if caller explicitly sent any date constraint
         $hasExplicitRange = $req->filled('date_from') || $req->filled('date_to')
             || $req->filled('month') || $req->filled('year');
 
-// if no explicit constraints, default to 2025; else honor caller's year (or null)
+        // if no explicit constraints, default to 2025; else honor caller's year (or null)
         $y  = $req->integer('year') ?: ($hasExplicitRange ? null : $defaultYear);
         $m  = $req->integer('month') ?: null;
         $df = $req->input('date_from') ?: null;
@@ -157,13 +165,17 @@ class ProjectApiController extends Controller
         if ($df) $q->whereRaw("$dateExprSql >= ?", [$df]);
         if ($dt) $q->whereRaw("$dateExprSql <= ?", [$dt]);
 
-// Family filter – ignore "All"
+        // ⭐ NEW — keep a base clone with all filters EXCEPT family (for target share)
+        $qNoFamily = clone $q;
+
+        // Family filter – ignore "All"
         if ($req->filled('family')) {
             $fam = strtolower(trim($req->input('family')));
             if ($fam !== 'all') {
                 $q->whereRaw('LOWER(atai_products) LIKE ?', ['%'.$fam.'%']);
             }
         }
+
         /* ===================== 2) Status buckets ===================== */
         $pt = "LOWER(TRIM(projects.project_type))";
         $st = "LOWER(TRIM(projects.status))";
@@ -179,13 +191,19 @@ class ProjectApiController extends Controller
           WHEN $st IN ($biddingList) OR $pt IN ($biddingList) THEN 'Bidding'
           ELSE 'Other'
         END
-    ";
+        ";
 
         /* ===================== 3) Value expression ===================== */
         // quotation_value only (matches your cleaned CSV/dashboard)
         $valExprSql = "COALESCE(quotation_value, 0)";
 
         /* ===================== 4) Quote-phase totals ===================== */
+        // Base total for scope *without* family filter (for target shares)
+        $baseTotalQuoted = (float) ((clone $qNoFamily)
+            ->selectRaw("SUM($valExprSql) AS t")
+            ->value('t') ?? 0);
+
+        // Current-scope totals
         $totalQuotedValue   = (float) ((clone $q)->selectRaw("SUM($valExprSql) AS t")->value('t') ?? 0);
         $inhandQuotedValue  = (float) ((clone $q)->whereRaw("( $computedStatus )='In-Hand'")
             ->selectRaw("SUM($valExprSql) AS t")->value('t') ?? 0);
@@ -203,20 +221,20 @@ class ProjectApiController extends Controller
             ->get();
 
         $rowsArea = (clone $q)->selectRaw("
-        COALESCE(area,'—') AS area,
-        SUM(CASE WHEN (($computedStatus)='In-Hand') THEN 1 ELSE 0 END) AS inhand_cnt,
-        SUM(CASE WHEN (($computedStatus)='Bidding') THEN 1 ELSE 0 END) AS bidding_cnt,
-        SUM(CASE WHEN (($computedStatus)='Lost')    THEN 1 ELSE 0 END) AS lost_cnt,
-        SUM(CASE WHEN (($computedStatus)='In-Hand') THEN $valExprSql ELSE 0 END) AS inhand_val,
-        SUM(CASE WHEN (($computedStatus)='Bidding') THEN $valExprSql ELSE 0 END) AS bidding_val,
-        SUM(CASE WHEN (($computedStatus)='Lost')    THEN $valExprSql ELSE 0 END) AS lost_val
-    ")->groupBy('area')->orderBy('area')->get();
+            COALESCE(area,'—') AS area,
+            SUM(CASE WHEN (($computedStatus)='In-Hand') THEN 1 ELSE 0 END) AS inhand_cnt,
+            SUM(CASE WHEN (($computedStatus)='Bidding') THEN 1 ELSE 0 END) AS bidding_cnt,
+            SUM(CASE WHEN (($computedStatus)='Lost')    THEN 1 ELSE 0 END) AS lost_cnt,
+            SUM(CASE WHEN (($computedStatus)='In-Hand') THEN $valExprSql ELSE 0 END) AS inhand_val,
+            SUM(CASE WHEN (($computedStatus)='Bidding') THEN $valExprSql ELSE 0 END) AS bidding_val,
+            SUM(CASE WHEN (($computedStatus)='Lost')    THEN $valExprSql ELSE 0 END) AS lost_val
+        ")->groupBy('area')->orderBy('area')->get();
 
         $preferredOrder = ['Eastern','Central','Western'];
         $mapArea        = collect($rowsArea)->keyBy('area');
         $catsPreferred  = collect($preferredOrder);
-        $extraAreasAsc  = $mapArea->keys()->diff($catsPreferred);
-        $categoriesArea = $catsPreferred->merge($extraAreasAsc)->values()->all();
+        $the_extra_areas = $mapArea->keys()->diff($catsPreferred);
+        $categoriesArea = $catsPreferred->merge($the_extra_areas)->values()->all();
 
         $seriesInhand = $seriesBidding = $seriesLost = [];
         foreach ($categoriesArea as $a) {
@@ -234,7 +252,6 @@ class ProjectApiController extends Controller
             $start = \Carbon\Carbon::create($y,1,1)->startOfMonth();
             $end   = \Carbon\Carbon::create($y,12,1)->endOfMonth();
         } else {
-            // if we reached here, no explicit range and $y is null → use the same default year
             $start = \Carbon\Carbon::create($defaultYear,1,1)->startOfMonth();
             $end   = \Carbon\Carbon::create($defaultYear,12,1)->endOfMonth();
         }
@@ -274,13 +291,14 @@ class ProjectApiController extends Controller
         $colInHand = $colBidding = $colLost = [];
         $linePct   = [];
 
+        /* ===== Region annual targets (fallbacks) ===== */
         $annualTargets = [
-            'eastern' => 35_000_000.0,
-            'central' => 37_000_000.0,
-            'western' => 30_000_000.0,
+            'eastern' => 35_000_000,
+            'central' => 37_000_000,
+            'western' => 30_000_000,
         ];
 
-        // Determine region for target derivation
+        // Determine region for target derivation (for per-month target)
         $regionForTarget = null;
         if ($req->filled('monthly_quote_target')) {
             $regionForTarget = null; // manual override wins
@@ -298,18 +316,70 @@ class ProjectApiController extends Controller
         }
 
         $derivedMonthlyTarget = ($regionForTarget && isset($annualTargets[$regionForTarget]))
-            ? ($annualTargets[$regionForTarget] / 12.0)
+            ? ($annualTargets[$regionForTarget])
             : 0.0;
 
         $targetPerMonth = $req->filled('monthly_quote_target')
             ? (float) $req->input('monthly_quote_target')
             : $derivedMonthlyTarget;
 
+        // ✅ make it available for the response
+        $monthlyQuoteTarget = (int) $targetPerMonth;
+
+        /* ===== Salesman annual target (primary) with region fallback ===== */
+        $yearParam      = $y ?: $defaultYear;
+        $salesmanParam  = trim((string) $req->input('salesman', $user->name ?? ''));
+
+        $annualTargetSalesman = null;
+//        if ($salesmanParam !== '') {
+//            $annualTargetSalesman = DB::table('sales_targets')
+//                ->whereRaw('LOWER(TRIM(salesman)) = ?', [strtolower($salesmanParam)])
+//                ->where('year', $yearParam)
+//                ->value('target_sar');
+//        }
+
+        $regionAnnualFallback = [
+            'eastern' => 35_000_000,
+            'central' => 37_000_000,
+            'western' => 30_000_000,
+        ];
+
+        // Region used for *annual* target selection
+        $regionForTarget = null;
+        if (!$isAdmin && !empty($user?->region)) {
+            $regionForTarget = strtolower(trim($user->region));
+        } else {
+            $areaParam = strtolower(trim((string) $req->query('area', '')));
+            if (in_array($areaParam, ['eastern','central','western'], true)) {
+                $regionForTarget = $areaParam;
+            } elseif (!empty($effectiveArea) && in_array(strtolower($effectiveArea), ['eastern','central','western'], true)) {
+                $regionForTarget = strtolower($effectiveArea);
+            }
+        }
+
+        $annualTarget = (float) (
+            $annualTargetSalesman
+            ?? ($regionForTarget ? ($regionAnnualFallback[$regionForTarget] ?? 0) : 0)
+        );
+        $outAnnualTarget = $annualTarget; // expose later
+
         $targetMeta = [
             'region_used'   => $regionForTarget,
             'annual_target' => $regionForTarget ? ($annualTargets[$regionForTarget] ?? 0.0) : 0.0,
             'override'      => $req->filled('monthly_quote_target'),
         ];
+
+        // Family-based annual target (share of base annual target)
+        $familyPct       = $familyPctMap[$familyParam] ?? null;
+        $useFamilyTarget = $familyPct !== null;
+        $familyAnnualTarget = $useFamilyTarget ? round($annualTarget * $familyPct, 2) : 0.0;
+
+        if ($useFamilyTarget) {
+            $targetMeta['mode']           = 'family_share';
+            $targetMeta['family']         = $familyParam;
+            $targetMeta['family_pct']     = $familyPct;
+            $targetMeta['base_total_sar'] = $baseTotalQuoted;
+        }
 
         foreach ($months as $ym) {
             $ih = (float) ($idxVal[$ym]['In-Hand'] ?? 0);
@@ -321,14 +391,42 @@ class ProjectApiController extends Controller
             $colBidding[] = $bd;
             $colLost[]    = $lt;
 
-            // percentage vs ANNUAL target (kept your logic)
-            $ytdAnnualTarget = $targetPerMonth * 12;
+            // Denominator: family annual target if active; else region annual (targetPerMonth*12)
+            $ytdAnnualTarget = $useFamilyTarget ? $familyAnnualTarget : ($targetPerMonth * 12);
             $linePct[] = $ytdAnnualTarget > 0 ? round(($total / $ytdAnnualTarget) * 100, 2) : 0.0;
         }
 
+        // === Product-specific target mapping (share to frontend)
+        $productTargetPct = [
+            'ductwork'           => 60.0,
+            'accessories'        => 15.0,
+            'sound_attenuators'  => 10.0,
+            'dampers'            => 15.0,
+        ];
+
+        $currentTotalQuoted = (float) $totalQuotedValue; // available if you need it later
+
+        $currentFamilyKey   = array_key_exists($familyParam, $productTargetPct) ? $familyParam : null;
+        $currentFamilyPct   = $currentFamilyKey ? $productTargetPct[$currentFamilyKey] : null;
+        $currentFamilyTargetValue = $currentFamilyPct !== null
+            ? round(($currentFamilyPct / 100.0) * $annualTarget, 2)
+            : null;
+
+        $productTargetMeta = [
+            'selected_family' => $currentFamilyKey,
+            'target_pct'      => $currentFamilyPct,           // e.g., 60.0 for ductwork
+            'target_value'    => $currentFamilyTargetValue,   // = pct × annualTarget
+            'basis'           => 'percentage_of_annual_target',
+            'mapping'         => $productTargetPct,
+            'annual_target'   => $annualTarget,               // expose base so frontend can reuse
+            // If you prefer “% of TOTAL QUOTED (all families)” on the frontend,
+            // pass `total_quoted_all` here and use it instead:
+            // 'total_quoted_all' => $baseTotalQuoted,
+        ];
+
         $monthlyValueWithTarget = [
             'categories'   => $months,
-            'target_value' => $targetPerMonth * ((int) now()->month),
+            'target_value' => $useFamilyTarget ? $familyAnnualTarget : ($targetPerMonth * ((int) now()->month)),
             'target_meta'  => $targetMeta,
             'series'       => [
                 ['type' => 'column', 'name' => 'In-Hand (SAR)', 'stack' => 'Value', 'data' => $colInHand],
@@ -373,21 +471,40 @@ class ProjectApiController extends Controller
 
         $funnelValue = [
             'stages' => [
-                ['name' => 'Quoted',      'value' => round($totalQuotedValue, 2)],
-                ['name' => 'In Hand',     'value' => round($inhandQuotedValue, 2)],
-                ['name' => 'Bidding',     'value' => round($biddingQuotedValue, 2)],
-                ['name' => 'PO Received', 'value' => round($poReceivedSum, 2)],
-                ['name' => 'PO Cancelled','value' => round($poCancelledSum, 2)],
+                ['name' => 'Total Quotation Value',       'value' => round($totalQuotedValue, 2)],
+                ['name' => 'In Hand Quotation Value',     'value' => round($inhandQuotedValue, 2)],
+                ['name' => 'Bidding Quotation Value',     'value' => round($biddingQuotedValue, 2)],
+                ['name' => 'Sales Order Value Recieved',  'value' => round($poReceivedSum, 2)],
+                ['name' => 'PO Cancelled',                'value' => round($poCancelledSum, 2)],
             ]
         ];
 
         /* ===================== 8) Gauges & cards ===================== */
-        $monthsElapsed      = (int) now()->month;
-        $monthlyQuoteTarget = (int) $targetPerMonth;
-        $ytdTargetValue     = $monthlyQuoteTarget * $monthsElapsed;
+        $monthsElapsed = (int) now()->month;
+
+        // Annual target for card/badge (family mode shows share of annual)
+        $annualTargetForCard = $useFamilyTarget ? (float) $familyAnnualTarget : (float) $annualTarget;
+
+        // YTD “target achieved” denominator: for card we keep it annual (as per your design)
+        $ytdTargetValue = (int) round($annualTargetForCard);
 
         $conversionPct      = $totalQuotedValue > 0 ? round(100.0 * $inhandQuotedValue / $totalQuotedValue, 1) : 0.0;
-        $targetAchievedPct  = $ytdTargetValue > 0 ? round(100.0 * $inhandQuotedValue / $ytdTargetValue, 1) : 0.0;
+        $targetAchievedPct  = $ytdTargetValue > 0
+            ? round(100.0 * $inhandQuotedValue / $ytdTargetValue, 1)
+            : 0.0;
+
+
+        // ---------- Target Achieved (family-aware) ----------
+        $targetForGauge  = $useFamilyTarget ? (float) $familyAnnualTarget : (float) $annualTarget;
+        $quotedForGauge  = (float) $totalQuotedValue;   // already family-scoped if chip is active
+        $pctRaw          = $targetForGauge > 0 ? round(($quotedForGauge / $targetForGauge) * 100, 1) : 0.0;
+        $pctDial         = min(100.0, $pctRaw);         // cap dial at 100%, keep raw for tooltip
+        $diffValue       = round($quotedForGauge - $targetForGauge, 2);
+
+
+
+
+
 
         /* ===================== 9) Response ===================== */
         return response()->json([
@@ -415,6 +532,18 @@ class ProjectApiController extends Controller
             ],
 
             'gauges' => [
+                'target_achieved' => [
+                    'pct'        => (float) $pctDial,        // for the dial (0..100)
+                    'pct_raw'    => (float) $pctRaw,         // e.g., 1000.0 for 210M / 21M
+                    'quoted'     => (float) $quotedForGauge, // e.g., 210_003_858
+                    'target'     => (float) $targetForGauge, // e.g., 21_000_000 for ductwork
+                    'diff'       => (float) $diffValue,      // quoted - target
+                    'unit'       => 'SAR',
+                    'mode'       => $useFamilyTarget ? 'family_share' : 'annual_region',
+                    'family'     => $useFamilyTarget ? $familyParam : null,
+                ],
+
+                // keep the other two gauges as they are (in-hand & bidding)
                 'inhand' => [
                     'display_value' => (float) $inhandQuotedValue,
                     'pct'           => $totalQuotedValue > 0 ? round(100.0 * $inhandQuotedValue  / $totalQuotedValue, 1) : 0.0,
@@ -433,23 +562,24 @@ class ProjectApiController extends Controller
                 'bidding_quoted_value' => (float) $biddingQuotedValue,
                 'lost_quoted_value'    => (float) $lostQuotedValue,
 
-                'monthly_quote_target' => (int) $monthlyQuoteTarget,
+                'monthly_quote_target' => (int) $monthlyQuoteTarget, // ✅ defined
                 'ytd_target_value'     => (int) $ytdTargetValue,
-                'conversion_pct'       => (int) $conversionPct,
+                'conversion_pct'       => (float) $conversionPct,
                 'target_achieved_pct'  => (float) $targetAchievedPct,
                 'target_meta'          => $targetMeta,
             ],
 
-            'funnel_value'           => $funnelValue,
-            'monthly_product_value'  => $this->buildMonthlyProductSeries($q, $dateExprSql, $valExprSql, $months),
+            'product_target_meta'   => $productTargetMeta,
+            'funnel_value'          => $funnelValue,
+            'monthly_product_value' => $this->buildMonthlyProductSeries($q, $dateExprSql, $valExprSql, $months),
+
             'region_scope'           => $isAdmin ? 'ALL' : 'LOCKED',
             'effective_area'         => $effectiveArea,
             'user_region'            => $user ? $user->region : null,
             'user_roles'             => ($user && method_exists($user, 'getRoleNames')) ? $user->getRoleNames() : [],
+            'annual_target_salesman' => (float) $outAnnualTarget,
         ]);
     }
-
-
 
     /**
      * Helper to build product-wise series (unchanged behaviour).
@@ -467,7 +597,7 @@ class ProjectApiController extends Controller
           WHEN LOWER(TRIM(atai_products)) REGEXP 'grille|diffuser|register|\\bgrd\\b'  THEN 'GRD'
           ELSE 'Accessories'
         END
-    ";
+        ";
 
         $productRows = (clone $q)
             ->selectRaw("DATE_FORMAT($dateExprSql,'%Y-%m') AS ym")
@@ -514,7 +644,7 @@ class ProjectApiController extends Controller
         foreach ($months as $ym) {
             $tot = round((float) ($monthlyTotals[$ym] ?? 0.0), 2);
             $mom = ($prev !== null && $prev != 0.0) ? round((($tot - $prev) / $prev) * 100, 1) : 0.0;
-            $splineData[] = ['y' => $mom, 'sar' => $tot]; // << y is percent, sar for tooltip
+            $splineData[] = ['y' => $mom, 'sar' => $tot]; // y is percent, sar for tooltip
             $prev = $tot;
         }
         $productSeries[] = ['type' => 'spline', 'name' => 'Total', 'yAxis' => 1, 'data' => $splineData];
@@ -582,7 +712,7 @@ class ProjectApiController extends Controller
      */
     private function baseQuery(Request $r): array
     {
-        // You may have a RegionScope helper/middleware; keep it if you use it.
+        // RegionScope helper (keep if you use it)
         $effectiveRegion = \App\Support\RegionScope::apply($r); // may be null
 
         $u = $r->user();

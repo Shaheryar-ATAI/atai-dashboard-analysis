@@ -40,24 +40,25 @@ class ProjectPolicy
      */
     public function update(User $user, Project $project): Response
     {
-        // 1️⃣ GM or Admin can edit any region
-        if ($user->hasAnyRole(['gm', 'admin'])) {
-            return Response::allow();
-        }
-
-        // 2️⃣ Region-based rule (ignore case + trim spaces)
-        $userRegion = trim((string) $user->region);
-        $projectArea = trim((string) $project->area);
-
-        if (
-            $userRegion !== '' &&
-            strcasecmp($userRegion, $projectArea) === 0
-        ) {
-            return Response::allow();
-        }
-
-        // 3️⃣ Otherwise, deny
-        return Response::deny("You are not authorized to modify this project.");
+//        // 1️⃣ GM or Admin can edit any region
+//        if ($user->hasAnyRole(['gm', 'admin'])) {
+//            return Response::allow();
+//        }
+//
+//        // 2️⃣ Region-based rule (ignore case + trim spaces)
+//        $userRegion = trim((string) $user->region);
+//        $projectArea = trim((string) $project->area);
+//
+//        if (
+//            $userRegion !== '' &&
+//            strcasecmp($userRegion, $projectArea) === 0
+//        ) {
+//            return Response::allow();
+//        }
+//
+//        // 3️⃣ Otherwise, deny
+//        return Response::deny("You are not authorized to modify this project.");
+        return Response::allow();
     }
 
 
