@@ -34,7 +34,7 @@
         /* KPI card - match Projects dark background */
         .kpi-card,
         .kpi-card .card-body {
-            background-color: #050814;   /* or whatever your main dark bg is */
+            background-color: #050814; /* or whatever your main dark bg is */
             color: #f8f9fa;
             border-color: rgba(255, 255, 255, 0.08);
         }
@@ -132,8 +132,8 @@
                 @hasanyrole('gm|admin')
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('salesorders.*') ? 'active' : '' }}"
                                         href="{{ route('salesorders.index') }}">Sales Orders</a></li>
-{{--                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.index') ? 'active' : '' }}"--}}
-{{--                                        href="{{ route('performance.index') }}">Performance report</a></li>--}}
+                {{--                <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.index') ? 'active' : '' }}"--}}
+                {{--                                        href="{{ route('performance.index') }}">Performance report</a></li>--}}
                 <li class="nav-item"><a class="nav-link {{ request()->routeIs('performance.area*') ? 'active' : '' }}"
                                         href="{{ route('performance.area') }}">Area summary</a></li>
                 <li class="nav-item"><a
@@ -226,40 +226,40 @@
         </div>
     </div>
 
-{{--    <div class="d-flex align-items-center gap-2 my-2 flex-wrap">--}}
-{{--        <span id="sumPo" class="badge-total text-bg-primary ">Total PO: SAR 0</span>--}}
-{{--        <span id="sumVat" class="badge-total text-bg-success">Total with VAT: SAR 0</span>--}}
-{{--    </div>--}}
-{{--    --}}{{-- ===== FORECAST KPI (Highcharts) ===== --}}
-{{--    <div class="row g-3 mt-2" id="forecastRow" style="display:none">--}}
-{{--        <div class="col-12">--}}
-{{--            <div class="card kpi-card">--}}
-{{--                <div class="card-body">--}}
-{{--                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">--}}
-{{--                        <div>--}}
-{{--                            <h6 class="mb-1">Sales Forecast Dashboard</h6>--}}
-{{--                            <div class="text-secondary small">From forecast table (filters & role applied)</div>--}}
-{{--                        </div>--}}
-{{--                        <div class="d-flex gap-2">--}}
-{{--                            <span id="fcBadgeScope" class="badge-total text-bg-info">All Salesmen</span>--}}
-{{--                            <span id="fcBadgeValue" class="badge-total text-bg-primary">Forecast Total: SAR 0</span>--}}
-{{--                        </div>--}}
-{{--                    </div>--}}
-{{--                    <div class="row mt-3 g-3">--}}
-{{--                        <div class="col-md-6">--}}
-{{--                            <div id="fcBarByArea" class="hc"></div>--}}
-{{--                        </div>--}}
-{{--                        <div class="col-md-6">--}}
-{{--                            <div id="fcBarBySalesman" class="hc"></div>--}}
-{{--                        </div>--}}
-{{--                    </div>--}}
-{{--                    <div id="fcMonthlyRegionMetrics" class="mt-3" style="height:280px"></div>--}}
-{{--                    <div id="fcRegionSummary" class="mt-3" style="height:240px"></div>--}}
-{{--                    <div id="fcMonthlyTotals" class="mt-3" style="height:220px"></div>--}}
-{{--                </div>--}}
-{{--            </div>--}}
-{{--        </div>--}}
-{{--    </div>--}}
+    {{--    <div class="d-flex align-items-center gap-2 my-2 flex-wrap">--}}
+    {{--        <span id="sumPo" class="badge-total text-bg-primary ">Total PO: SAR 0</span>--}}
+    {{--        <span id="sumVat" class="badge-total text-bg-success">Total with VAT: SAR 0</span>--}}
+    {{--    </div>--}}
+    {{--    --}}{{-- ===== FORECAST KPI (Highcharts) ===== --}}
+    {{--    <div class="row g-3 mt-2" id="forecastRow" style="display:none">--}}
+    {{--        <div class="col-12">--}}
+    {{--            <div class="card kpi-card">--}}
+    {{--                <div class="card-body">--}}
+    {{--                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">--}}
+    {{--                        <div>--}}
+    {{--                            <h6 class="mb-1">Sales Forecast Dashboard</h6>--}}
+    {{--                            <div class="text-secondary small">From forecast table (filters & role applied)</div>--}}
+    {{--                        </div>--}}
+    {{--                        <div class="d-flex gap-2">--}}
+    {{--                            <span id="fcBadgeScope" class="badge-total text-bg-info">All Salesmen</span>--}}
+    {{--                            <span id="fcBadgeValue" class="badge-total text-bg-primary">Forecast Total: SAR 0</span>--}}
+    {{--                        </div>--}}
+    {{--                    </div>--}}
+    {{--                    <div class="row mt-3 g-3">--}}
+    {{--                        <div class="col-md-6">--}}
+    {{--                            <div id="fcBarByArea" class="hc"></div>--}}
+    {{--                        </div>--}}
+    {{--                        <div class="col-md-6">--}}
+    {{--                            <div id="fcBarBySalesman" class="hc"></div>--}}
+    {{--                        </div>--}}
+    {{--                    </div>--}}
+    {{--                    <div id="fcMonthlyRegionMetrics" class="mt-3" style="height:280px"></div>--}}
+    {{--                    <div id="fcRegionSummary" class="mt-3" style="height:240px"></div>--}}
+    {{--                    <div id="fcMonthlyTotals" class="mt-3" style="height:220px"></div>--}}
+    {{--                </div>--}}
+    {{--            </div>--}}
+    {{--        </div>--}}
+    {{--    </div>--}}
     <div class="table-responsive">
         <table class="table table-striped w-100" id="tblSales">
             <thead>
@@ -288,7 +288,6 @@
             <div id="mixRow" class="d-flex flex-wrap gap-3 mt-3"></div>
         </div>
     </div>
-
 
 
     <div class="card mb-3">
@@ -331,18 +330,26 @@
                 }
             },
             columns: [
-                { data: 'date_rec_d',       name: 'date_rec_d',       orderable: true,  searchable: false }, // prefix search on date works
-                { data: 'po_no',            name: 'po_no',            orderable: true,  searchable: false },
-                { data: 'client_name',      name: 'client_name',      orderable: true,  searchable: false },
-                { data: 'project_name',     name: 'project_name',     orderable: true,  searchable: false },
-                { data: 'region_name',      name: 'region_name',      orderable: true,  searchable: false },
-                { data: 'project_location', name: 'project_location', orderable: true,  searchable: false },
-                { data: 'cur',              name: 'cur',              orderable: true,  searchable: false },
-                { data: 'po_value',         name: 'po_value',         orderable: true,  searchable: false, className:'text-end',
-                    render: d => fmt(d) },
-                { data: 'value_with_vat',   name: 'value_with_vat',   orderable: true,  searchable: false, className:'text-end',
-                    render: d => fmt(d) },
-                { data: 'status',           name: 'status',           orderable: true,  searchable: false }
+                {data: 'date_rec_d', name: 'date_rec_d', orderable: true, searchable: false}, // prefix search on date works
+                {data: 'po_no', name: 'po_no', orderable: true, searchable: false},
+                {data: 'client_name', name: 'client_name', orderable: true, searchable: false},
+                {data: 'project_name', name: 'project_name', orderable: true, searchable: false},
+                {data: 'region_name', name: 'region_name', orderable: true, searchable: false},
+                {data: 'project_location', name: 'project_location', orderable: true, searchable: false},
+                {data: 'cur', name: 'cur', orderable: true, searchable: false},
+                {
+                    data: 'po_value', name: 'po_value', orderable: true, searchable: false, className: 'text-end',
+                    render: d => fmt(d)
+                },
+                {
+                    data: 'value_with_vat',
+                    name: 'value_with_vat',
+                    orderable: true,
+                    searchable: false,
+                    className: 'text-end',
+                    render: d => fmt(d)
+                },
+                {data: 'status', name: 'status', orderable: true, searchable: false}
             ]
         });
 
@@ -376,30 +383,30 @@
     Highcharts.setOptions({
         chart: {
             backgroundColor: 'rgba(255,255,255,0.95)',
-            style: { color: '#f8f9fa' }
+            style: {color: '#f8f9fa'}
         },
-        title: { style: { color: '#ffffff' } },
+        title: {style: {color: '#ffffff'}},
         xAxis: {
-            labels: { style: { color: '#e5e7eb' } },
-            title: { style: { color: '#e5e7eb' } }
+            labels: {style: {color: '#e5e7eb'}},
+            title: {style: {color: '#e5e7eb'}}
         },
         yAxis: {
-            labels: { style: { color: '#e5e7eb' } },
-            title: { style: { color: '#e5e7eb' } }
+            labels: {style: {color: '#e5e7eb'}},
+            title: {style: {color: '#e5e7eb'}}
         },
         legend: {
-            itemStyle: { color: '#f8f9fa' },
-            itemHoverStyle: { color: '#ffffff' }
+            itemStyle: {color: '#f8f9fa'},
+            itemHoverStyle: {color: '#ffffff'}
         },
         tooltip: {
             backgroundColor: 'rgba(12,78,239,0.95)',
-            style: { color: '#ffffff' }
+            style: {color: '#ffffff'}
         }
     });
     const hcBase = {
-        chart: { height: 220, spacing: [8, 8, 8, 8], backgroundColor: 'transparent' },
-        credits: { enabled: false },
-        legend: { enabled: false }
+        chart: {height: 220, spacing: [8, 8, 8, 8], backgroundColor: 'transparent'},
+        credits: {enabled: false},
+        legend: {enabled: false}
     };
 
     async function loadKpis() {
@@ -881,9 +888,8 @@
     loadForecast();
 
 
-
     async function loadTerritoryMixSales() {
-        const year   = document.getElementById('kpiYear')?.value || '';
+        const year = document.getElementById('kpiYear')?.value || '';
         const region = document.getElementById('kpiRegion')?.value || '';
 
         const url = new URL("{{ route('sales-orders.territory-sales') }}", window.location.origin);
@@ -892,9 +898,11 @@
 
         let list = [];
         try {
-            const res = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+            const res = await fetch(url, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}});
             if (res.ok) list = await res.json();
-        } catch(e){ console.warn('territory-mix failed', e); }
+        } catch (e) {
+            console.warn('territory-mix failed', e);
+        }
 
         const host = document.getElementById('mixRow');
         if (!host) return;
@@ -922,14 +930,13 @@
     `);
         }
     }
+
     // call on page load and after KPI filters change
     loadTerritoryMixSales();
     document.getElementById('kpiApply')?.addEventListener('click', loadTerritoryMixSales);
 
 
-
-
-    function renderMixCards(list, hostId){
+    function renderMixCards(list, hostId) {
         const host = document.getElementById(hostId);
         if (!host) return;
         host.innerHTML = '';
@@ -957,8 +964,8 @@
         }
     }
 
-    async function loadTerritoryMixInquiries(){
-        const year   = document.getElementById('kpiYear')?.value || '';
+    async function loadTerritoryMixInquiries() {
+        const year = document.getElementById('kpiYear')?.value || '';
         const region = document.getElementById('kpiRegion')?.value || '';
 
         const url = new URL("{{ route('projects.territory-inquiries') }}", window.location.origin);
@@ -967,9 +974,11 @@
 
         let data = [];
         try {
-            const res = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+            const res = await fetch(url, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}});
             if (res.ok) data = await res.json();
-        } catch(e){ console.warn('projects territory-mix failed', e); }
+        } catch (e) {
+            console.warn('projects territory-mix failed', e);
+        }
 
         renderMixCards(data, 'mixRowInq');
     }
@@ -983,20 +992,6 @@
         loadTerritoryMixSales();
         loadTerritoryMixInquiries();
     });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 </script>

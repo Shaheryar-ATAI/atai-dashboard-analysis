@@ -7,18 +7,45 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>ATAI — Weekly Sales Activities Report</title>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
+    <link rel="stylesheet"
+          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
 
     <style>
-        .section-card { border: 1px solid rgba(255,255,255,.08); border-radius: 1rem; }
-        .section-card .card-header { background: rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.08); }
-        .table thead th { white-space: nowrap; }
-        .text-slim { letter-spacing: .02em; }
-        .row-error { outline: 2px solid #dc3545; outline-offset: -2px; }
-        .thin-input { padding-top: .375rem; padding-bottom: .375rem; }
-        .week-badge { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
+        .section-card {
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 1rem;
+        }
+
+        .section-card .card-header {
+            background: rgba(255, 255, 255, .06);
+            border-bottom: 1px solid rgba(255, 255, 255, .08);
+        }
+
+        .table thead th {
+            white-space: nowrap;
+        }
+
+        .text-slim {
+            letter-spacing: .02em;
+        }
+
+        .row-error {
+            outline: 2px solid #dc3545;
+            outline-offset: -2px;
+        }
+
+        .thin-input {
+            padding-top: .375rem;
+            padding-bottom: .375rem;
+        }
+
+        .week-badge {
+            background: rgba(255, 255, 255, .06);
+            border: 1px solid rgba(255, 255, 255, .1);
+        }
 
 
         /* Inputs inside the table: make them readable */
@@ -37,15 +64,18 @@
             border-radius: 6px;
             font-weight: 500;
         }
+
         #weeklyTbl .form-control:focus,
         #weeklyTbl .form-select:focus {
             outline: none;
             border-color: #0c7135 !important;
-            box-shadow: 0 0 0 0.15rem rgba(12,113,53,.25);
+            box-shadow: 0 0 0 0.15rem rgba(12, 113, 53, .25);
         }
+
         #weeklyTbl input::placeholder,
         #weeklyTbl textarea::placeholder {
-            color: #6b7280 !important; opacity: 1 !important;
+            color: #6b7280 !important;
+            opacity: 1 !important;
         }
 
     </style>
@@ -68,8 +98,10 @@
             <ul class="navbar-nav mx-lg-auto mb-2 mb-lg-0">
                 <li class="nav-item"><a class="nav-link" href="{{ route('projects.index') }}">Quotation KPI</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ route('inquiries.index') }}">Quotation Log</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.manager.kpi') }}">Sales Order Log KPI</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.manager.index') }}">Sales Order Log</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.manager.kpi') }}">Sales Order Log
+                        KPI</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.manager.index') }}">Sales Order
+                        Log</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ route('estimation.index') }}">Estimation</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ route('forecast.create') }}">Forecast</a></li>
                 <li class="nav-item">
@@ -83,7 +115,9 @@
             <div class="navbar-right">
                 <div class="navbar-text me-2">
                     Logged in as <strong>{{ $u->name ?? '' }}</strong>
-                    @if(!empty($u->region)) · <small>{{ $u->region }}</small> @endif
+                    @if(!empty($u->region))
+                        · <small>{{ $u->region }}</small>
+                    @endif
                 </div>
                 <form method="POST" action="{{ route('logout') }}" class="m-0">@csrf
                     <button class="btn btn-logout btn-sm" type="submit">Logout</button>
@@ -98,7 +132,8 @@
     <div class="glass-row d-flex flex-wrap align-items-center justify-content-between mb-3">
         <h2 class="mb-2 mb-md-0 fw-bold text-light">Weekly Sales Activities Report</h2>
         <div class="text-secondary small">
-            Tip: Paste from Excel using columns: Customer | Project | Location | Value | Status | Contact | Mobile | Visiting Date | Notes.
+            Tip: Paste from Excel using columns: Customer | Project | Location | Value | Status | Contact | Mobile |
+            Visiting Date | Notes.
         </div>
     </div>
 
@@ -107,7 +142,8 @@
         <div class="alert alert-success alert-dismissible fade show shadow-sm mb-3" role="alert">
             <i class="bi bi-check-circle me-2"></i>
             Your weekly report was saved successfully. You can now download the PDF.
-            <a class="btn btn-sm btn-outline-success ms-2" target="_blank" href="{{ route('weekly.pdf', $rid) }}" id="pdfLink">
+            <a class="btn btn-sm btn-outline-success ms-2" target="_blank" href="{{ route('weekly.pdf', $rid) }}"
+               id="pdfLink">
                 <i class="bi bi-filetype-pdf me-1"></i> Download PDF
             </a>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -193,19 +229,20 @@
     </form>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        crossorigin="anonymous"></script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const body      = document.getElementById('rowsBody');
-        const rowCount  = document.getElementById('rowCount');
+        const body = document.getElementById('rowsBody');
+        const rowCount = document.getElementById('rowCount');
         const addRowBtn = document.getElementById('addRow');
-        const add10Btn  = document.getElementById('add10');
-        const clearBtn  = document.getElementById('clearAll');
-        const form      = document.getElementById('weeklyForm');
-        const saveBtn   = document.getElementById('saveBtn');
-        const pdfBtn    = document.getElementById('printPdf');
-        const weekDate  = document.getElementById('weekDate');
+        const add10Btn = document.getElementById('add10');
+        const clearBtn = document.getElementById('clearAll');
+        const form = document.getElementById('weeklyForm');
+        const saveBtn = document.getElementById('saveBtn');
+        const pdfBtn = document.getElementById('printPdf');
+        const weekDate = document.getElementById('weekDate');
         const weekRange = document.getElementById('weekRange');
 
 // --- Quotation format (same as server) ---
@@ -218,13 +255,13 @@
         }
 
 // on input: uppercase, strip spaces, validate
-        function wireQuotationValidation(container){
-            container.querySelectorAll('input.qtn').forEach((el)=>{
+        function wireQuotationValidation(container) {
+            container.querySelectorAll('input.qtn').forEach((el) => {
                 // initialize from existing value (e.g., after paste)
                 const sanitize = () => {
                     const before = el.value;
                     // uppercase & remove all whitespace
-                    el.value = before.toUpperCase().replace(/\s+/g,'');
+                    el.value = before.toUpperCase().replace(/\s+/g, '');
                     // empty is OK (nullable), otherwise must match
                     const ok = (el.value === '' || QTN_RE.test(el.value));
                     markValid(el, ok);
@@ -240,27 +277,27 @@
 
 // re-wire after rows are added or after paste
         const _addRowsOrig = addRows;
-        addRows = function(n){
+        addRows = function (n) {
             _addRowsOrig(n);
             wireQuotationValidation(document);
         };
 
 // also re-validate after renumber (safe)
         const _renumberOrig = renumber;
-        renumber = function(){
+        renumber = function () {
             _renumberOrig();
             wireQuotationValidation(document);
         };
 
 // block submit if any invalid quotation present
-        form?.addEventListener('submit', function(e){
+        form?.addEventListener('submit', function (e) {
             let bad = false;
-            document.querySelectorAll('input.qtn').forEach((el)=>{
+            document.querySelectorAll('input.qtn').forEach((el) => {
                 // trigger validation one last time
-                el.dispatchEvent(new Event('input', {bubbles:false}));
+                el.dispatchEvent(new Event('input', {bubbles: false}));
                 if (!el.checkValidity()) bad = true;
             });
-            if (bad){
+            if (bad) {
                 e.preventDefault();
                 e.stopPropagation();
                 // focus the first bad one
@@ -284,8 +321,12 @@
             t.setDate(t.getDate() - t.getDay()); // 0=Sun
             return t;
         };
-        const endOfThu = (sun) => { const d = new Date(sun); d.setDate(d.getDate() + 4); return d; };
-        const fmt = (d) => d.toLocaleDateString('en-SA', { day:'2-digit', month:'short', year:'numeric' });
+        const endOfThu = (sun) => {
+            const d = new Date(sun);
+            d.setDate(d.getDate() + 4);
+            return d;
+        };
+        const fmt = (d) => d.toLocaleDateString('en-SA', {day: '2-digit', month: 'short', year: 'numeric'});
 
         function updateWeekRangeAndSnap() {
             let chosen = weekDate.valueAsDate || new Date();
@@ -294,60 +335,63 @@
             const thu = endOfThu(sun);
             weekRange.textContent = `Week: ${fmt(sun)} — ${fmt(thu)} (Sun–Thu)`;
         }
+
         updateWeekRangeAndSnap();
         weekDate.addEventListener('change', updateWeekRangeAndSnap);
 
-        const STATUS = ['Inquiry','Quoted','Follow-up','Negotiation','In-Hand','Lost','On Hold','Postponed','Closed'];
+        const STATUS = ['Inquiry', 'Quoted', 'Follow-up', 'Negotiation', 'In-Hand', 'Lost', 'On Hold', 'Postponed', 'Closed'];
 
-        function statusSelect(name){
+        function statusSelect(name) {
             // First option: empty value, human text “Select Status”
             let opts = '<option value="">Select Status</option>';
             for (const v of STATUS) opts += `<option value="${v}">${v}</option>`;
             return `<select name="${name}" class="form-select form-select-sm thin-input">${opts}</select>`;
         }
 
-        function makeRow(i){
-            const base = 'rows['+i+']';
+        function makeRow(i) {
+            const base = 'rows[' + i + ']';
             const tr = document.createElement('tr');
             tr.innerHTML =
-                '<td class="serial text-secondary fw-semibold">'+(i+1)+'</td>'+
-                '<td><input name="'+base+'[customer]" class="form-control form-control-sm thin-input" placeholder="Customer"></td>'+
-                '<td><input name="'+base+'[project]" class="form-control form-control-sm thin-input" placeholder="Project"></td>'+
-                '<td><input name="'+base+'[quotation_no]"class="form-control form-control-sm thin-input qtn" placeholder="S.0000.0.0000.XX.R0"  maxlength="64" inputmode="text" pattern="^S\\.\\d{4}\\.\\d+\\.\\d{4}\\.[A-Z]{2}\\.R\\d+$" title="Format: S.&lt;num&gt;.&lt;num&gt;.&lt;num&gt;.MH.R&lt;num&gt; e.g., S.4135.1.2605.MH.R0"></td>'+
-                '<td><input name="'+base+'[location]" class="form-control form-control-sm thin-input" placeholder="Location"></td>'+
-                '<td><input name="'+base+'[value]" class="form-control form-control-sm thin-input text-end" placeholder="SAR 0"></td>'+
-                '<td>'+statusSelect(base+'[status]')+'</td>'+
-                '<td><input name="'+base+'[contact_name]" class="form-control form-control-sm thin-input" placeholder="Contact"></td>'+
-                '<td><input name="'+base+'[contact_mobile]" type="tel" class="form-control form-control-sm thin-input phone-field" placeholder="+966-5XXXXXXXX" inputmode="numeric" maxlength="16"></td>'+
-                '<td><input type="date" name="'+base+'[visit_date]" class="form-control form-control-sm thin-input"></td>'+
-                '<td><input name="'+base+'[notes]" class="form-control form-control-sm thin-input" placeholder="Notes"></td>'+
+                '<td class="serial text-secondary fw-semibold">' + (i + 1) + '</td>' +
+                '<td><input name="' + base + '[customer]" class="form-control form-control-sm thin-input" placeholder="Customer"></td>' +
+                '<td><input name="' + base + '[project]" class="form-control form-control-sm thin-input" placeholder="Project"></td>' +
+                '<td><input name="' + base + '[quotation_no]"class="form-control form-control-sm thin-input qtn" placeholder="S.0000.0.0000.XX.R0"  maxlength="64" inputmode="text" pattern="^S\\.\\d{4}\\.\\d+\\.\\d{4}\\.[A-Z]{2}\\.R\\d+$" title="Format: S.&lt;num&gt;.&lt;num&gt;.&lt;num&gt;.MH.R&lt;num&gt; e.g., S.4135.1.2605.MH.R0"></td>' +
+                '<td><input name="' + base + '[location]" class="form-control form-control-sm thin-input" placeholder="Location"></td>' +
+                '<td><input name="' + base + '[value]" class="form-control form-control-sm thin-input text-end" placeholder="SAR 0"></td>' +
+                '<td>' + statusSelect(base + '[status]') + '</td>' +
+                '<td><input name="' + base + '[contact_name]" class="form-control form-control-sm thin-input" placeholder="Contact"></td>' +
+                '<td><input name="' + base + '[contact_mobile]" type="tel" class="form-control form-control-sm thin-input phone-field" placeholder="+966-5XXXXXXXX" inputmode="numeric" maxlength="16"></td>' +
+                '<td><input type="date" name="' + base + '[visit_date]" class="form-control form-control-sm thin-input"></td>' +
+                '<td><input name="' + base + '[notes]" class="form-control form-control-sm thin-input" placeholder="Notes"></td>' +
                 // NEW: delete button
                 '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger del" title="Delete row"><i class="bi bi-x-lg"></i></button></td>';
             return tr;
         }
 
-        function renumber(){
+        function renumber() {
             const trs = body.children;
-            for (let i=0;i<trs.length;i++){
-                trs[i].querySelector('.serial').textContent = i+1;
-                trs[i].querySelectorAll('input, select, textarea').forEach(function(el){
+            for (let i = 0; i < trs.length; i++) {
+                trs[i].querySelector('.serial').textContent = i + 1;
+                trs[i].querySelectorAll('input, select, textarea').forEach(function (el) {
                     // replace rows[OLD] with rows[i]
-                    el.name = el.name.replace(/rows\[\d+]/, 'rows['+i+']');
+                    el.name = el.name.replace(/rows\[\d+]/, 'rows[' + i + ']');
                 });
             }
             rowCount.textContent = trs.length;
         }
 
-        function addRows(n){
+        function addRows(n) {
             const start = body.children.length;
-            for (let k=0;k<n;k++){ body.appendChild(makeRow(start+k)); }
+            for (let k = 0; k < n; k++) {
+                body.appendChild(makeRow(start + k));
+            }
             renumber();
         }
 
         // Paste from Excel/Sheets
-        body.addEventListener('paste', function(e){
+        body.addEventListener('paste', function (e) {
             const t = e.target;
-            if (!t || !['INPUT','TEXTAREA','SELECT'].includes(t.tagName)) return;
+            if (!t || !['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return;
             const txt = (e.clipboardData || window.clipboardData).getData('text');
             if (!txt || !txt.includes('\t')) return;
             e.preventDefault();
@@ -359,34 +403,43 @@
             const need = Math.max(0, startIdx + lines.length - body.children.length);
             if (need > 0) addRows(need); // also renumbers
 
-            lines.forEach(function(line, r){
+            lines.forEach(function (line, r) {
                 const cols = line.split('\t');
-                const tr = body.children[startIdx + r]; if (!tr) return;
+                const tr = body.children[startIdx + r];
+                if (!tr) return;
                 const q = sel => tr.querySelector(sel);
-                q('input[name*="[customer]"]').value       = cols[0] || '';
-                q('input[name*="[project]"]').value        = cols[1] || '';
-                q('input[name*="[quotation_no]"]').value   = cols[2] || '';     // <-- NEW
-                q('input[name*="[location]"]').value       = cols[3] || '';
-                q('input[name*="[value]"]').value          = cols[4] || '';
-                const st = q('select[name*="[status]"]'); if (st && cols[5] !== undefined) st.value = cols[5];
-                q('input[name*="[contact_name]"]').value   = cols[6] || '';
+                q('input[name*="[customer]"]').value = cols[0] || '';
+                q('input[name*="[project]"]').value = cols[1] || '';
+                q('input[name*="[quotation_no]"]').value = cols[2] || '';     // <-- NEW
+                q('input[name*="[location]"]').value = cols[3] || '';
+                q('input[name*="[value]"]').value = cols[4] || '';
+                const st = q('select[name*="[status]"]');
+                if (st && cols[5] !== undefined) st.value = cols[5];
+                q('input[name*="[contact_name]"]').value = cols[6] || '';
                 q('input[name*="[contact_mobile]"]').value = cols[7] || '';
-                if (cols[8]){
+                if (cols[8]) {
                     const cleaned = cols[8].split('.').join('-');
                     q('input[name*="[visit_date]"]').value = cleaned;
                 }
-                q('input[name*="[notes]"]').value          = cols[9] || '';
+                q('input[name*="[notes]"]').value = cols[9] || '';
             });
 
             renumber();
         });
 
-        addRowBtn?.addEventListener('click', function(){ addRows(1); });
-        add10Btn?.addEventListener('click', function(){ addRows(10); });
-        clearBtn?.addEventListener('click', function(){ body.innerHTML=''; renumber(); });
+        addRowBtn?.addEventListener('click', function () {
+            addRows(1);
+        });
+        add10Btn?.addEventListener('click', function () {
+            addRows(10);
+        });
+        clearBtn?.addEventListener('click', function () {
+            body.innerHTML = '';
+            renumber();
+        });
 
         // Delete row (delegated)
-        body.addEventListener('click', function(e){
+        body.addEventListener('click', function (e) {
             const btn = e.target.closest('.del');
             if (!btn) return;
             btn.closest('tr').remove();
@@ -397,11 +450,13 @@
         addRows(10);
 
         // Prevent Enter submit
-        form?.addEventListener('keydown', function(e){ if (e.key === 'Enter') e.preventDefault(); });
+        form?.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') e.preventDefault();
+        });
 
         // Save: prevent double submit
-        form?.addEventListener('submit', function(){
-            if (saveBtn){
+        form?.addEventListener('submit', function () {
+            if (saveBtn) {
                 saveBtn.disabled = true;
                 saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
             }
@@ -412,16 +467,21 @@
         if (pdfBtn && !pdfBtn.dataset.reportId) {
             pdfBtn.disabled = true;
         }
-        pdfBtn?.addEventListener('click', function(){
+        pdfBtn?.addEventListener('click', function () {
             const id = this.dataset.reportId;
             if (!id) return;
             shouldReloadAfterPdf = true;
             window.open(`/weekly/${id}/pdf`, '_blank');
             // Fallback in case focus doesn't come back (pop-up blockers, etc.)
-            setTimeout(() => { if (shouldReloadAfterPdf) location.reload(); }, 6000);
+            setTimeout(() => {
+                if (shouldReloadAfterPdf) location.reload();
+            }, 6000);
         });
         window.addEventListener('focus', () => {
-            if (shouldReloadAfterPdf) { shouldReloadAfterPdf = false; location.reload(); }
+            if (shouldReloadAfterPdf) {
+                shouldReloadAfterPdf = false;
+                location.reload();
+            }
         });
     });
 </script>

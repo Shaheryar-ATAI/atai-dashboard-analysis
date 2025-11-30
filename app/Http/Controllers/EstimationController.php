@@ -58,6 +58,7 @@ class EstimationController extends Controller
     {
         return "COALESCE(p.date_rec, p.created_at)";
     }
+
     /**
      * Build the base query with all the current filters applied.
      *
@@ -72,12 +73,12 @@ class EstimationController extends Controller
      */
     protected function base(Request $request)
     {
-        $dateCol   = $this->dateExprRaw();              // COALESCE(p.date_rec, p.created_at)
-        $estimator = trim((string) $request->query('estimator', ''));
-        $year      = $request->query('year');           // e.g., "2025" or ""
-        $month     = $request->query('month');          // 1..12 or ""
-        $from      = $request->query('from');           // YYYY-MM-DD or ""
-        $to        = $request->query('to');             // YYYY-MM-DD or ""
+        $dateCol = $this->dateExprRaw();              // COALESCE(p.date_rec, p.created_at)
+        $estimator = trim((string)$request->query('estimator', ''));
+        $year = $request->query('year');           // e.g., "2025" or ""
+        $month = $request->query('month');          // 1..12 or ""
+        $from = $request->query('from');           // YYYY-MM-DD or ""
+        $to = $request->query('to');             // YYYY-MM-DD or ""
 
         $q = DB::table('projects as p')
             ->whereRaw("
@@ -102,10 +103,10 @@ class EstimationController extends Controller
 
         // Apply Year and Month independently
         if (!empty($year)) {
-            $q->whereYear($dateCol, (int) $year);
+            $q->whereYear($dateCol, (int)$year);
         }
         if (!empty($month)) {
-            $q->whereMonth($dateCol, (int) $month);
+            $q->whereMonth($dateCol, (int)$month);
         }
 
         return $q;
@@ -130,8 +131,8 @@ class EstimationController extends Controller
     public function kpis(Request $request)
     {
         // Base filtered query (estimator/year/month/from/to; statuses in estimation phase)
-        $base    = $this->base($request);
-        $metric  = strtolower((string) $request->query('metric', 'value'));
+        $base = $this->base($request);
+        $metric = strtolower((string)$request->query('metric', 'value'));
         $isCount = $metric === 'count';
 
         // Totals (both)
@@ -145,23 +146,23 @@ class EstimationController extends Controller
         /* ------------------------ Month window ------------------------ */
         $dateColSql = "COALESCE(p.date_rec, p.created_at)";
 
-        $y  = (int) ($request->query('year') ?: 0);
-        $m  = (int) ($request->query('month') ?: 0);
+        $y = (int)($request->query('year') ?: 0);
+        $m = (int)($request->query('month') ?: 0);
         $df = $request->query('from');
         $dt = $request->query('to');
 
         if ($df || $dt) {
             $start = \Carbon\Carbon::parse($df ?: now()->startOfYear())->startOfMonth();
-            $end   = \Carbon\Carbon::parse($dt ?: now()->endOfYear())->endOfMonth();
+            $end = \Carbon\Carbon::parse($dt ?: now()->endOfYear())->endOfMonth();
         } elseif ($m && $y) {
             $start = \Carbon\Carbon::create($y, $m, 1)->startOfMonth();
-            $end   = (clone $start)->endOfMonth();
+            $end = (clone $start)->endOfMonth();
         } elseif ($y) {
             $start = \Carbon\Carbon::create($y, 1, 1)->startOfMonth();
-            $end   = \Carbon\Carbon::create($y, 12, 1)->endOfMonth();
+            $end = \Carbon\Carbon::create($y, 12, 1)->endOfMonth();
         } else {
             $start = now()->startOfYear();
-            $end   = now()->endOfYear();
+            $end = now()->endOfYear();
         }
 
         // Build YYYY-MM keys + pretty labels
@@ -183,7 +184,7 @@ class EstimationController extends Controller
             ->selectRaw("LOWER(TRIM(p.area)) AS area_l")
             ->selectRaw("COALESCE(SUM(p.quotation_value),0) AS val")
             ->whereRaw("$dateColSql BETWEEN ? AND ?", [$start->toDateString(), $end->toDateString()])
-            ->groupBy('ym','area_l')
+            ->groupBy('ym', 'area_l')
             ->orderBy('ym')
             ->get();
 
@@ -192,9 +193,15 @@ class EstimationController extends Controller
             $i = $ymIndex[$r->ym];
             $v = (float)$r->val;
             switch ($r->area_l) {
-                case 'eastern': $dataEasternVal[$i] = $v; break;
-                case 'central': $dataCentralVal[$i] = $v; break;
-                case 'western': $dataWesternVal[$i] = $v; break;
+                case 'eastern':
+                    $dataEasternVal[$i] = $v;
+                    break;
+                case 'central':
+                    $dataCentralVal[$i] = $v;
+                    break;
+                case 'western':
+                    $dataWesternVal[$i] = $v;
+                    break;
             }
         }
 
@@ -208,7 +215,7 @@ class EstimationController extends Controller
             ->selectRaw("LOWER(TRIM(p.area)) AS area_l")
             ->selectRaw("COUNT(*) AS cnt")
             ->whereRaw("$dateColSql BETWEEN ? AND ?", [$start->toDateString(), $end->toDateString()])
-            ->groupBy('ym','area_l')
+            ->groupBy('ym', 'area_l')
             ->orderBy('ym')
             ->get();
 
@@ -217,14 +224,20 @@ class EstimationController extends Controller
             $i = $ymIndex[$r->ym];
             $c = (int)$r->cnt;
             switch ($r->area_l) {
-                case 'eastern': $dataEasternCnt[$i] = $c; break;
-                case 'central': $dataCentralCnt[$i] = $c; break;
-                case 'western': $dataWesternCnt[$i] = $c; break;
+                case 'eastern':
+                    $dataEasternCnt[$i] = $c;
+                    break;
+                case 'central':
+                    $dataCentralCnt[$i] = $c;
+                    break;
+                case 'western':
+                    $dataWesternCnt[$i] = $c;
+                    break;
             }
         }
 
         $monthlyRegion = [
-            'categories'   => $labels,
+            'categories' => $labels,
             // Preferred new keys (frontend auto-falls back to 'series' if missing)
             'series_value' => [
                 ['name' => 'Eastern', 'type' => 'column', 'data' => $dataEasternVal, 'zIndex' => 1],
@@ -237,14 +250,14 @@ class EstimationController extends Controller
                 ['name' => 'Western', 'type' => 'column', 'data' => $dataWesternCnt, 'zIndex' => 1],
             ],
             // keep a legacy 'series' for older frontends (value)
-            'series'       => [
+            'series' => [
                 ['name' => 'Eastern', 'type' => 'column', 'data' => $dataEasternVal, 'zIndex' => 1],
                 ['name' => 'Central', 'type' => 'column', 'data' => $dataCentralVal, 'zIndex' => 1],
                 ['name' => 'Western', 'type' => 'column', 'data' => $dataWesternVal, 'zIndex' => 1],
             ],
             'totals' => [
-                'value' => (float) ($totRow->value ?? 0),
-                'count' => (int)   ($totRow->count ?? 0),
+                'value' => (float)($totRow->value ?? 0),
+                'count' => (int)($totRow->count ?? 0),
             ],
         ];
 
@@ -269,24 +282,24 @@ class EstimationController extends Controller
 
         $productSeries = [
             'categories' => $productAgg->pluck('product'),
-            'value'      => $productAgg->pluck('val')->map(fn($v)=>(float)$v)->values(),
-            'count'      => $productAgg->pluck('cnt')->map(fn($v)=>(int)$v)->values(),
+            'value' => $productAgg->pluck('val')->map(fn($v) => (float)$v)->values(),
+            'count' => $productAgg->pluck('cnt')->map(fn($v) => (int)$v)->values(),
             // legacy fallback field for older frontends
-            'values'     => $productAgg->pluck('val')->map(fn($v)=>(float)$v)->values(),
+            'values' => $productAgg->pluck('val')->map(fn($v) => (float)$v)->values(),
         ];
 
         // Shared payload core
         $common = [
-            'totals'        => [
-                'value' => (float) ($totRow->value ?? 0),
-                'count' => (int)   ($totRow->count ?? 0),
+            'totals' => [
+                'value' => (float)($totRow->value ?? 0),
+                'count' => (int)($totRow->count ?? 0),
             ],
             'monthlyRegion' => $monthlyRegion,
             // not used by the current frontend, but kept if needed elsewhere
-            'regionSeries'  => [
+            'regionSeries' => [
                 'categories' => $regionAgg->pluck('region'),
-                'values'     => $regionAgg->pluck('val')->map(fn($v)=>(float)$v),
-                'counts'     => $regionAgg->pluck('cnt')->map(fn($v)=>(int)$v),
+                'values' => $regionAgg->pluck('val')->map(fn($v) => (float)$v),
+                'counts' => $regionAgg->pluck('cnt')->map(fn($v) => (int)$v),
             ],
             'productSeries' => $productSeries,
         ];
@@ -303,13 +316,13 @@ class EstimationController extends Controller
                 ->get();
 
             $estimatorPie = $estimatorRows->map(fn($r) => [
-                'name'  => $r->estimator,
-                'value' => (float) $r->val,
-                'count' => (int)   $r->cnt,
+                'name' => $r->estimator,
+                'value' => (float)$r->val,
+                'count' => (int)$r->cnt,
             ])->values();
 
             return response()->json(array_merge($common, [
-                'mode'         => 'all',
+                'mode' => 'all',
                 'estimatorPie' => $estimatorPie,
             ]));
         }
@@ -331,19 +344,19 @@ class EstimationController extends Controller
 
         $statusPie = [
             [
-                'name'  => 'Bidding',
-                'value' => (float) ($rows['Bidding']->val ?? 0),
-                'count' => (int)   ($rows['Bidding']->cnt ?? 0),
+                'name' => 'Bidding',
+                'value' => (float)($rows['Bidding']->val ?? 0),
+                'count' => (int)($rows['Bidding']->cnt ?? 0),
             ],
             [
-                'name'  => 'In-Hand',
-                'value' => (float) ($rows['In-Hand']->val ?? 0),
-                'count' => (int)   ($rows['In-Hand']->cnt ?? 0),
+                'name' => 'In-Hand',
+                'value' => (float)($rows['In-Hand']->val ?? 0),
+                'count' => (int)($rows['In-Hand']->cnt ?? 0),
             ],
         ];
 
         return response()->json(array_merge($common, [
-            'mode'      => 'single',
+            'mode' => 'single',
             'statusPie' => $statusPie,
         ]));
     }

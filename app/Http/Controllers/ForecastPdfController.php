@@ -15,6 +15,6 @@ class ForecastPdfController extends Controller
         $pdf = Pdf::loadView('forecast.pdf', ['data' => $data])
             ->setPaper('a4', 'landscape'); // <- makes columns roomy
 
-        return $pdf->stream('Forecast-'.now()->format('Y-m-d').'.pdf');
+        return $pdf->stream('Forecast-' . now()->format('Y-m-d') . '.pdf');
     }
 }

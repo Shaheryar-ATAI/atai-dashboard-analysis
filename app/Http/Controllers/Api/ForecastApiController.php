@@ -33,7 +33,7 @@ class ForecastApiController extends Controller
             $salesmanAgg = (clone $qb)
                 ->selectRaw('COALESCE(salesman,"—") AS salesman, SUM(COALESCE(value_sar,0)) AS sum_value')
                 ->groupBy('salesman')
-                ->orderBy('sum_value','desc')
+                ->orderBy('sum_value', 'desc')
                 ->limit(12)
                 ->get();
         }
@@ -44,11 +44,11 @@ class ForecastApiController extends Controller
         // Month window (year => full year; else last 12 months)
         // ─────────────────────────────────────────────────────────────
         if ($r->integer('year')) {
-            $y     = $r->integer('year');
+            $y = $r->integer('year');
             $start = \Carbon\Carbon::create($y, 1, 1)->startOfMonth();
-            $end   = \Carbon\Carbon::create($y, 12, 1)->endOfMonth();
+            $end = \Carbon\Carbon::create($y, 12, 1)->endOfMonth();
         } else {
-            $end   = now()->endOfMonth();
+            $end = now()->endOfMonth();
             $start = (clone $end)->subMonthsNoOverflow(11)->startOfMonth();
         }
 
@@ -61,16 +61,16 @@ class ForecastApiController extends Controller
         $fcDate = 'month';
 
         // helper: cast string/number safely
-        $cast = fn ($col) => "CAST(NULLIF(REPLACE(REPLACE($col, ',', ''), ' ', ''), '') AS DECIMAL(18,2))";
+        $cast = fn($col) => "CAST(NULLIF(REPLACE(REPLACE($col, ',', ''), ' ', ''), '') AS DECIMAL(18,2))";
 
         // Preferred region order
-        $regionsPref = ['Central','Eastern','Western'];
+        $regionsPref = ['Central', 'Eastern', 'Western'];
 
         // Forecast rows per month/area
         $rowsF = (clone $qb)
             ->selectRaw("DATE_FORMAT($fcDate, '%Y-%m') AS ym, COALESCE(area,'—') AS area, SUM(COALESCE(value_sar,0)) AS total")
             ->whereBetween(DB::raw($fcDate), [$start->toDateString(), $end->toDateString()])
-            ->groupBy('ym','area')
+            ->groupBy('ym', 'area')
             ->orderBy('ym')
             ->get();
 
@@ -82,40 +82,41 @@ class ForecastApiController extends Controller
                 try {
                     DB::table($table)->selectRaw($c)->limit(1)->first();
                     return $c;
-                } catch (\Throwable $e) { /* try next */ }
+                } catch (\Throwable $e) { /* try next */
+                }
             }
             return $default ?? $candidates[0];
         };
 
         // Inquiries (projects)
-        $P_TBL  = 'projects';
+        $P_TBL = 'projects';
         $P_DATE = "COALESCE(quotation_date, date_rec, created_at)";
-        $P_VAL  = "COALESCE(quotation_value, price, 0)";
-        $P_AREA = $detect($P_TBL, ['area','region','Region','region_name']);   // area/region column
+        $P_VAL = "COALESCE(quotation_value, price, 0)";
+        $P_AREA = $detect($P_TBL, ['area', 'region', 'Region', 'region_name']);   // area/region column
 
         // Sales Orders (accepted)
-        $S_TBL    = 'salesorderlog';
-        $S_DATE   = $detect($S_TBL, ['date_rec','Date','date'], 'date_rec');
-        $S_VAL    = $detect($S_TBL, ['value_with_vat','ValueWithVAT','value'], 'value_with_vat');
-        $S_AREA   = $detect($S_TBL, ['region_name','region','Region','area']); // area/region column
-        $S_STATUS = $detect($S_TBL, ['status','Status'], 'status');
+        $S_TBL = 'salesorderlog';
+        $S_DATE = $detect($S_TBL, ['date_rec', 'Date', 'date'], 'date_rec');
+        $S_VAL = $detect($S_TBL, ['value_with_vat', 'ValueWithVAT', 'value'], 'value_with_vat');
+        $S_AREA = $detect($S_TBL, ['region_name', 'region', 'Region', 'area']); // area/region column
+        $S_STATUS = $detect($S_TBL, ['status', 'Status'], 'status');
 
         $areaFilter = $r->input('area');
 
         // Inquiries by month/area
         $qI = DB::table($P_TBL)
-            ->selectRaw("DATE_FORMAT($P_DATE, '%Y-%m') AS ym, COALESCE($P_AREA,'—') AS area, SUM(".$cast($P_VAL).") AS total")
+            ->selectRaw("DATE_FORMAT($P_DATE, '%Y-%m') AS ym, COALESCE($P_AREA,'—') AS area, SUM(" . $cast($P_VAL) . ") AS total")
             ->whereBetween(DB::raw($P_DATE), [$start->toDateString(), $end->toDateString()])
-            ->groupBy('ym','area');
+            ->groupBy('ym', 'area');
         if (!empty($areaFilter)) $qI->where($P_AREA, $areaFilter);
         $rowsI = $qI->get();
 
         // Sales (Accepted) by month/area
         $qS = DB::table($S_TBL)
-            ->selectRaw("DATE_FORMAT($S_DATE, '%Y-%m') AS ym, COALESCE($S_AREA,'—') AS area, SUM(".$cast($S_VAL).") AS total")
+            ->selectRaw("DATE_FORMAT($S_DATE, '%Y-%m') AS ym, COALESCE($S_AREA,'—') AS area, SUM(" . $cast($S_VAL) . ") AS total")
             ->whereBetween(DB::raw($S_DATE), [$start->toDateString(), $end->toDateString()])
             ->whereRaw("LOWER($S_STATUS) = 'accepted'")
-            ->groupBy('ym','area');
+            ->groupBy('ym', 'area');
         if (!empty($areaFilter)) $qS->where($S_AREA, $areaFilter);
         $rowsS = $qS->get();
 
@@ -125,17 +126,17 @@ class ForecastApiController extends Controller
         $regions = collect($regionsPref)->merge($regionsAll->diff($regionsPref))->values()->all();
 
         // Build index: idx[Metric][ym][area] = total
-        $idx = ['Forecast'=>[], 'Inquiries'=>[], 'Sales'=>[]];
-        foreach ($rowsF as $rF) $idx['Forecast'][$rF->ym][$rF->area]  = (float) $rF->total;
-        foreach ($rowsI as $rI) $idx['Inquiries'][$rI->ym][$rI->area] = (float) $rI->total;
-        foreach ($rowsS as $rS) $idx['Sales'][$rS->ym][$rS->area]     = (float) $rS->total;
+        $idx = ['Forecast' => [], 'Inquiries' => [], 'Sales' => []];
+        foreach ($rowsF as $rF) $idx['Forecast'][$rF->ym][$rF->area] = (float)$rF->total;
+        foreach ($rowsI as $rI) $idx['Inquiries'][$rI->ym][$rI->area] = (float)$rI->total;
+        foreach ($rowsS as $rS) $idx['Sales'][$rS->ym][$rS->area] = (float)$rS->total;
         // Monthly × Region (stack) × Metric
-        $metrics  = ['Forecast','Inquiries','Sales'];
+        $metrics = ['Forecast', 'Inquiries', 'Sales'];
         $mrSeries = [];
         foreach ($regions as $rg) {
             foreach ($metrics as $mName) {
                 $data = [];
-                foreach ($months as $ym) $data[] = (float) ($idx[$mName][$ym][$rg] ?? 0);
+                foreach ($months as $ym) $data[] = (float)($idx[$mName][$ym][$rg] ?? 0);
                 $mrSeries[] = ['name' => "$rg – $mName", 'stack' => $rg, 'data' => $data];
             }
         }
@@ -146,43 +147,43 @@ class ForecastApiController extends Controller
             $summarySeries[] = [
                 'name' => $mName,
                 'data' => array_map(
-                    fn($rg) => array_sum(array_map(fn($ym) => (float) ($idx[$mName][$ym][$rg] ?? 0), $months)),
+                    fn($rg) => array_sum(array_map(fn($ym) => (float)($idx[$mName][$ym][$rg] ?? 0), $months)),
                     $regions
                 ),
             ];
         }
 
         // Simple monthly totals (summed across regions)
-        $monthlyForecast  = [];
+        $monthlyForecast = [];
         $monthlyInquiries = [];
-        $monthlySales     = [];
+        $monthlySales = [];
         foreach ($months as $ym) {
-            $monthlyForecast[]  = array_sum($idx['Forecast'][$ym]  ?? []);
+            $monthlyForecast[] = array_sum($idx['Forecast'][$ym] ?? []);
             $monthlyInquiries[] = array_sum($idx['Inquiries'][$ym] ?? []);
-            $monthlySales[]     = array_sum($idx['Sales'][$ym]     ?? []);
+            $monthlySales[] = array_sum($idx['Sales'][$ym] ?? []);
         }
 
         // Legacy: expose forecast rows as "monthly"
         $monthly = $rowsF;
 
         return response()->json([
-            'area'         => $byArea,
-            'salesman'     => $salesmanAgg,
-            'total_value'  => (float) $total,
+            'area' => $byArea,
+            'salesman' => $salesmanAgg,
+            'total_value' => (float)$total,
             'region_scope' => $regionScope,
 
             // NEW comparison payloads
             'monthly_region_metrics' => [
                 'categories' => $months,
-                'series'     => $mrSeries,
+                'series' => $mrSeries,
             ],
             'region_summary' => [
                 'categories' => $regions,
-                'series'     => $summarySeries,
+                'series' => $summarySeries,
             ],
-            'monthly_forecast'  => [ 'categories' => $months, 'series' => $monthlyForecast ],
-            'monthly_inquiries' => [ 'categories' => $months, 'series' => $monthlyInquiries ],
-            'monthly_sales'     => [ 'categories' => $months, 'series' => $monthlySales ],
+            'monthly_forecast' => ['categories' => $months, 'series' => $monthlyForecast],
+            'monthly_inquiries' => ['categories' => $months, 'series' => $monthlyInquiries],
+            'monthly_sales' => ['categories' => $months, 'series' => $monthlySales],
             'monthly' => $monthly,
         ]);
     }
@@ -195,8 +196,8 @@ class ForecastApiController extends Controller
         $qb = $this->baseQuery($r);
 
         return response()->json([
-            'sum_value' => (float) ((clone $qb)->selectRaw('SUM(COALESCE(value_sar,0)) AS t')->value('t') ?? 0),
-            'count'     => (int)   ((clone $qb)->count()),
+            'sum_value' => (float)((clone $qb)->selectRaw('SUM(COALESCE(value_sar,0)) AS t')->value('t') ?? 0),
+            'count' => (int)((clone $qb)->count()),
         ]);
     }
 
@@ -211,13 +212,13 @@ class ForecastApiController extends Controller
 
         // Date filters (priority: date range > month(+year) > year)
         $dateFrom = $r->query('date_from');
-        $dateTo   = $r->query('date_to');
-        $year     = $r->integer('year');
-        $month    = $r->integer('month'); // 1..12
+        $dateTo = $r->query('date_to');
+        $year = $r->integer('year');
+        $month = $r->integer('month'); // 1..12
 
         if ($dateFrom || $dateTo) {
             $from = $dateFrom ?: '1900-01-01';
-            $to   = $dateTo   ?: '2999-12-31';
+            $to = $dateTo ?: '2999-12-31';
             $qb->whereBetween('month', [$from, $to]);
         } elseif ($month) {
             if ($year) {
@@ -237,12 +238,12 @@ class ForecastApiController extends Controller
                     $q->whereRaw('LOWER(products) LIKE ?', ['%duct%']);
                 } elseif ($fam === 'dampers') {
                     $q->whereRaw('LOWER(products) LIKE ?', ['%damper%']);
-                } elseif (in_array($fam, ['sound','sound_attenuators','attenuators','attenuator'])) {
+                } elseif (in_array($fam, ['sound', 'sound_attenuators', 'attenuators', 'attenuator'])) {
                     $q->whereRaw('LOWER(products) LIKE ?', ['%attenuator%']);
                 } elseif ($fam === 'accessories') {
                     $q->whereRaw('LOWER(products) LIKE ?', ['%accessor%']);
                 } else {
-                    $q->whereRaw('LOWER(products) LIKE ?', ['%'.$fam.'%']);
+                    $q->whereRaw('LOWER(products) LIKE ?', ['%' . $fam . '%']);
                 }
             });
         }
@@ -254,7 +255,7 @@ class ForecastApiController extends Controller
 
         // Salesman filter
         if ($r->filled('salesman')) {
-            $qb->where('salesman', 'like', '%'.$r->query('salesman').'%');
+            $qb->where('salesman', 'like', '%' . $r->query('salesman') . '%');
         }
 
         // Region enforcement (RBAC then UI)

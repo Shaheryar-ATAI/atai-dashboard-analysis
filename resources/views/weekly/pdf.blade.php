@@ -19,58 +19,117 @@
     <meta charset="utf-8">
     <title>Weekly Sales Activities Report</title>
     <style>
-        @page { margin: 20mm 18mm 28mm 18mm; }
-        body  { font-family: DejaVu Sans, Arial, sans-serif; font-size: 12px; color:#111; }
+        @page {
+            margin: 20mm 18mm 28mm 18mm;
+        }
+
+        body {
+            font-family: DejaVu Sans, Arial, sans-serif;
+            font-size: 12px;
+            color: #111;
+        }
 
         /* ===== HEADER BAR ===== */
         .header {
-            background:#0c7135; color:#fff; padding:10px 14px; border-radius:6px;
+            background: #0c7135;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 6px;
         }
-        .header-table { width:100%; border-collapse:collapse; }
-        .header-table td { vertical-align:middle; }
-        .logo { height:50px; display:block; }
-        .company { font-size:18px; font-weight:800; letter-spacing:.3px; }
-        .subtitle { font-size:13px; font-weight:600; color:#e8ffe8; }
+
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .header-table td {
+            vertical-align: middle;
+        }
+
+        .logo {
+            height: 50px;
+            display: block;
+        }
+
+        .company {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: .3px;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            font-weight: 600;
+            color: #e8ffe8;
+        }
 
         /* ===== META BOX ===== */
         .meta {
-            width:100%; border-collapse:collapse; margin:10px 0 15px 0;
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0 15px 0;
         }
+
         .meta td {
-            border:1px solid #d9d9d9; padding:6px 8px; font-size:11.5px;
+            border: 1px solid #d9d9d9;
+            padding: 6px 8px;
+            font-size: 11.5px;
         }
+
         .meta .lb {
-            background:#f3f6f3; font-weight:600; color:#333; width:130px;
+            background: #f3f6f3;
+            font-weight: 600;
+            color: #333;
+            width: 130px;
         }
 
         /* ===== MAIN TABLE ===== */
         table.grid {
-            width:100%;
-            margin:0 auto;                 /* center the table */
-            table-layout:fixed;            /* prevent column expansion */
-            border-collapse:collapse;
-            border:1px solid #e6e6e6;
+            width: 100%;
+            margin: 0 auto; /* center the table */
+            table-layout: fixed; /* prevent column expansion */
+            border-collapse: collapse;
+            border: 1px solid #e6e6e6;
         }
+
         .grid thead th {
-            background:#f2f2f2; color:#222; font-weight:600;
-            text-align:left; padding:6px 6px; border:1px solid #e6e6e6;
+            background: #f2f2f2;
+            color: #222;
+            font-weight: 600;
+            text-align: left;
+            padding: 6px 6px;
+            border: 1px solid #e6e6e6;
         }
+
         .grid tbody td {
-            border:1px solid #e6e6e6; padding:6px 6px;
-            font-size:8px;                 /* small but readable on A4 */
-            vertical-align:top;
-            word-wrap:break-word;          /* dompdf-friendly wrapping */
-            word-break:break-word;
+            border: 1px solid #e6e6e6;
+            padding: 6px 6px;
+            font-size: 8px; /* small but readable on A4 */
+            vertical-align: top;
+            word-wrap: break-word; /* dompdf-friendly wrapping */
+            word-break: break-word;
         }
-        .grid tbody tr:nth-child(odd) td { background:#fcfcfc; }
-        .center { text-align:center; }
-        .right  { text-align:right; }
-        .nowrap { white-space:nowrap; }
+
+        .grid tbody tr:nth-child(odd) td {
+            background: #fcfcfc;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .right {
+            text-align: right;
+        }
+
+        .nowrap {
+            white-space: nowrap;
+        }
 
         /* Quotation # column (4th): allow hard breaks on dots/numbers */
         .grid thead th:nth-child(4),
         .grid tbody td:nth-child(4) {
-            word-break:break-all;
+            word-break: break-all;
         }
 
         /* Keep Mobile & Date in one line to stay compact */
@@ -78,15 +137,23 @@
         .grid tbody td:nth-child(9),
         .grid thead th:nth-child(10),
         .grid tbody td:nth-child(10) {
-            white-space:nowrap;
+            white-space: nowrap;
         }
 
         /* ===== FOOTER ===== */
         .footer {
-            position:fixed; bottom:-8px; left:0; right:0;
-            text-align:center; font-size:11px; color:#777;
+            position: fixed;
+            bottom: -8px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 11px;
+            color: #777;
         }
-        .pagenum:before { content: counter(page); }
+
+        .pagenum:before {
+            content: counter(page);
+        }
     </style>
 
 </head>
@@ -111,10 +178,22 @@
 
 <!-- ===== META INFORMATION ===== -->
 <table class="meta">
-    <tr><td class="lb">Week</td><td>{{ $weekStart->format('d M Y') }} – {{ $weekEnd->format('d M Y') }}</td></tr>
-    <tr><td class="lb">Generated</td><td>{{ $today->format('d M Y') }}</td></tr>
-    <tr><td class="lb">Sales Engineer</td><td>{{ $engineer }}</td></tr>
-    <tr><td class="lb">Region</td><td>{{ ucfirst($region) }}</td></tr>
+    <tr>
+        <td class="lb">Week</td>
+        <td>{{ $weekStart->format('d M Y') }} – {{ $weekEnd->format('d M Y') }}</td>
+    </tr>
+    <tr>
+        <td class="lb">Generated</td>
+        <td>{{ $today->format('d M Y') }}</td>
+    </tr>
+    <tr>
+        <td class="lb">Sales Engineer</td>
+        <td>{{ $engineer }}</td>
+    </tr>
+    <tr>
+        <td class="lb">Region</td>
+        <td>{{ ucfirst($region) }}</td>
+    </tr>
 </table>
 
 <!-- ===== MAIN DATA TABLE ===== -->
@@ -173,7 +252,6 @@
     @endforelse
     </tbody>
 </table>
-
 
 
 <!-- ===== FOOTER ===== -->

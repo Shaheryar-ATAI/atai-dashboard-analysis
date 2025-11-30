@@ -42,7 +42,7 @@ class PerformanceController extends Controller
     private function poAreaExpr(string $alias = 's'): string
     {
         $norm = $this->qual($alias, 'region'); // -> `s`.`Region (normalized)`
-        $raw  = $this->qual($alias, 'region');               // -> `s`.`region`
+        $raw = $this->qual($alias, 'region');               // -> `s`.`region`
 
         return "LOWER(TRIM(CONVERT(COALESCE(NULLIF($norm,''), $raw, 'Not Mentioned') USING utf8mb4))) COLLATE utf8mb4_unicode_ci";
     }
@@ -54,21 +54,21 @@ class PerformanceController extends Controller
     /** Performance landing page */
     public function index()
     {
-        $year = (int) request('year', now()->year);
+        $year = (int)request('year', now()->year);
 
         // Inquiries total
-        $quotationTotal = (float) DB::table('projects')
+        $quotationTotal = (float)DB::table('projects')
             ->whereYear('quotation_date', $year)
             ->selectRaw('SUM(COALESCE(quotation_value,0)) s')->value('s');
 
         // POs total (cast text → DECIMAL)
-        $poTotal = (float) DB::table('salesorderlog')
+        $poTotal = (float)DB::table('salesorderlog')
             ->whereYear('date_rec', $year)
             ->selectRaw('SUM(' . $this->poAmountExpr() . ') s')->value('s');
 
         // By Area (projects vs POs)
         $areaExprProj = "LOWER(TRIM(CONVERT(COALESCE(p.area, 'Not Mentioned') USING utf8mb4))) COLLATE utf8mb4_unicode_ci";
-        $areaExprPO   = $this->poAreaExpr('s');
+        $areaExprPO = $this->poAreaExpr('s');
 
         $inqSub = DB::table('projects as p')
             ->selectRaw("$areaExprProj AS area_norm")
@@ -96,18 +96,18 @@ class PerformanceController extends Controller
     /** Area summary page */
     public function area(Request $request)
     {
-        $year = (int) ($request->get('year') ?: now()->year);
+        $year = (int)($request->get('year') ?: now()->year);
 
-        $quotationTotal = (float) DB::table('projects')
+        $quotationTotal = (float)DB::table('projects')
             ->whereYear('quotation_date', $year)
             ->selectRaw('SUM(COALESCE(quotation_value,0)) s')->value('s');
 
-        $poTotal = (float) DB::table('salesorderlog')
+        $poTotal = (float)DB::table('salesorderlog')
             ->whereYear('date_rec', $year)
             ->selectRaw('SUM(' . $this->poAmountExpr() . ') s')->value('s');
 
         $areaExprProj = "LOWER(TRIM(CONVERT(COALESCE(p.area, 'Not Mentioned') USING utf8mb4))) COLLATE utf8mb4_unicode_ci";
-        $areaExprPO   = $this->poAreaExpr('s');
+        $areaExprPO = $this->poAreaExpr('s');
 
         $inqSub = DB::table('projects as p')
             ->selectRaw("$areaExprProj AS area_norm")
@@ -139,18 +139,18 @@ class PerformanceController extends Controller
     /** DataTables source for area pivots (inquiries & pos) */
     public function areaData(Request $request)
     {
-        $year = (int) $request->get('year', now()->year);
+        $year = (int)$request->get('year', now()->year);
         $kind = $request->get('kind', 'inquiries');
 
         if ($kind === 'pos') {
-            $table   = 'salesorderlog';
-            $date    = 'date_rec';
-            $value   = $this->poAmountExpr();     // numeric expression
+            $table = 'salesorderlog';
+            $date = 'date_rec';
+            $value = $this->poAmountExpr();     // numeric expression
             $areaCol = $this->qid('region');      // `region`
         } else {
-            $table   = 'projects';
-            $date    = 'quotation_date';
-            $value   = 'COALESCE(quotation_value,0)';
+            $table = 'projects';
+            $date = 'quotation_date';
+            $value = 'COALESCE(quotation_value,0)';
             $areaCol = 'area';
         }
 
@@ -173,7 +173,7 @@ class PerformanceController extends Controller
             ->groupBy('area')
             ->orderBy('area', 'asc');
 
-        $badgeTotal = (float) DB::table($table)
+        $badgeTotal = (float)DB::table($table)
             ->whereYear($date, $year)
             ->selectRaw("SUM($value) s")->value('s');
 
@@ -194,8 +194,8 @@ class PerformanceController extends Controller
     /** KPI JSON for SA vs Export (month + YTD) */
     public function areaKpis(Request $request)
     {
-        $year  = (int) $request->query('year',  now()->year);
-        $month = (int) $request->query('month', now()->month);
+        $year = (int)$request->query('year', now()->year);
+        $month = (int)$request->query('month', now()->month);
 
         // Inquiries (projects)
         $inqMonth = DB::table('projects')
@@ -203,32 +203,32 @@ class PerformanceController extends Controller
             ->selectRaw('COALESCE(SUM(quotation_value),0) AS actual')
             ->whereYear('quotation_date', $year)
             ->whereMonth('quotation_date', $month)
-            ->groupBy('bucket')->pluck('actual','bucket');
+            ->groupBy('bucket')->pluck('actual', 'bucket');
 
         $inqYtd = DB::table('projects')
             ->selectRaw($this->isSaudiAreaExpr('area') . ' AS bucket')
             ->selectRaw('COALESCE(SUM(quotation_value),0) AS actual')
             ->whereYear('quotation_date', $year)
             ->whereMonth('quotation_date', '<=', $month)
-            ->groupBy('bucket')->pluck('actual','bucket');
+            ->groupBy('bucket')->pluck('actual', 'bucket');
 
         // POs (salesorderlog)
         $bucketExpr = $this->isSaudiAreaExpr('region'); // pass plain name; helper will quote
-        $amount     = $this->poAmountExpr();
+        $amount = $this->poAmountExpr();
 
         $poMonth = DB::table('salesorderlog')
             ->selectRaw("$bucketExpr AS bucket")
             ->selectRaw("COALESCE(SUM($amount),0) AS actual")
             ->whereYear('date_rec', $year)
             ->whereMonth('date_rec', $month)
-            ->groupBy('bucket')->pluck('actual','bucket');
+            ->groupBy('bucket')->pluck('actual', 'bucket');
 
         $poYtd = DB::table('salesorderlog')
             ->selectRaw("$bucketExpr AS bucket")
             ->selectRaw("COALESCE(SUM($amount),0) AS actual")
             ->whereYear('date_rec', $year)
             ->whereMonth('date_rec', '<=', $month)
-            ->groupBy('bucket')->pluck('actual','bucket');
+            ->groupBy('bucket')->pluck('actual', 'bucket');
 
         // Budgets (area_targets)
         $targets = DB::table('area_targets')
@@ -237,47 +237,49 @@ class PerformanceController extends Controller
             ->selectRaw('SUM(CASE WHEN month = ? THEN amount ELSE 0 END) AS month_budget', [$month])
             ->selectRaw('SUM(CASE WHEN month <= ? THEN amount ELSE 0 END) AS ytd_budget', [$month])
             ->where('year', $year)
-            ->whereIn('metric', ['inquiries','pos'])
-            ->groupBy('metric','bucket')
+            ->whereIn('metric', ['inquiries', 'pos'])
+            ->groupBy('metric', 'bucket')
             ->get()->groupBy(fn($r) => $r->metric);
 
-        $pack = function(float $actual, float $budget): array {
+        $pack = function (float $actual, float $budget): array {
             $variance = $actual - $budget;
-            $percent  = $budget > 0 ? round(($actual / $budget) * 100, 2) : null;
-            return ['actual'=>$actual, 'budget'=>$budget, 'variance'=>$variance, 'percent'=>$percent];
+            $percent = $budget > 0 ? round(($actual / $budget) * 100, 2) : null;
+            return ['actual' => $actual, 'budget' => $budget, 'variance' => $variance, 'percent' => $percent];
         };
 
-        $buckets = ['Saudi Arabia','Export'];
+        $buckets = ['Saudi Arabia', 'Export'];
         $response = [
-            'year'  => $year,
+            'year' => $year,
             'month' => $month,
-            'inquiries' => ['month' => [], 'ytd' => [], 'month_total'=>null, 'ytd_total'=>null],
-            'pos'       => ['month' => [], 'ytd' => [], 'month_total'=>null, 'ytd_total'=>null],
+            'inquiries' => ['month' => [], 'ytd' => [], 'month_total' => null, 'ytd_total' => null],
+            'pos' => ['month' => [], 'ytd' => [], 'month_total' => null, 'ytd_total' => null],
         ];
 
-        foreach (['inquiries','pos'] as $metric) {
+        foreach (['inquiries', 'pos'] as $metric) {
             $rows = $targets->get($metric, collect());
             $monthBudgetByBucket = $rows->pluck('month_budget', 'bucket');
-            $ytdBudgetByBucket   = $rows->pluck('ytd_budget', 'bucket');
+            $ytdBudgetByBucket = $rows->pluck('ytd_budget', 'bucket');
 
             $monthActuals = $metric === 'inquiries' ? $inqMonth : $poMonth;
-            $ytdActuals   = $metric === 'inquiries' ? $inqYtd   : $poYtd;
+            $ytdActuals = $metric === 'inquiries' ? $inqYtd : $poYtd;
 
-            $mtA=$mtB=$ytA=$ytB=0;
+            $mtA = $mtB = $ytA = $ytB = 0;
             foreach ($buckets as $b) {
                 $ma = (float)($monthActuals[$b] ?? 0);
-                $ya = (float)($ytdActuals[$b]   ?? 0);
+                $ya = (float)($ytdActuals[$b] ?? 0);
                 $mb = (float)($monthBudgetByBucket[$b] ?? 0);
-                $yb = (float)($ytdBudgetByBucket[$b]   ?? 0);
+                $yb = (float)($ytdBudgetByBucket[$b] ?? 0);
 
-                $response[$metric]['month'][$b] = $pack($ma,$mb);
-                $response[$metric]['ytd'][$b]   = $pack($ya,$yb);
+                $response[$metric]['month'][$b] = $pack($ma, $mb);
+                $response[$metric]['ytd'][$b] = $pack($ya, $yb);
 
-                $mtA += $ma; $mtB += $mb;
-                $ytA += $ya; $ytB += $yb;
+                $mtA += $ma;
+                $mtB += $mb;
+                $ytA += $ya;
+                $ytB += $yb;
             }
-            $response[$metric]['month_total'] = $pack($mtA,$mtB);
-            $response[$metric]['ytd_total']   = $pack($ytA,$ytB);
+            $response[$metric]['month_total'] = $pack($mtA, $mtB);
+            $response[$metric]['ytd_total'] = $pack($ytA, $ytB);
         }
 
         return response()->json($response);
@@ -347,22 +349,21 @@ class PerformanceController extends Controller
         }
 
         // DataTables plumbing
-        $draw   = (int)$request->get('draw', 1);
+        $draw = (int)$request->get('draw', 1);
         $search = trim((string)($request->input('search.value') ?? ''));
-        $data   = $rows->toArray();
+        $data = $rows->toArray();
 
         if ($search !== '') {
-            $data = array_values(array_filter($data, fn($r) =>
-                stripos($r->product ?? 'Unspecified', $search) !== false
+            $data = array_values(array_filter($data, fn($r) => stripos($r->product ?? 'Unspecified', $search) !== false
             ));
         }
 
-        $recordsTotal    = count($rows);
+        $recordsTotal = count($rows);
         $recordsFiltered = count($data);
-        $start  = (int)$request->get('start', 0);
+        $start = (int)$request->get('start', 0);
         $length = (int)$request->get('length', 25);
-        $page   = array_slice($data, $start, $length);
-        $sum_total = array_reduce($data, fn($c,$r)=>$c + (float)$r->total, 0.0);
+        $page = array_slice($data, $start, $length);
+        $sum_total = array_reduce($data, fn($c, $r) => $c + (float)$r->total, 0.0);
 
         return response()->json([
             'draw' => $draw,
@@ -386,7 +387,7 @@ class PerformanceController extends Controller
             ->get();
 
         $amount = $this->poAmountExpr();
-        $po  = DB::table('salesorderlog as s')
+        $po = DB::table('salesorderlog as s')
             ->selectRaw("COALESCE(NULLIF(TRIM(s.products),''),'Unspecified') AS product,
                          SUM($amount) AS val")
             ->whereYear('s.date_rec', $year)
@@ -401,18 +402,18 @@ class PerformanceController extends Controller
         )));
         $cats = array_slice($cats, 0, 12);
 
-        $mapInq = $inq->pluck('val','product');
-        $mapPo  = $po->pluck('val','product');
+        $mapInq = $inq->pluck('val', 'product');
+        $mapPo = $po->pluck('val', 'product');
 
-        $inquiries = array_map(fn($p)=> (float)($mapInq[$p] ?? 0), $cats);
-        $pos       = array_map(fn($p)=> (float)($mapPo[$p]  ?? 0), $cats);
+        $inquiries = array_map(fn($p) => (float)($mapInq[$p] ?? 0), $cats);
+        $pos = array_map(fn($p) => (float)($mapPo[$p] ?? 0), $cats);
 
         return response()->json([
-            'categories'     => $cats,
-            'inquiries'      => $inquiries,
-            'pos'            => $pos,
-            'sum_inquiries'  => array_sum($inquiries),
-            'sum_pos'        => array_sum($pos),
+            'categories' => $cats,
+            'inquiries' => $inquiries,
+            'pos' => $pos,
+            'sum_inquiries' => array_sum($inquiries),
+            'sum_pos' => array_sum($pos),
         ]);
     }
 }

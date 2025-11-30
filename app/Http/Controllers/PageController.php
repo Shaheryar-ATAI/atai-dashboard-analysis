@@ -19,7 +19,6 @@ class PageController extends Controller
     }
 
 
-
     // POST /login
     public function loginPost(Request $request)
     {
@@ -27,11 +26,11 @@ class PageController extends Controller
         $request->merge(['email' => trim($request->input('email') ?? '')]);
 
         $credentials = $request->validate([
-            'email'    => ['required', 'email'],
+            'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
 
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+        if (!Auth::attempt($credentials, $request->boolean('remember'))) {
             return back()
                 ->withInput($request->only('email'))
                 ->withErrors(['auth' => 'Incorrect email or password.']);
@@ -41,9 +40,9 @@ class PageController extends Controller
         $user = Auth::user();
 
         // ---- Role groups ----
-        $salesRoles        = ['sales_eastern', 'sales_central', 'sales_western'];
-        $coordinatorRoles  = ['project_coordinator_eastern', 'project_coordinator_western'];
-        $estimatorRoles    = ['estimator'];
+        $salesRoles = ['sales_eastern', 'sales_central', 'sales_western'];
+        $coordinatorRoles = ['project_coordinator_eastern', 'project_coordinator_western'];
+        $estimatorRoles = ['estimator'];
 
         $canViewAll = method_exists($user, 'hasAnyRole')
             && $user->hasAnyRole(['gm', 'admin']);
@@ -61,7 +60,7 @@ class PageController extends Controller
         $hasRegionalRole = $hasSalesRole || $hasCoordinatorRole;
 
         // If user is not GM/Admin, not regional (sales/coordinator), and not estimator → block
-        if (! $canViewAll && ! $hasRegionalRole && ! $hasEstimatorRole) {
+        if (!$canViewAll && !$hasRegionalRole && !$hasEstimatorRole) {
             Auth::logout();
             return back()
                 ->withInput($request->only('email'))
@@ -100,8 +99,6 @@ class PageController extends Controller
     }
 
 
-
-
     // POST /logout
     public function logout(Request $request)
     {
@@ -133,12 +130,10 @@ class PageController extends Controller
             ->get(['name']);
 
         return view('projects.inquiries_log', [
-            'user'      => $user,
-            'salesmen'  => $salesmen,
+            'user' => $user,
+            'salesmen' => $salesmen,
         ]);
     }
-
-
 
 
 }

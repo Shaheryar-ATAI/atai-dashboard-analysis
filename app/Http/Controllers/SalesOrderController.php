@@ -45,16 +45,16 @@ class SalesOrderController extends Controller
     private function colMap(): array
     {
         return [
-            'date_rec_d'       => "`date_rec`", // normalized DATE col
-            'po_no'            => "`PO. No.`",
-            'client_name'      => "`Client Name`",
-            'project_name'     => "`Project Name`",
-            'region_name'      => $this->regionExpr(),
+            'date_rec_d' => "`date_rec`", // normalized DATE col
+            'po_no' => "`PO. No.`",
+            'client_name' => "`Client Name`",
+            'project_name' => "`Project Name`",
+            'region_name' => $this->regionExpr(),
             'project_location' => "`Project Location`",
-            'cur'              => "`Cur`",
-            'status'           => "`Status`",
+            'cur' => "`Cur`",
+            'status' => "`Status`",
 
-            'po_value'         => "CAST(NULLIF(REPLACE(REPLACE(`PO Value`, ',', ''), ' ', ''), '') AS DECIMAL(18,2))",
+            'po_value' => "CAST(NULLIF(REPLACE(REPLACE(`PO Value`, ',', ''), ' ', ''), '') AS DECIMAL(18,2))",
             'value_with_vat' => "CAST(NULLIF(REPLACE(REPLACE(`value_with_vat`, ',', ''), ' ', ''), '') AS DECIMAL(18,2))",
         ];
     }
@@ -70,15 +70,15 @@ class SalesOrderController extends Controller
         return DB::table('salesorderlog')->select([
             DB::raw('id'),
             DB::raw("DATE_FORMAT(`date_rec`, '%d-%m-%Y') AS date_rec_d"),
-            DB::raw($m['po_no']            . ' AS po_no'),
-            DB::raw($m['client_name']      . ' AS client_name'),
-            DB::raw($m['project_name']     . ' AS project_name'),
-            DB::raw($m['region_name']      . ' AS region_name'),
+            DB::raw($m['po_no'] . ' AS po_no'),
+            DB::raw($m['client_name'] . ' AS client_name'),
+            DB::raw($m['project_name'] . ' AS project_name'),
+            DB::raw($m['region_name'] . ' AS region_name'),
             DB::raw($m['project_location'] . ' AS project_location'),
-            DB::raw($m['cur']              . ' AS cur'),
-            DB::raw($m['po_value']         . ' AS po_value'),
-            DB::raw($m['value_with_vat']   . ' AS value_with_vat'),
-            DB::raw($m['status']           . ' AS status'),
+            DB::raw($m['cur'] . ' AS cur'),
+            DB::raw($m['po_value'] . ' AS po_value'),
+            DB::raw($m['value_with_vat'] . ' AS value_with_vat'),
+            DB::raw($m['status'] . ' AS status'),
         ]);
     }
 
@@ -101,8 +101,8 @@ class SalesOrderController extends Controller
         }
 
         // 2) Per-column filters (DataTables columns[i].search.value)
-        foreach ((array) $request->get('columns', []) as $c) {
-            $name  = $c['name'] ?? null;
+        foreach ((array)$request->get('columns', []) as $c) {
+            $name = $c['name'] ?? null;
             $value = trim($c['search']['value'] ?? '');
             if (!$name || $value === '') continue;
 
@@ -111,34 +111,34 @@ class SalesOrderController extends Controller
 
             if ($name === 'date_rec_d') {
                 // your grid displays DATE_FORMAT(date_rec,'%d-%m-%Y')
-                $qb->whereRaw("DATE_FORMAT(date_rec, '%d-%m-%Y') LIKE ?", [$value.'%']);
+                $qb->whereRaw("DATE_FORMAT(date_rec, '%d-%m-%Y') LIKE ?", [$value . '%']);
                 continue;
             }
 
             // numeric ranges for money columns
-            if (in_array($name, ['po_value','value_with_vat'], true)) {
+            if (in_array($name, ['po_value', 'value_with_vat'], true)) {
                 if (preg_match('/^\s*([\d.]+)\s*\.\.\s*([\d.]+)\s*$/', $value, $m2)) {
                     $qb->whereRaw($m[$name] . ' BETWEEN ? AND ?', [(float)$m2[1], (float)$m2[2]]);
                 } else {
                     $qb->whereRaw($m[$name] . ' >= ?', [(float)$value]);
                 }
             } else {
-                $qb->whereRaw($m[$name] . ' LIKE ?', ['%'.$value.'%']);
+                $qb->whereRaw($m[$name] . ' LIKE ?', ['%' . $value . '%']);
             }
         }
 
         // 3) Global search (search box, request->input('search.value'))
         $s = trim($request->input('search.value', ''));
         if ($s !== '') {
-            $like = '%'.$s.'%';
+            $like = '%' . $s . '%';
             $qb->where(function ($q) use ($like, $m) {
-                $q->whereRaw($m['po_no']             . ' LIKE ?', [$like])
-                    ->orWhereRaw($m['client_name']     . ' LIKE ?', [$like])
-                    ->orWhereRaw($m['project_name']    . ' LIKE ?', [$like])
-                    ->orWhereRaw($m['region_name']     . ' LIKE ?', [$like])
-                    ->orWhereRaw($m['project_location'].' LIKE ?', [$like])
-                    ->orWhereRaw($m['cur']             . ' LIKE ?', [$like])
-                    ->orWhereRaw($m['status']          . ' LIKE ?', [$like])
+                $q->whereRaw($m['po_no'] . ' LIKE ?', [$like])
+                    ->orWhereRaw($m['client_name'] . ' LIKE ?', [$like])
+                    ->orWhereRaw($m['project_name'] . ' LIKE ?', [$like])
+                    ->orWhereRaw($m['region_name'] . ' LIKE ?', [$like])
+                    ->orWhereRaw($m['project_location'] . ' LIKE ?', [$like])
+                    ->orWhereRaw($m['cur'] . ' LIKE ?', [$like])
+                    ->orWhereRaw($m['status'] . ' LIKE ?', [$like])
                     // search the formatted date the grid shows
                     ->orWhereRaw("DATE_FORMAT(date_rec, '%d-%m-%Y') LIKE ?", [$like]);
             });
@@ -148,7 +148,6 @@ class SalesOrderController extends Controller
     }
 
 
-
     /** DataTables endpoint with filtered totals. */
     public function datatableLog(Request $request)
     {
@@ -156,31 +155,32 @@ class SalesOrderController extends Controller
 
         // Base queries
         $rowsQ = $this->applyDtFilters($this->baseSelect(), $request);
-        $sumQ  = $this->applyDtFilters(DB::table('salesorderlog'), $request);
+        $sumQ = $this->applyDtFilters(DB::table('salesorderlog'), $request);
 
         // Apply top-level filters (same as the KPI filters)
         if ($request->filled('year')) {
-            $rowsQ->whereYear('date_rec', (int) $request->year);
-            $sumQ ->whereYear('date_rec', (int) $request->year);
+            $rowsQ->whereYear('date_rec', (int)$request->year);
+            $sumQ->whereYear('date_rec', (int)$request->year);
         }
         if ($request->filled('region')) {
-            $rowsQ->whereRaw($m['region_name'].' = ?', [$request->region]);
-            $sumQ ->whereRaw($m['region_name'].' = ?', [$request->region]);
+            $rowsQ->whereRaw($m['region_name'] . ' = ?', [$request->region]);
+            $sumQ->whereRaw($m['region_name'] . ' = ?', [$request->region]);
         }
 
         // Totals using the same filters
-        $sumPo  = (float) (clone $sumQ)->selectRaw('SUM(' . $m['po_value']       . ') AS s')->value('s');
-        $sumVat = (float) (clone $sumQ)->selectRaw('SUM(' . $m['value_with_vat'] . ') AS s')->value('s');
+        $sumPo = (float)(clone $sumQ)->selectRaw('SUM(' . $m['po_value'] . ') AS s')->value('s');
+        $sumVat = (float)(clone $sumQ)->selectRaw('SUM(' . $m['value_with_vat'] . ') AS s')->value('s');
 
         return DataTables::of($rowsQ)
-            ->filter(function () {}, true)
-            ->editColumn('po_value',       fn($r) => (float)$r->po_value)
+            ->filter(function () {
+            }, true)
+            ->editColumn('po_value', fn($r) => (float)$r->po_value)
             ->editColumn('value_with_vat', fn($r) => (float)$r->value_with_vat)
-            ->orderColumn('po_value',       $m['po_value']       . ' $1')
+            ->orderColumn('po_value', $m['po_value'] . ' $1')
             ->orderColumn('value_with_vat', $m['value_with_vat'] . ' $1')
             ->orderColumn('date_rec_d', 'date_rec $1')
             ->with([
-                'sum_po_value'       => $sumPo,
+                'sum_po_value' => $sumPo,
                 'sum_value_with_vat' => $sumVat,
             ])
             ->make(true);
@@ -194,13 +194,13 @@ class SalesOrderController extends Controller
      * ---------------------------------------------------------*/
     public function kpis(Request $r)
     {
-        $year   = $r->input('year');
+        $year = $r->input('year');
         $region = $r->input('region');        // UI sends "region"
-        $m      = $this->colMap();            // expects: region_name, value_with_vat, po_value, status, client_name, cur
+        $m = $this->colMap();            // expects: region_name, value_with_vat, po_value, status, client_name, cur
 
         // --- Base (no accidental soft-delete filter)
         $base = DB::table('salesorderlog');
-        if ($year)   $base->whereYear('date_rec', $year); // uses DATE column
+        if ($year) $base->whereYear('date_rec', $year); // uses DATE column
         if ($region) $base->whereRaw($m['region_name'] . ' = ?', [$region]);
 
         // Helper to re-use the same WHEREs
@@ -208,7 +208,7 @@ class SalesOrderController extends Controller
 
         // --- Robust numeric expressions (handle strings like "12,345.67")
         $vatExpr = "CAST(NULLIF(REPLACE(REPLACE({$m['value_with_vat']}, ',', ''), ' ', ''), '') AS DECIMAL(18,2))";
-        $poExpr  = "CAST(NULLIF(REPLACE(REPLACE({$m['po_value']},       ',', ''), ' ', ''), '') AS DECIMAL(18,2))";
+        $poExpr = "CAST(NULLIF(REPLACE(REPLACE({$m['po_value']},       ',', ''), ' ', ''), '') AS DECIMAL(18,2))";
 
         // --- Normalize statuses (align pie + bars)
         $statusCase = "
@@ -224,11 +224,11 @@ class SalesOrderController extends Controller
 
         // ---------- Totals (Accepted only)
         $totals = [
-            'value_with_vat' => (float) $mk()
+            'value_with_vat' => (float)$mk()
                 ->selectRaw("SUM($vatExpr) AS t")
                 ->whereRaw("LOWER({$m['status']}) = 'accepted'")
                 ->value('t'),
-            'po_value' => (float) $mk()
+            'po_value' => (float)$mk()
                 ->selectRaw("SUM($poExpr) AS t")
                 ->whereRaw("LOWER({$m['status']}) = 'accepted'")
                 ->value('t'),
@@ -288,22 +288,22 @@ class SalesOrderController extends Controller
             ->orderBy('region')
             ->get();
 
-        $statusOrder = ['Accepted','Pre-Acceptance','HOLD','Cancelled','Rejected'];
-        $regionsPref = ['Central','Eastern','Eastern Jubail','Western'];
+        $statusOrder = ['Accepted', 'Pre-Acceptance', 'HOLD', 'Cancelled', 'Rejected'];
+        $regionsPref = ['Central', 'Eastern', 'Eastern Jubail', 'Western'];
 
         $regionsAll = $rowsRS->pluck('region')->unique()->values();
-        $regions    = collect($regionsPref)->merge($regionsAll->diff($regionsPref))->values()->all();
+        $regions = collect($regionsPref)->merge($regionsAll->diff($regionsPref))->values()->all();
 
         $idxRS = [];
         foreach ($rowsRS as $r) {
-            $idxRS[$r->region][$r->status_norm] = (float) $r->total;
+            $idxRS[$r->region][$r->status_norm] = (float)$r->total;
         }
 
         $seriesRegionStatus = [];
         foreach ($statusOrder as $st) {
             $data = [];
             foreach ($regions as $rg) {
-                $data[] = (float) ($idxRS[$rg][$st] ?? 0);
+                $data[] = (float)($idxRS[$rg][$st] ?? 0);
             }
             $seriesRegionStatus[] = ['name' => $st, 'data' => $data, 'stack' => 'VAT'];
         }
@@ -326,14 +326,14 @@ class SalesOrderController extends Controller
 
         $idxMS = [];
         foreach ($rowsMS as $r) {
-            $idxMS[$r->ym][$r->status_norm] = (float) $r->total;
+            $idxMS[$r->ym][$r->status_norm] = (float)$r->total;
         }
 
         $seriesMonthlyStatus = [];
         foreach ($statusOrder as $st) {
             $data = [];
             foreach ($months as $ym) {
-                $data[] = (float) ($idxMS[$ym][$st] ?? 0);
+                $data[] = (float)($idxMS[$ym][$st] ?? 0);
             }
             $seriesMonthlyStatus[] = ['name' => $st, 'data' => $data, 'stack' => 'VAT'];
         }
@@ -345,12 +345,12 @@ class SalesOrderController extends Controller
         $rowsMRS = DB::query()
             ->fromSub($mrsSub, 't')
             ->selectRaw('ym, region, status_norm, SUM(vat) AS total')
-            ->groupBy('ym','region','status_norm')
+            ->groupBy('ym', 'region', 'status_norm')
             ->orderBy('ym')
             ->get();
 
         $regionsAllM = $rowsMRS->pluck('region')->unique()->values();
-        $regionsM    = collect($regions)->merge($regionsAllM->diff($regions))->values()->all();
+        $regionsM = collect($regions)->merge($regionsAllM->diff($regions))->values()->all();
 
         $seriesMonthlyRegionStatus = [];
         $seriesIndex = [];
@@ -358,9 +358,9 @@ class SalesOrderController extends Controller
             foreach ($statusOrder as $st) {
                 $key = "$rg – $st";
                 $seriesMonthlyRegionStatus[] = [
-                    'name'  => $key,
+                    'name' => $key,
                     'stack' => $rg,
-                    'data'  => array_fill(0, count($months), 0.0)
+                    'data' => array_fill(0, count($months), 0.0)
                 ];
                 $seriesIndex[$key] = count($seriesMonthlyRegionStatus) - 1;
             }
@@ -371,29 +371,29 @@ class SalesOrderController extends Controller
             if ($ymIdx === false) continue;
             $key = "{$r->region} – {$r->status_norm}";
             if (!isset($seriesIndex[$key])) continue;
-            $seriesMonthlyRegionStatus[$seriesIndex[$key]]['data'][$ymIdx] = (float) $r->total;
+            $seriesMonthlyRegionStatus[$seriesIndex[$key]]['data'][$ymIdx] = (float)$r->total;
         }
 
         // ---------- Response
         return response()->json([
-            'totals'      => $totals,
-            'by_region'   => $byRegion,
-            'by_status'   => $byStatus,
-            'monthly'     => $monthly,
+            'totals' => $totals,
+            'by_region' => $byRegion,
+            'by_status' => $byStatus,
+            'monthly' => $monthly,
             'top_clients' => $topClients,
             'by_currency' => $byCurrency,
 
             'by_region_status' => [
                 'categories' => $regions,
-                'series'     => $seriesRegionStatus,
+                'series' => $seriesRegionStatus,
             ],
             'monthly_status' => [
                 'categories' => $months,
-                'series'     => $seriesMonthlyStatus,
+                'series' => $seriesMonthlyStatus,
             ],
             'monthly_region_status' => [
                 'categories' => $months,
-                'series'     => $seriesMonthlyRegionStatus,
+                'series' => $seriesMonthlyRegionStatus,
             ],
         ]);
     }
@@ -401,14 +401,14 @@ class SalesOrderController extends Controller
     public function territorySales(Request $r)
     {
         // Optional filters (year/region same as your page)
-        $year   = $r->integer('year');
+        $year = $r->integer('year');
         $region = $r->input('region'); // Eastern / Central / Western
 
         // Map sales_man -> assigned_region (adjust names exactly as stored)
         $assigned = [
             'SOHAIB' => 'EASTERN',
-            'ABDO'   => 'WESTERN',
-            'TAREQ'  => 'CENTRAL',
+            'ABDO' => 'WESTERN',
+            'TAREQ' => 'CENTRAL',
         ];
 
         $qb = DB::table('salesorderlog')
@@ -418,7 +418,7 @@ class SalesOrderController extends Controller
             ])
             ->whereRaw("LOWER(`Status`) = 'accepted'");
 
-        if ($year)   $qb->whereYear('date_rec', $year);
+        if ($year) $qb->whereYear('date_rec', $year);
         if ($region) $qb->whereRaw('TRIM(UPPER(region)) = ?', [strtoupper($region)]); // optional, usually you don’t filter here
 
         $rows = $qb->get();
@@ -432,10 +432,10 @@ class SalesOrderController extends Controller
 
             if (!isset($stats[$sm])) {
                 $stats[$sm] = [
-                    'sales_man'       => $sm,
+                    'sales_man' => $sm,
                     'assigned_region' => $asg,
-                    'total_projects'  => 0,
-                    'outside_projects'=> 0,
+                    'total_projects' => 0,
+                    'outside_projects' => 0,
                 ];
             }
             $stats[$sm]['total_projects']++;
@@ -451,17 +451,17 @@ class SalesOrderController extends Controller
             $pct = $s['total_projects'] ? round(100 * $s['outside_projects'] / $s['total_projects'], 2) : 0;
             $flag = $pct >= 50 ? 'FLAG' : ($pct >= 35 ? 'WATCH' : 'OK');
             $out[] = [
-                'sales_man'        => $sm,
-                'assigned_region'  => $s['assigned_region'],
-                'total_projects'   => $s['total_projects'],
+                'sales_man' => $sm,
+                'assigned_region' => $s['assigned_region'],
+                'total_projects' => $s['total_projects'],
                 'outside_projects' => $s['outside_projects'],
-                'outside_percent'  => $pct,
-                'flag'             => $flag,
+                'outside_percent' => $pct,
+                'flag' => $flag,
             ];
         }
 
         // Sort by risk (highest outside%)
-        usort($out, fn($a,$b) => $b['outside_percent'] <=> $a['outside_percent']);
+        usort($out, fn($a, $b) => $b['outside_percent'] <=> $a['outside_percent']);
 
         return response()->json($out);
     }
@@ -469,14 +469,14 @@ class SalesOrderController extends Controller
 
     public function territoryInquiries(Request $r)
     {
-        $year   = $r->integer('year');
+        $year = $r->integer('year');
         $region = $r->input('region'); // optional filter, usually leave blank
 
         // Map salesman to assigned region — adjust names as you use them
         $assigned = [
             'SOHAIB' => 'EASTERN',
-            'ABDO'   => 'WESTERN',
-            'TAREQ'  => 'CENTRAL',
+            'ABDO' => 'WESTERN',
+            'TAREQ' => 'CENTRAL',
             // add others if needed …
         ];
 
@@ -490,7 +490,7 @@ class SalesOrderController extends Controller
                 DB::raw('TRIM(UPPER(area))     as region'),
             ]);
 
-        if ($year)   $qb->whereYear($dateExpr, $year);
+        if ($year) $qb->whereYear($dateExpr, $year);
         if ($region) $qb->whereRaw('TRIM(UPPER(area)) = ?', [strtoupper($region)]);
 
         $rows = $qb->get();
@@ -499,14 +499,14 @@ class SalesOrderController extends Controller
         $stats = [];
         foreach ($rows as $r0) {
             $sm = $r0->sales_man ?: 'UNKNOWN';
-            $rg = $r0->region    ?: 'UNKNOWN';
+            $rg = $r0->region ?: 'UNKNOWN';
             $asg = $assigned[$sm] ?? 'UNKNOWN';
 
             if (!isset($stats[$sm])) {
                 $stats[$sm] = [
-                    'sales_man'        => $sm,
-                    'assigned_region'  => $asg,
-                    'total_projects'   => 0,
+                    'sales_man' => $sm,
+                    'assigned_region' => $asg,
+                    'total_projects' => 0,
                     'outside_projects' => 0,
                 ];
             }
@@ -525,7 +525,7 @@ class SalesOrderController extends Controller
             $out[] = $s + ['outside_percent' => $pct, 'flag' => $flag];
         }
 
-        usort($out, fn($a,$b) => $b['outside_percent'] <=> $a['outside_percent']);
+        usort($out, fn($a, $b) => $b['outside_percent'] <=> $a['outside_percent']);
 
         return response()->json($out);
     }

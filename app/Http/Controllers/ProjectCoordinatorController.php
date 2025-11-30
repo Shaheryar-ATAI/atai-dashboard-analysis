@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
+
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Project;
@@ -27,12 +28,12 @@ class ProjectCoordinatorController extends Controller
 
         // GM/Admin → all salesmen
         if (method_exists($user, 'hasRole') && $user->hasRole('gm|admin')) {
-            return ['SOHAIB', 'TARIQ', 'JAMAL','SOAHIB','TAREQ', 'ABDO', 'AHMED'];
+            return ['SOHAIB', 'TARIQ', 'JAMAL', 'SOAHIB', 'TAREQ', 'ABDO', 'AHMED'];
         }
 
         // Shenoy → Eastern coordinator
         if ($name === 'shenoy') {
-            return ['SOHAIB', 'TARIQ','SOAHIB','TAREQ', 'JAMAL'];
+            return ['SOHAIB', 'TARIQ', 'SOAHIB', 'TAREQ', 'JAMAL'];
         }
 
         // Niyas → Western coordinator
@@ -46,7 +47,7 @@ class ProjectCoordinatorController extends Controller
 
     public function index(Request $request)
     {
-        $user       = $request->user();
+        $user = $request->user();
         $userRegion = strtolower($user->region ?? '');
 
 
@@ -56,12 +57,9 @@ class ProjectCoordinatorController extends Controller
         // - GM / Admin (canViewAll) → all
 
         // region scope (Eastern/Central/Western etc.)
-        $regionsScope  = $this->coordinatorRegionScope($user);
+        $regionsScope = $this->coordinatorRegionScope($user);
         // salesman scope (Sohaib/Tariq/Jamal etc.)
         $salesmenScope = $this->coordinatorSalesmenScope($user);
-
-
-
 
 
         /*
@@ -81,13 +79,13 @@ class ProjectCoordinatorController extends Controller
 
         // Projects (filtered by region + salesman)
         $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
-        $projects      = (clone $projectsQuery)
+        $projects = (clone $projectsQuery)
             ->orderByDesc('quotation_date')
             ->get();
 
         // Sales Orders (same logic)
         $salesOrdersQuery = SalesOrderLog::coordinatorBaseQuery($regionsScope, $salesmenScope);
-        $salesOrders      = (clone $salesOrdersQuery)
+        $salesOrders = (clone $salesOrdersQuery)
             ->orderByDesc('date_rec')
             ->get();
         /*
@@ -98,9 +96,9 @@ class ProjectCoordinatorController extends Controller
 
         $kpiProjectsCount = Project::kpiProjectsCountForCoordinator($regionsScope);
 
-        $salesKpis            = SalesOrderLog::kpisForCoordinator($regionsScope);
-        $kpiSalesOrdersCount  = $salesKpis['count'];
-        $kpiSalesOrdersValue  = $salesKpis['value'];
+        $salesKpis = SalesOrderLog::kpisForCoordinator($regionsScope);
+        $kpiSalesOrdersCount = $salesKpis['count'];
+        $kpiSalesOrdersValue = $salesKpis['value'];
 
         /*
         |--------------------------------------------------------------------------
@@ -110,12 +108,12 @@ class ProjectCoordinatorController extends Controller
 
         // Chart (still by region, but only for visible records)
         $projectByRegion = Project::quotationTotalsByRegion($regionsScope);
-        $poByRegion      = SalesOrderLog::poTotalsByRegion($regionsScope);
+        $poByRegion = SalesOrderLog::poTotalsByRegion($regionsScope);
 
-        $regions         = ['eastern', 'central', 'western'];
+        $regions = ['eastern', 'central', 'western'];
         $chartCategories = [];
-        $chartProjects   = [];
-        $chartPOs        = [];
+        $chartProjects = [];
+        $chartPOs = [];
 
         foreach ($regions as $r) {
             if (!in_array($r, $regionsScope)) {
@@ -123,22 +121,22 @@ class ProjectCoordinatorController extends Controller
             }
 
             $chartCategories[] = ucfirst($r);
-            $chartProjects[]   = (float) ($projectByRegion[$r] ?? 0);
-            $chartPOs[]        = (float) ($poByRegion[$r] ?? 0);
+            $chartProjects[] = (float)($projectByRegion[$r] ?? 0);
+            $chartPOs[] = (float)($poByRegion[$r] ?? 0);
         }
 
         return view('coordinator.index', [
-            'userRegion'           => $userRegion,
-            'regionsScope'         => $regionsScope,
-            'salesmenScope'        => $salesmenScope,
-            'kpiProjectsCount'     => $kpiProjectsCount,
-            'kpiSalesOrdersCount'  => $kpiSalesOrdersCount,
-            'kpiSalesOrdersValue'  => $kpiSalesOrdersValue,
-            'projects'             => $projects,
-            'salesOrders'          => $salesOrders,
-            'chartCategories'      => $chartCategories,
-            'chartProjects'        => $chartProjects,
-            'chartPOs'             => $chartPOs,
+            'userRegion' => $userRegion,
+            'regionsScope' => $regionsScope,
+            'salesmenScope' => $salesmenScope,
+            'kpiProjectsCount' => $kpiProjectsCount,
+            'kpiSalesOrdersCount' => $kpiSalesOrdersCount,
+            'kpiSalesOrdersValue' => $kpiSalesOrdersValue,
+            'projects' => $projects,
+            'salesOrders' => $salesOrders,
+            'chartCategories' => $chartCategories,
+            'chartProjects' => $chartProjects,
+            'chartPOs' => $chartPOs,
         ]);
     }
 
@@ -147,16 +145,16 @@ class ProjectCoordinatorController extends Controller
         $user = Auth::user();
 
         $data = $request->validate([
-            'source'        => ['required', 'in:project,salesorder'],
-            'record_id'     => ['required', 'integer'],
-            'job_no'        => ['nullable', 'string', 'max:255'],
-            'po_no'         => ['required', 'string', 'max:255'],
-            'po_date'       => ['required', 'date'],
-            'po_value'      => ['required', 'numeric', 'min:0'],
+            'source' => ['required', 'in:project,salesorder'],
+            'record_id' => ['required', 'integer'],
+            'job_no' => ['nullable', 'string', 'max:255'],
+            'po_no' => ['required', 'string', 'max:255'],
+            'po_date' => ['required', 'date'],
+            'po_value' => ['required', 'numeric', 'min:0'],
             'payment_terms' => ['nullable', 'string', 'max:255'],
-            'remarks'       => ['nullable', 'string'],
+            'remarks' => ['nullable', 'string'],
             'attachments.*' => ['file', 'max:51200'], // 50 MB
-            'oaa'           => ['nullable', 'string', 'max:50'],
+            'oaa' => ['nullable', 'string', 'max:50'],
         ]);
 
         try {
@@ -168,9 +166,9 @@ class ProjectCoordinatorController extends Controller
                     $so = SalesOrderLog::findOrFail($data['record_id']);
 
                     $regionsScope = $this->coordinatorRegionScope($user);
-                    if (! in_array(strtolower($so->area ?? ''), $regionsScope, true)) {
+                    if (!in_array(strtolower($so->area ?? ''), $regionsScope, true)) {
                         return response()->json([
-                            'ok'      => false,
+                            'ok' => false,
                             'message' => 'You are not allowed to update this sales order.',
                         ], 403);
                     }
@@ -206,12 +204,12 @@ class ProjectCoordinatorController extends Controller
                     // attachments
                     if ($request->hasFile('attachments')) {
                         $files = $request->file('attachments');
-                        if (! is_array($files)) {
+                        if (!is_array($files)) {
                             $files = [$files];
                         }
 
                         foreach ($files as $file) {
-                            if (! $file || ! $file->isValid()) {
+                            if (!$file || !$file->isValid()) {
                                 continue;
                             }
 
@@ -219,18 +217,18 @@ class ProjectCoordinatorController extends Controller
 
                             SalesOrderAttachment::create([
                                 'salesorderlog_id' => $so->id,
-                                'disk'             => 'public',
-                                'path'             => $path,
-                                'original_name'    => $file->getClientOriginalName(),
-                                'size_bytes'       => $file->getSize(),
-                                'mime_type'        => $file->getClientMimeType(),
-                                'uploaded_by'      => $user->id,
+                                'disk' => 'public',
+                                'path' => $path,
+                                'original_name' => $file->getClientOriginalName(),
+                                'size_bytes' => $file->getSize(),
+                                'mime_type' => $file->getClientMimeType(),
+                                'uploaded_by' => $user->id,
                             ]);
                         }
                     }
 
                     return response()->json([
-                        'ok'      => true,
+                        'ok' => true,
                         'message' => 'PO updated and documents uploaded.',
                     ]);
                 }
@@ -239,9 +237,9 @@ class ProjectCoordinatorController extends Controller
                 /** @var \App\Models\Project $project */
                 $project = Project::findOrFail($data['record_id']);
 
-                if (! is_null($project->status_current)) {
+                if (!is_null($project->status_current)) {
                     return response()->json([
-                        'ok'      => false,
+                        'ok' => false,
                         'message' => 'This project already has a PO. Please edit it from the Sales Order Log tab.',
                     ], 422);
                 }
@@ -291,20 +289,20 @@ class ProjectCoordinatorController extends Controller
 
                 $soId = DB::getPdo()->lastInsertId();
 
-                $project->status                    = 'PO-RECEIVED';
-                $project->status_current            = 'PO-RECEIVED';
+                $project->status = 'PO-RECEIVED';
+                $project->status_current = 'PO-RECEIVED';
                 $project->coordinator_updated_by_id = $user->id;
                 $project->save();
 
                 // attachments
                 if ($request->hasFile('attachments')) {
                     $files = $request->file('attachments');
-                    if (! is_array($files)) {
+                    if (!is_array($files)) {
                         $files = [$files];
                     }
 
                     foreach ($files as $file) {
-                        if (! $file || ! $file->isValid()) {
+                        if (!$file || !$file->isValid()) {
                             continue;
                         }
 
@@ -312,18 +310,18 @@ class ProjectCoordinatorController extends Controller
 
                         SalesOrderAttachment::create([
                             'salesorderlog_id' => $soId,
-                            'disk'             => 'public',
-                            'path'             => $path,
-                            'original_name'    => $file->getClientOriginalName(),
-                            'size_bytes'       => $file->getSize(),
-                            'mime_type'        => $file->getClientMimeType(),
-                            'uploaded_by'      => $user->id,
+                            'disk' => 'public',
+                            'path' => $path,
+                            'original_name' => $file->getClientOriginalName(),
+                            'size_bytes' => $file->getSize(),
+                            'mime_type' => $file->getClientMimeType(),
+                            'uploaded_by' => $user->id,
                         ]);
                     }
                 }
 
                 return response()->json([
-                    'ok'      => true,
+                    'ok' => true,
                     'message' => 'PO saved, project updated to PO-RECEIVED, and files uploaded.',
                 ]);
             });
@@ -331,15 +329,11 @@ class ProjectCoordinatorController extends Controller
             report($e);
 
             return response()->json([
-                'ok'      => false,
+                'ok' => false,
                 'message' => 'Error while saving PO: ' . $e->getMessage(),
             ], 500);
         }
     }
-
-
-
-
 
 
     private function coordinatorRegionScope($user): array
@@ -358,47 +352,45 @@ class ProjectCoordinatorController extends Controller
     }
 
 
-
-
     /**
      * Return a single sales order + attachments (for View button in coordinator screen)
      */
     public function showSalesOrder(Request $request, SalesOrderLog $salesorder)
     {
-        $user        = $request->user();
+        $user = $request->user();
         $regionsScope = $this->coordinatorRegionScope($user);
 
         // enforce same scope as index: only see allowed region(s)
-        if (! in_array(strtolower($salesorder->area ?? ''), $regionsScope, true)) {
+        if (!in_array(strtolower($salesorder->area ?? ''), $regionsScope, true)) {
             return response()->json(['ok' => false, 'message' => 'Not allowed'], 403);
         }
 
         $salesorder->load('attachments', 'creator');
 
         return response()->json([
-            'ok'         => true,
+            'ok' => true,
             'salesorder' => [
-                'id'             => $salesorder->id,
-                'po_no'          => $salesorder->po_no,
-                'project'        => $salesorder->project,
-                'client'         => $salesorder->client,
-                'salesman'       => $salesorder->salesman,
-                'area'           => $salesorder->area,
-                'atai_products'  => $salesorder->atai_products,
-                'po_date'        => optional($salesorder->po_date)->format('Y-m-d'),
-                'po_value'       => $salesorder->total_po_value ?? $salesorder->po_value,
-                'payment_terms'  => $salesorder->payment_terms,
-                'remarks'        => $salesorder->remarks,
-                'created_by'     => optional($salesorder->creator)->name,
-                'created_at'     => optional($salesorder->created_at)->format('Y-m-d H:i'),
+                'id' => $salesorder->id,
+                'po_no' => $salesorder->po_no,
+                'project' => $salesorder->project,
+                'client' => $salesorder->client,
+                'salesman' => $salesorder->salesman,
+                'area' => $salesorder->area,
+                'atai_products' => $salesorder->atai_products,
+                'po_date' => optional($salesorder->po_date)->format('Y-m-d'),
+                'po_value' => $salesorder->total_po_value ?? $salesorder->po_value,
+                'payment_terms' => $salesorder->payment_terms,
+                'remarks' => $salesorder->remarks,
+                'created_by' => optional($salesorder->creator)->name,
+                'created_at' => optional($salesorder->created_at)->format('Y-m-d H:i'),
             ],
             'attachments' => $salesorder->attachments->map(function ($a) {
                 return [
-                    'id'            => $a->id,
+                    'id' => $a->id,
                     'original_name' => $a->original_name,
-                    'url'           => '/storage/' . ltrim($a->path, '/'),
-                    'created_at'    => optional($a->created_at)->format('Y-m-d H:i'),
-                    'size_bytes'    => $a->size_bytes,
+                    'url' => '/storage/' . ltrim($a->path, '/'),
+                    'created_at' => optional($a->created_at)->format('Y-m-d H:i'),
+                    'size_bytes' => $a->size_bytes,
                 ];
             })->values(),
         ]);
@@ -409,33 +401,33 @@ class ProjectCoordinatorController extends Controller
      */
     public function exportSalesOrders(Request $request): BinaryFileResponse
     {
-        $user         = $request->user();
+        $user = $request->user();
         $regionsScope = $this->coordinatorRegionScope($user);   // ['eastern', 'central'] etc.
 
-        $month = (int) $request->input('month'); // 1..12
-        if (! $month) {
+        $month = (int)$request->input('month'); // 1..12
+        if (!$month) {
             abort(400, 'Month is required');
         }
 
-        $year     = (int) ($request->input('year') ?: now()->year);
-        $region   = $request->input('region', 'all');
-        $from     = $request->input('from');
-        $to       = $request->input('to');
+        $year = (int)($request->input('year') ?: now()->year);
+        $region = $request->input('region', 'all');
+        $from = $request->input('from');
+        $to = $request->input('to');
         $salesman = strtoupper(trim($request->input('salesman', '')));   // from chip
 
         // normalise region names to match DB values (Eastern/Central/Western)
         $normalizedRegions = array_map(
-            fn ($r) => ucfirst(strtolower($r)),
+            fn($r) => ucfirst(strtolower($r)),
             $regionsScope
         );
 
         // Canonical salesman → all accepted spellings in DB
         $salesmanAliasMap = [
             'SOHAIB' => ['SOHAIB', 'SOAHIB'],
-            'TARIQ'  => ['TARIQ', 'TAREQ'],
-            'JAMAL'  => ['JAMAL'],
-            'ABDO'   => ['ABDO'],
-            'AHMED'  => ['AHMED'],
+            'TARIQ' => ['TARIQ', 'TAREQ'],
+            'JAMAL' => ['JAMAL'],
+            'ABDO' => ['ABDO'],
+            'AHMED' => ['AHMED'],
         ];
 
         // ❗ use DB::table so we get plain stdClass rows (no Eloquent accessors)
@@ -492,7 +484,7 @@ class ProjectCoordinatorController extends Controller
         // get rows as Illuminate\Support\Collection
         $rows = collect($query->orderBy('date_rec')->get());
 
-        $filename    = sprintf('sales_orders_%d_%02d.xlsx', $year, $month);
+        $filename = sprintf('sales_orders_%d_%02d.xlsx', $year, $month);
         $regionLabel = ($region && strtolower($region) !== 'all')
             ? ucfirst(strtolower($region)) . ' Region'
             : 'All Regions';
@@ -505,21 +497,22 @@ class ProjectCoordinatorController extends Controller
 
     public function exportSalesOrdersYear(Request $request): BinaryFileResponse
     {
-        $user         = $request->user();
+        $user = $request->user();
         $regionsScope = $this->coordinatorRegionScope($user);
 
-        $year     = (int) ($request->input('year') ?: now()->year);
-        $region   = $request->input('region', 'all');
-        $from     = $request->input('from');
-        $to       = $request->input('to');
+        $year = (int)($request->input('year') ?: now()->year);
+        $region = $request->input('region', 'all');
+        $from = $request->input('from');
+        $to = $request->input('to');
         $salesman = strtoupper(trim($request->input('salesman', '')));
 
         // You’ll add salesman handling inside the export class
-        $export   = new SalesOrdersYearExport($regionsScope, $year, $region, $from, $to, $salesman);
+        $export = new SalesOrdersYearExport($regionsScope, $year, $region, $from, $to, $salesman);
         $filename = sprintf('sales_orders_%d_full_year.xlsx', $year);
 
         return Excel::download($export, $filename);
     }
+
     public function salesOrderAttachments(SalesOrderLog $salesorder)
     {
         // Optional: if you want region security same as index(),
@@ -529,16 +522,16 @@ class ProjectCoordinatorController extends Controller
 
         $items = $salesorder->attachments->map(function ($a) {
             return [
-                'id'            => $a->id,
+                'id' => $a->id,
                 'original_name' => $a->original_name,
-                'url'           => Storage::disk($a->disk)->url($a->path),
-                'created_at'    => optional($a->created_at)->format('Y-m-d H:i'),
-                'size_bytes'    => $a->size_bytes,
+                'url' => Storage::disk($a->disk)->url($a->path),
+                'created_at' => optional($a->created_at)->format('Y-m-d H:i'),
+                'size_bytes' => $a->size_bytes,
             ];
         })->values();
 
         return response()->json([
-            'ok'          => true,
+            'ok' => true,
             'attachments' => $items,
         ]);
     }

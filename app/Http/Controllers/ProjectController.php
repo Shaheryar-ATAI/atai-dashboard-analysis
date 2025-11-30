@@ -29,7 +29,7 @@ class ProjectController extends Controller
             'quotationDate' => $project->quotation_date_ymd,
             'ataiProducts' => $project->atai_products,
             'estimator' => $project->action1 ?? null,
-            'status' => $project->project_type?? null ,
+            'status' => $project->project_type ?? null,
             'salesperson' => $project->salesperson ?? $project->salesman,
             'dateRec' => optional($project->date_rec)->format('Y-m-d'),
             'clientReference' => $project->client_reference,
@@ -88,7 +88,7 @@ class ProjectController extends Controller
     {
         $this->authorize('update', $project);
 
-        $action = (string) $request->string('action');
+        $action = (string)$request->string('action');
 
         if ($action === 'checklist_bidding') {
             return $this->saveBiddingChecklist($request, $project);
@@ -106,24 +106,24 @@ class ProjectController extends Controller
         if ($action === 'update_status') {
             // accept various spellings and map to canonical status used in DB/UI
             $map = [
-                'bidding'        => 'Bidding',
-                'open'           => 'Bidding',
-                'submitted'      => 'Bidding',
-                'inhand'         => 'In-Hand',
-                'in-hand'        => 'In-Hand',
-                'in hand'        => 'In-Hand',
-                'won'            => 'In-Hand',
-                'order'          => 'In-Hand',
-                'order in hand'  => 'In-Hand',
-                'lost'           => 'Lost',
-                'po'             => 'PO-received',
-                'po received'    => 'PO-received',
-                'po-received'    => 'PO-received',
-                'po recieved'    => 'PO-received', // forgive the typo
+                'bidding' => 'Bidding',
+                'open' => 'Bidding',
+                'submitted' => 'Bidding',
+                'inhand' => 'In-Hand',
+                'in-hand' => 'In-Hand',
+                'in hand' => 'In-Hand',
+                'won' => 'In-Hand',
+                'order' => 'In-Hand',
+                'order in hand' => 'In-Hand',
+                'lost' => 'Lost',
+                'po' => 'PO-received',
+                'po received' => 'PO-received',
+                'po-received' => 'PO-received',
+                'po recieved' => 'PO-received', // forgive the typo
             ];
 
-            $raw = strtolower(trim((string) $request->input('to_status')));
-            $to  = $map[$raw] ?? null;
+            $raw = strtolower(trim((string)$request->input('to_status')));
+            $to = $map[$raw] ?? null;
 
             if (!$to) {
                 return response()->json(['ok' => false, 'message' => 'Invalid status'], 422);
@@ -143,10 +143,10 @@ class ProjectController extends Controller
             try {
                 \DB::table('project_status_history')->insert([
                     'project_id' => $project->id,
-                    'phase'      => strtoupper($to),     // e.g., BIDDING / IN-HAND / PO-RECEIVED / LOST
-                    'from_status'=> $from,
-                    'to_status'  => $to,                 // prevents the 1364 error you saw
-                    'progress'   => 100,                 // adjust if you track actual percentage
+                    'phase' => strtoupper($to),     // e.g., BIDDING / IN-HAND / PO-RECEIVED / LOST
+                    'from_status' => $from,
+                    'to_status' => $to,                 // prevents the 1364 error you saw
+                    'progress' => 100,                 // adjust if you track actual percentage
                     'changed_by' => optional($request->user())->id,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -158,12 +158,12 @@ class ProjectController extends Controller
 
             return response()->json(['ok' => true]);
         }
-        $action = (string) $request->input('action', '');
+        $action = (string)$request->input('action', '');
 
         if ($action === 'update_project_type') {
-            $toType = trim((string) $request->input('to_type', ''));
+            $toType = trim((string)$request->input('to_type', ''));
             // Allow only the buckets you support
-            $allowed = ['Bidding','In-Hand','Lost'];
+            $allowed = ['Bidding', 'In-Hand', 'Lost'];
             if (!in_array($toType, $allowed, true)) {
                 return response()->json(['ok' => false, 'message' => 'Invalid project type'], 422);
             }
@@ -237,23 +237,23 @@ class ProjectController extends Controller
 
         // NEW bidding items (equal weight)
         $items = [
-            'vendor_approved'            => $request->boolean('vendor_approved'),
-            'specs_compliant'            => $request->boolean('specs_compliant'),
-            'regular_discount'           => $request->boolean('regular_discount'),
-            'client_visit'               => $request->boolean('client_visit'),
-            'winning_factor'             => $request->boolean('winning_factor'),
+            'vendor_approved' => $request->boolean('vendor_approved'),
+            'specs_compliant' => $request->boolean('specs_compliant'),
+            'regular_discount' => $request->boolean('regular_discount'),
+            'client_visit' => $request->boolean('client_visit'),
+            'winning_factor' => $request->boolean('winning_factor'),
             'prequalification_submitted' => $request->boolean('prequalification_submitted'),
         ];
 
-        $table   = 'project_checklist_states';
-        $phase   = 'BIDDING';
-        $uid     = $request->user()->id;
-        $checkCol= 'checked'; // your table uses `checked`
+        $table = 'project_checklist_states';
+        $phase = 'BIDDING';
+        $uid = $request->user()->id;
+        $checkCol = 'checked'; // your table uses `checked`
 
         // progress = % of boxes checked
-        $total    = max(count($items), 1);
-        $done     = collect($items)->filter()->count();
-        $progress = (int) floor(($done / $total) * 100);
+        $total = max(count($items), 1);
+        $done = collect($items)->filter()->count();
+        $progress = (int)floor(($done / $total) * 100);
 
         DB::transaction(function () use ($project, $items, $uid, $table, $checkCol, $phase, $progress) {
             foreach ($items as $itemKey => $checked) {
@@ -270,10 +270,10 @@ class ProjectController extends Controller
         $this->logProgressChange($project->id, $phase, $progress, $uid);
 
         return response()->json([
-            'ok'       => true,
-            'message'  => 'Bidding checklist saved.',
+            'ok' => true,
+            'message' => 'Bidding checklist saved.',
             'progress' => $progress,
-            'state'    => $items,
+            'state' => $items,
         ]);
     }
 
@@ -349,13 +349,13 @@ class ProjectController extends Controller
 
         // NEW in-hand items + weights (must total 100 for clean %)
         $defs = [
-            'prices_agreed'                 => 25,
-            'payment_terms_agreed'          => 25,
-            'delivery_schedule_agreed'      => 0,
+            'prices_agreed' => 25,
+            'payment_terms_agreed' => 25,
+            'delivery_schedule_agreed' => 0,
             'technical_parameters_approved' => 25,
-            'material_submitted'            => 25,
-            'samples_submitted'             => 0,
-            'factory_visit_required'        => 0,
+            'material_submitted' => 25,
+            'samples_submitted' => 0,
+            'factory_visit_required' => 0,
         ];
 
         // normalize booleans
@@ -364,9 +364,9 @@ class ProjectController extends Controller
             $items[$key] = $request->boolean($key);
         }
 
-        $table    = 'project_checklist_states';
-        $phase    = 'INHAND';
-        $uid      = $request->user()->id;
+        $table = 'project_checklist_states';
+        $phase = 'INHAND';
+        $uid = $request->user()->id;
         $checkCol = 'checked';
 
         // weighted progress
@@ -374,7 +374,7 @@ class ProjectController extends Controller
         foreach ($items as $k => $v) {
             if ($v) $progress += ($defs[$k] ?? 0);
         }
-        $progress = max(0, min(100, (int) round($progress)));
+        $progress = max(0, min(100, (int)round($progress)));
 
         DB::transaction(function () use ($project, $items, $uid, $table, $checkCol, $phase, $progress) {
             foreach ($items as $itemKey => $checked) {
@@ -391,15 +391,15 @@ class ProjectController extends Controller
         $this->logProgressChange($project->id, $phase, $progress, $uid);
 
         return response()->json([
-            'ok'       => true,
-            'message'  => 'In-Hand checklist saved.',
+            'ok' => true,
+            'message' => 'In-Hand checklist saved.',
             'progress' => $progress,
-            'state'    => $items,
+            'state' => $items,
         ]);
     }
 
 
-    public  function addProjectNote(Request $request, Project $project)
+    public function addProjectNote(Request $request, Project $project)
     {
         $data = $request->validate([
             'note' => ['required', 'string', 'max:5000'],
@@ -423,7 +423,7 @@ class ProjectController extends Controller
         ]);
     }
 
-    public  function logProgressChange(int $projectId, string $phase, int $progress, int $userId): void
+    public function logProgressChange(int $projectId, string $phase, int $progress, int $userId): void
     {
         // only insert when it actually changed
         $last = DB::table('project_status_history')

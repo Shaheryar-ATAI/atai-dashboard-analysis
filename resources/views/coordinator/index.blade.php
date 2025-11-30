@@ -9,27 +9,34 @@
             border-radius: 1rem;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
         }
+
         .coordinator-kpi-value {
             font-size: 1.5rem;
             font-weight: 600;
         }
+
         .coordinator-toggle .btn {
             min-width: 190px;
         }
+
         .table-actions {
             white-space: nowrap;
         }
+
         #tblCoordinatorProjects td:last-child,
         #tblCoordinatorSalesOrders td:last-child {
             text-align: right;
         }
+
         .upload-block {
             border-radius: 1rem;
             border-style: dashed;
         }
+
         .modal-lg-coordinator {
             max-width: 900px;
         }
+
         .coordinator-label {
             font-size: 0.8rem;
             text-transform: uppercase;
@@ -42,17 +49,20 @@
             z-index: 2000 !important;
             pointer-events: auto !important;
         }
+
         .modal-atai.show .modal-dialog,
         .modal-atai .modal-content {
             background-color: #111827;
             color: #f9fafb;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
         }
+
         .modal-backdrop.show {
             z-index: 1990 !important;
             pointer-events: none !important;
-            background-color: rgba(0,0,0,0.1);
+            background-color: rgba(0, 0, 0, 0.1);
         }
+
         .toast,
         .toast-container {
             z-index: 2010 !important;
@@ -66,6 +76,7 @@
             color: #9ca3af;
             margin-bottom: 0.15rem; /* was .25rem */
         }
+
         .coord-chip-group .coord-chip {
             border-radius: 999px;
             padding: 0.25rem 0.9rem;
@@ -77,14 +88,16 @@
             cursor: pointer;
             transition: all .15s ease;
         }
+
         .coord-chip:hover {
             background: #0f172a;
         }
+
         .coord-chip.active {
             background: #3b82f6;
             border-color: #3b82f6;
             color: #fff;
-            box-shadow: 0 0 0 1px rgba(59,130,246,.5);
+            box-shadow: 0 0 0 1px rgba(59, 130, 246, .5);
         }
 
         .coord-filter-note {
@@ -317,7 +330,8 @@
             <div class="card-body">
                 {{-- Projects table --}}
                 <div id="wrapProjectsTable">
-                    <table id="tblCoordinatorProjects" class="table table-sm table-striped table-hover align-middle w-100">
+                    <table id="tblCoordinatorProjects"
+                           class="table table-sm table-striped table-hover align-middle w-100">
                         <thead>
                         <tr>
                             <th>Quotation No</th>
@@ -373,7 +387,8 @@
 
                 {{-- Sales Orders table --}}
                 <div id="wrapSalesOrdersTable" class="d-none">
-                    <table id="tblCoordinatorSalesOrders" class="table table-sm table-striped table-hover align-middle w-100">
+                    <table id="tblCoordinatorSalesOrders"
+                           class="table table-sm table-striped table-hover align-middle w-100">
                         <thead>
                         <tr>
                             <th>PO No</th>
@@ -446,7 +461,8 @@
     </div>
 
     {{-- MODAL --}}
-    <div class="modal fade modal-atai" id="coordinatorModal" tabindex="-1" aria-labelledby="coordinatorModalLabel" data-bs-backdrop="static" aria-hidden="true">
+    <div class="modal fade modal-atai" id="coordinatorModal" tabindex="-1" aria-labelledby="coordinatorModalLabel"
+         data-bs-backdrop="static" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-lg-coordinator modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
@@ -469,15 +485,18 @@
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">Client</div>
-                                    <textarea class="form-control form-control-sm" id="coord_client" rows="2" readonly></textarea>
+                                    <textarea class="form-control form-control-sm" id="coord_client" rows="2"
+                                              readonly></textarea>
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">Salesperson</div>
-                                    <input type="text" class="form-control form-control-sm" id="coord_salesman" readonly>
+                                    <input type="text" class="form-control form-control-sm" id="coord_salesman"
+                                           readonly>
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">Location</div>
-                                    <input type="text" class="form-control form-control-sm" id="coord_location" readonly>
+                                    <input type="text" class="form-control form-control-sm" id="coord_location"
+                                           readonly>
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">Area</div>
@@ -485,19 +504,23 @@
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">Quotation No</div>
-                                    <input type="text" class="form-control form-control-sm" id="coord_quotation_no" readonly>
+                                    <input type="text" class="form-control form-control-sm" id="coord_quotation_no"
+                                           readonly>
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">Quotation Date</div>
-                                    <input type="date" class="form-control form-control-sm" id="coord_quotation_date" readonly>
+                                    <input type="date" class="form-control form-control-sm" id="coord_quotation_date"
+                                           readonly>
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">Date Received</div>
-                                    <input type="date" class="form-control form-control-sm" id="coord_date_received" readonly>
+                                    <input type="date" class="form-control form-control-sm" id="coord_date_received"
+                                           readonly>
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">ATAI Products</div>
-                                    <input type="text" class="form-control form-control-sm" id="coord_products" readonly>
+                                    <input type="text" class="form-control form-control-sm" id="coord_products"
+                                           readonly>
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">Price</div>
@@ -514,23 +537,28 @@
                             <div class="col-md-6">
                                 <div class="mb-2">
                                     <div class="coordinator-label">Job No</div>
-                                    <input type="text" name="job_no" id="coord_job_no" class="form-control form-control-sm">
+                                    <input type="text" name="job_no" id="coord_job_no"
+                                           class="form-control form-control-sm">
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">PO No</div>
-                                    <input type="text" name="po_no" id="coord_po_no" class="form-control form-control-sm">
+                                    <input type="text" name="po_no" id="coord_po_no"
+                                           class="form-control form-control-sm">
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">PO Date</div>
-                                    <input type="date" name="po_date" id="coord_po_date" class="form-control form-control-sm">
+                                    <input type="date" name="po_date" id="coord_po_date"
+                                           class="form-control form-control-sm">
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">PO Value (SAR)</div>
-                                    <input type="number" step="0.01" name="po_value" id="coord_po_value" class="form-control form-control-sm">
+                                    <input type="number" step="0.01" name="po_value" id="coord_po_value"
+                                           class="form-control form-control-sm">
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">Payment Terms</div>
-                                    <select name="payment_terms" id="coord_payment_terms" class="form-select form-select-sm">
+                                    <select name="payment_terms" id="coord_payment_terms"
+                                            class="form-select form-select-sm">
                                         <option value="">Select payment terms</option>
                                         <option value="Advance">Advance</option>
                                         <option value="30 Days">30 Days</option>
@@ -551,7 +579,8 @@
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">Remarks</div>
-                                    <textarea name="remarks" id="coord_remarks" rows="4" class="form-control form-control-sm"></textarea>
+                                    <textarea name="remarks" id="coord_remarks" rows="4"
+                                              class="form-control form-control-sm"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -582,7 +611,6 @@
                 </div>
 
 
-
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
                         Close
@@ -603,7 +631,6 @@
     <script>
 
 
-
         (function () {
             const fmtSAR = value => {
                 if (value === null || value === undefined) return '0';
@@ -614,41 +641,41 @@
 
             const SALESMAN_ALIASES = {
                 'SOHAIB': ['SOHAIB', 'SOAHIB'],
-                'TARIQ':  ['TARIQ', 'TAREQ'],
-                'JAMAL':  ['JAMAL'],
-                'ABDO':   ['ABDO'],
-                'AHMED':  ['AHMED'],
+                'TARIQ': ['TARIQ', 'TAREQ'],
+                'JAMAL': ['JAMAL'],
+                'ABDO': ['ABDO'],
+                'AHMED': ['AHMED'],
             };
             const salesmanChips = document.querySelectorAll('.coord-chip[data-salesman]');
-            const regionChips   = document.querySelectorAll('.coord-chip[data-region]');
+            const regionChips = document.querySelectorAll('.coord-chip[data-region]');
 
             let filterSalesman = 'all'; // SOHAIB, TARIQ, etc., or all
-            let filterRegion   = 'all'; // Eastern, Central, Western, or all
-            let filterMonth    = '';
-            let filterFrom     = null;
-            let filterTo       = null;
+            let filterRegion = 'all'; // Eastern, Central, Western, or all
+            let filterMonth = '';
+            let filterFrom = null;
+            let filterTo = null;
 
             // ---------- DOM refs ----------
-            const monthSelect       = document.getElementById('coord_month');
-            const fromInput         = document.getElementById('coord_from');
-            const toInput           = document.getElementById('coord_to');
-            const btnResetFilters   = document.getElementById('coord_reset_filters');
+            const monthSelect = document.getElementById('coord_month');
+            const fromInput = document.getElementById('coord_from');
+            const toInput = document.getElementById('coord_to');
+            const btnResetFilters = document.getElementById('coord_reset_filters');
             // const btnDownloadExcel  = document.getElementById('coord_download_excel');
 
 
-            const elKpiProjects     = document.getElementById('kpiProjectsCount');
-            const elKpiSoCount      = document.getElementById('kpiSalesOrdersCount');
-            const elKpiSoValueNum   = document.getElementById('kpiSalesOrdersValue');
+            const elKpiProjects = document.getElementById('kpiProjectsCount');
+            const elKpiSoCount = document.getElementById('kpiSalesOrdersCount');
+            const elKpiSoValueNum = document.getElementById('kpiSalesOrdersValue');
 
-            const wrapProjects      = document.getElementById('wrapProjectsTable');
-            const wrapSalesOrder    = document.getElementById('wrapSalesOrdersTable');
-            const btnProj           = document.getElementById('btnShowProjects');
-            const btnSO             = document.getElementById('btnShowSalesOrders');
+            const wrapProjects = document.getElementById('wrapProjectsTable');
+            const wrapSalesOrder = document.getElementById('wrapSalesOrdersTable');
+            const btnProj = document.getElementById('btnShowProjects');
+            const btnSO = document.getElementById('btnShowSalesOrders');
 
-            const coordModalEl      = document.getElementById('coordinatorModal');
-            const coordModal        = coordModalEl ? new bootstrap.Modal(coordModalEl) : null;
+            const coordModalEl = document.getElementById('coordinatorModal');
+            const coordModal = coordModalEl ? new bootstrap.Modal(coordModalEl) : null;
 
-            const btnSave           = document.getElementById('btnCoordinatorSave');
+            const btnSave = document.getElementById('btnCoordinatorSave');
 
             // ---------- DataTables ----------
             const dtProjects = new DataTable('#tblCoordinatorProjects', {
@@ -662,11 +689,7 @@
             });
 
 
-
-
-
             let areaStr, salesmanStr, dateStr;
-
 
 
             salesmanChips.forEach(chip => {
@@ -682,7 +705,7 @@
             });
 
             const btnDownloadExcelMonth = document.getElementById('coord_download_excel_month');
-            const btnDownloadExcelYear  = document.getElementById('coord_download_excel_year');
+            const btnDownloadExcelYear = document.getElementById('coord_download_excel_year');
 
             if (btnDownloadExcelMonth) {
                 btnDownloadExcelMonth.addEventListener('click', () => {
@@ -700,7 +723,7 @@
                     }
 
                     if (fromInput && fromInput.value) params.set('from', fromInput.value);
-                    if (toInput && toInput.value)     params.set('to', toInput.value);
+                    if (toInput && toInput.value) params.set('to', toInput.value);
 
                     const url = "{{ route('coordinator.salesorders.export') }}" + '?' + params.toString();
                     window.location.href = url;
@@ -717,13 +740,12 @@
                     }
 
                     if (fromInput && fromInput.value) params.set('from', fromInput.value);
-                    if (toInput && toInput.value)     params.set('to', toInput.value);
+                    if (toInput && toInput.value) params.set('to', toInput.value);
 
                     const url = "{{ route('coordinator.salesorders.exportYear') }}" + '?' + params.toString();
                     window.location.href = url;
                 });
             }
-
 
 
             // ---------- Custom global filter for BOTH tables ----------
@@ -737,19 +759,19 @@
                 let areaStr, salesmanStr, dateStr;
 
                 if (tableId === 'tblCoordinatorProjects') {
-                    areaStr     = (data[4] || '').trim(); // Area
+                    areaStr = (data[4] || '').trim(); // Area
                     salesmanStr = (data[3] || '').trim(); // Salesman
-                    dateStr     = data[6] || '';          // Quotation Date
+                    dateStr = data[6] || '';          // Quotation Date
                 } else {
-                    areaStr     = (data[6] || '').trim(); // Area
+                    areaStr = (data[6] || '').trim(); // Area
                     salesmanStr = (data[5] || '').trim(); // Salesman
-                    dateStr     = data[8] || '';          // PO Date
+                    dateStr = data[8] || '';          // PO Date
                 }
 
                 // REGION filter (case-insensitive)
                 if (filterRegion !== 'all') {
                     const cellRegion = (areaStr || '').toUpperCase();
-                    const wanted     = filterRegion.toUpperCase();
+                    const wanted = filterRegion.toUpperCase();
                     if (cellRegion !== wanted) {
                         return false;
                     }
@@ -759,7 +781,7 @@
                 // SALESMAN filter with aliases (SOHAIB = SOHAIB + SOAHIB, etc.)
                 if (filterSalesman !== 'all') {
                     const cellUpper = (salesmanStr || '').toUpperCase();
-                    const aliases   = SALESMAN_ALIASES[filterSalesman] || [filterSalesman];
+                    const aliases = SALESMAN_ALIASES[filterSalesman] || [filterSalesman];
 
                     if (!aliases.includes(cellUpper)) {
                         return false;
@@ -789,7 +811,7 @@
 
                 // RANGE filter
                 if (filterFrom && rowDate < filterFrom) return false;
-                if (filterTo   && rowDate > filterTo)   return false;
+                if (filterTo && rowDate > filterTo) return false;
 
                 return true;
             });
@@ -801,12 +823,12 @@
 
             // ---------- KPI recalculation ----------
             function refreshKpis() {
-                const projCount = dtProjects.rows({ filter: 'applied' }).count();
-                const soCount   = dtSalesOrders.rows({ filter: 'applied' }).count();
+                const projCount = dtProjects.rows({filter: 'applied'}).count();
+                const soCount = dtSalesOrders.rows({filter: 'applied'}).count();
 
                 let soTotal = 0;
                 dtSalesOrders
-                    .column(9, { filter: 'applied' })
+                    .column(9, {filter: 'applied'})
                     .data()
                     .each(function (value) {
                         let num = 0;
@@ -820,8 +842,8 @@
                         }
                     });
 
-                if (elKpiProjects)   elKpiProjects.textContent   = fmtSAR(projCount);
-                if (elKpiSoCount)    elKpiSoCount.textContent    = fmtSAR(soCount);
+                if (elKpiProjects) elKpiProjects.textContent = fmtSAR(projCount);
+                if (elKpiSoCount) elKpiSoCount.textContent = fmtSAR(soCount);
                 if (elKpiSoValueNum) elKpiSoValueNum.textContent = fmtSAR(soTotal);
             }
 
@@ -833,18 +855,18 @@
                 },
                 title: {
                     text: 'Quotation vs PO Value by Region',
-                    style: { color: '#e5e7eb' }
+                    style: {color: '#e5e7eb'}
                 },
                 xAxis: {
                     categories: @json($chartCategories),
                     crosshair: true,
-                    labels: { style: { color: '#cbd5e1' } }
+                    labels: {style: {color: '#cbd5e1'}}
                 },
                 yAxis: {
                     min: 0,
                     title: {
                         text: 'Value (SAR)',
-                        style: { color: '#cbd5e1' }
+                        style: {color: '#cbd5e1'}
                     },
                     stackLabels: {
                         enabled: true,
@@ -857,17 +879,17 @@
                             fontWeight: '600'
                         }
                     },
-                    labels: { style: { color: '#cbd5e1' } },
+                    labels: {style: {color: '#cbd5e1'}},
                     gridLineColor: '#1e293b'
                 },
                 legend: {
-                    itemStyle: { color: '#e5e7eb' }
+                    itemStyle: {color: '#e5e7eb'}
                 },
                 tooltip: {
                     shared: true,
                     backgroundColor: '#1e293b',
                     borderColor: '#475569',
-                    style: { color: 'white' },
+                    style: {color: 'white'},
                     formatter: function () {
                         let s = '<b>' + this.x + '</b><br/>';
                         this.points.forEach(p => {
@@ -899,12 +921,12 @@
                 // 🔹 sums[area] = total PO value for that area
                 const sums = {};
 
-                dtSalesOrders.rows({ filter: 'applied' }).every(function () {
+                dtSalesOrders.rows({filter: 'applied'}).every(function () {
                     const row = this.data();
 
                     // Area column index = 6, PO Value = 9 (from your table)
                     const areaRaw = (row[6] || '').trim();
-                    const area    = areaRaw || 'Unknown';
+                    const area = areaRaw || 'Unknown';
 
                     let val = row[9];
 
@@ -944,7 +966,7 @@
                 refreshChartFromTable();
             });
 
-           // ---------- Region chips ----------
+            // ---------- Region chips ----------
             regionChips.forEach(chip => {
                 chip.addEventListener('click', () => {
                     regionChips.forEach(c => c.classList.remove('active'));
@@ -993,11 +1015,11 @@
 
                     // dates/month
                     filterMonth = '';
-                    filterFrom  = null;
-                    filterTo    = null;
+                    filterFrom = null;
+                    filterTo = null;
                     if (monthSelect) monthSelect.value = '';
-                    if (fromInput)   fromInput.value   = '';
-                    if (toInput)     toInput.value     = '';
+                    if (fromInput) fromInput.value = '';
+                    if (toInput) toInput.value = '';
 
                     redrawTables();
                 });
@@ -1042,28 +1064,28 @@
 
                 const source = btn.dataset.source || '';
 
-                document.getElementById('coord_source').value         = source;
-                document.getElementById('coord_record_id').value      = btn.dataset.id || '';
+                document.getElementById('coord_source').value = source;
+                document.getElementById('coord_record_id').value = btn.dataset.id || '';
 
-                document.getElementById('coord_project').value        = btn.dataset.project || '';
-                document.getElementById('coord_client').value         = btn.dataset.client || '';
-                document.getElementById('coord_salesman').value       = btn.dataset.salesman || '';
-                document.getElementById('coord_location').value       = btn.dataset.location || '';
-                document.getElementById('coord_area').value           = btn.dataset.area || '';
-                document.getElementById('coord_quotation_no').value   = btn.dataset.quotationNo || '';
+                document.getElementById('coord_project').value = btn.dataset.project || '';
+                document.getElementById('coord_client').value = btn.dataset.client || '';
+                document.getElementById('coord_salesman').value = btn.dataset.salesman || '';
+                document.getElementById('coord_location').value = btn.dataset.location || '';
+                document.getElementById('coord_area').value = btn.dataset.area || '';
+                document.getElementById('coord_quotation_no').value = btn.dataset.quotationNo || '';
                 document.getElementById('coord_quotation_date').value = btn.dataset.quotationDate || '';
-                document.getElementById('coord_date_received').value  = btn.dataset.dateReceived || '';
-                document.getElementById('coord_products').value       = btn.dataset.products || '';
-                document.getElementById('coord_price').value          = btn.dataset.price || '';
-                document.getElementById('coord_status').value         = btn.dataset.status || '';
+                document.getElementById('coord_date_received').value = btn.dataset.dateReceived || '';
+                document.getElementById('coord_products').value = btn.dataset.products || '';
+                document.getElementById('coord_price').value = btn.dataset.price || '';
+                document.getElementById('coord_status').value = btn.dataset.status || '';
 
-                document.getElementById('coord_job_no').value         = btn.dataset.jobNo || '';
-                document.getElementById('coord_po_no').value          = btn.dataset.poNo || '';
-                document.getElementById('coord_po_date').value        = btn.dataset.poDate || '';
-                document.getElementById('coord_po_value').value       = btn.dataset.poValue || '';
-                document.getElementById('coord_payment_terms').value  = btn.dataset.paymentTerms || '';
-                document.getElementById('coord_remarks').value        = btn.dataset.remarks || '';
-                document.getElementById('coord_oaa').value            = btn.dataset.oaa || '';
+                document.getElementById('coord_job_no').value = btn.dataset.jobNo || '';
+                document.getElementById('coord_po_no').value = btn.dataset.poNo || '';
+                document.getElementById('coord_po_date').value = btn.dataset.poDate || '';
+                document.getElementById('coord_po_value').value = btn.dataset.poValue || '';
+                document.getElementById('coord_payment_terms').value = btn.dataset.paymentTerms || '';
+                document.getElementById('coord_remarks').value = btn.dataset.remarks || '';
+                document.getElementById('coord_oaa').value = btn.dataset.oaa || '';
                 // Default state for attachments
                 if (attachmentsListEl) {
                     attachmentsListEl.innerHTML =
@@ -1144,7 +1166,7 @@
                     const fd = new FormData(formEl);
                     fd.append('record_id', document.getElementById('coord_record_id').value);
 
-                    btnSave.disabled  = true;
+                    btnSave.disabled = true;
                     btnSave.innerText = 'Saving...';
 
                     try {
@@ -1180,7 +1202,7 @@
                             }
 
                             alert(msg);
-                            btnSave.disabled  = false;
+                            btnSave.disabled = false;
                             btnSave.innerText = 'Po Received';
                             return;
                         }
@@ -1193,14 +1215,14 @@
                         if (res.ok) {
                             window.location.reload();
                         } else {
-                            btnSave.disabled  = false;
+                            btnSave.disabled = false;
                             btnSave.innerText = 'Po Received';
                         }
 
                     } catch (err) {
                         console.error(err);
                         alert('Unexpected error while saving PO: ' + err.message);
-                        btnSave.disabled  = false;
+                        btnSave.disabled = false;
                         btnSave.innerText = 'Po Received';
                     }
                 });
@@ -1231,7 +1253,6 @@
             refreshKpis();
             refreshChartFromTable();
         })();
-
 
 
     </script>

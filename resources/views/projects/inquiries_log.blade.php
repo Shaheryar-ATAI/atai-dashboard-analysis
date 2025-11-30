@@ -6,33 +6,78 @@
     {{-- DataTables (Bootstrap 5 build) --}}
     <link href="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
+    <link rel="stylesheet"
+          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
 
     <style>
-        table.dataTable thead tr.filters th { background: var(--bs-tertiary-bg); }
-        table.dataTable thead .form-control-sm, table.dataTable thead .form-select-sm { height: calc(1.5em + .5rem + 2px); }
-        #tblBidding td:last-child, #tblInhand td:last-child, #tblLost td:last-child, #tblPOreceived td:last-child { text-align: end; }
+        table.dataTable thead tr.filters th {
+            background: var(--bs-tertiary-bg);
+        }
+
+        table.dataTable thead .form-control-sm, table.dataTable thead .form-select-sm {
+            height: calc(1.5em + .5rem + 2px);
+        }
+
+        #tblBidding td:last-child, #tblInhand td:last-child, #tblLost td:last-child, #tblPOreceived td:last-child {
+            text-align: end;
+        }
 
         /* KPI header cards */
-        .kpi-card .hc { height: 260px; }
-        .kpi-card .card-body { padding: .75rem 1rem; }
-        .kpi-value { font-size: 1.8rem; font-weight: 800; letter-spacing: .3px; }
-        .kpi-label { font-size: .8rem; text-transform: uppercase; color: #6b7280; }
+        .kpi-card .hc {
+            height: 260px;
+        }
+
+        .kpi-card .card-body {
+            padding: .75rem 1rem;
+        }
+
+        .kpi-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: .3px;
+        }
+
+        .kpi-label {
+            font-size: .8rem;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+
         /* Make sure modal is always above everything */
 
 
-        .modal { z-index: 1065 !important; }
-        .modal-backdrop { z-index: 1060 !important; }
+        .modal {
+            z-index: 1065 !important;
+        }
+
+        .modal-backdrop {
+            z-index: 1060 !important;
+        }
 
         /* When a modal is stacked (confirm dialog), bump it and its backdrop */
-        .modal.modal-stack { z-index: 1075 !important; }
-        .modal-backdrop.modal-stack { z-index: 1070 !important; }
-        .toast, .toast-container { z-index: 1067; }
+        .modal.modal-stack {
+            z-index: 1075 !important;
+        }
+
+        .modal-backdrop.modal-stack {
+            z-index: 1070 !important;
+        }
+
+        .toast, .toast-container {
+            z-index: 1067;
+        }
 
 
         /* Just in case an iframe is leaking clicks */
-        .submittal-preview iframe { pointer-events: auto; }
-        .submittal-preview iframe { width: 100%; height: 100%; border: 0; }
+        .submittal-preview iframe {
+            pointer-events: auto;
+        }
+
+        .submittal-preview iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
 
 
         .select2-container {
@@ -69,8 +114,6 @@
 @endpush
 @section('content')
 
-
-
     <main class="container-fluid py-4">
 
         <div class="col-12">
@@ -101,8 +144,10 @@
                         @endfor
                     </select>
 
-                    <input type="date" id="dateFrom" class="form-control form-control-sm" style="width:auto" placeholder="From">
-                    <input type="date" id="dateTo" class="form-control form-control-sm" style="width:auto" placeholder="To">
+                    <input type="date" id="dateFrom" class="form-control form-control-sm" style="width:auto"
+                           placeholder="From">
+                    <input type="date" id="dateTo" class="form-control form-control-sm" style="width:auto"
+                           placeholder="To">
 
                     <span id="salesmanWrap" class="d-none">
                     <input type="text" id="salesmanInput" class="form-control form-control-sm" style="width:14rem"
@@ -142,31 +187,45 @@
             </div>
 
 
-
             {{-- ===== TABS (Bidding / In-Hand / Lost / PO received / No PO) ===== --}}
             <ul class="nav nav-tabs" role="tablist">
-                <li class="nav-item"><button class="nav-link active" data-bs-target="#bidding" data-bs-toggle="tab" type="button" role="tab">Bidding</button></li>
-                <li class="nav-item"><button class="nav-link" data-bs-target="#inhand" data-bs-toggle="tab" type="button" role="tab">In-Hand</button></li>
-                <li class="nav-item"><button class="nav-link" data-bs-target="#lost" data-bs-toggle="tab" type="button" role="tab">Lost</button></li>
-                            <li class="nav-item"><button class="nav-link" data-bs-target="#POreceived" data-bs-toggle="tab" type="button" role="tab">Po Received</button></li>
-                <li class="nav-item"><button class="nav-link" data-bs-target="#POnotreceived" data-bs-toggle="tab" type="button" role="tab">Sales Order Not Received</button></li>
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-target="#bidding" data-bs-toggle="tab" type="button"
+                            role="tab">Bidding
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-target="#inhand" data-bs-toggle="tab" type="button" role="tab">
+                        In-Hand
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-target="#lost" data-bs-toggle="tab" type="button" role="tab">Lost
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-target="#POreceived" data-bs-toggle="tab" type="button" role="tab">
+                        Po Received
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-target="#POnotreceived" data-bs-toggle="tab" type="button"
+                            role="tab">Sales Order Not Received
+                    </button>
+                </li>
             </ul>
-
-
-
-
-
-
-
 
 
             <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
                 <div id="familyChips" class="btn-group" role="group" aria-label="Product family">
                     <button type="button" class="btn btn-sm btn-outline-primary active" data-family="">All</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="ductwork">Ductwork</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="ductwork">Ductwork
+                    </button>
                     <button type="button" class="btn btn-sm btn-outline-primary" data-family="dampers">Dampers</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="sound">Sound Attenuators</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="accessories">Accessories</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="sound">Sound Attenuators
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="accessories">Accessories
+                    </button>
                 </div>
             </div>
             <div class="tab-content border-start border-end border-bottom p-3 rounded-bottom">
@@ -175,16 +234,15 @@
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                         <div class="input-group w-auto">
                             <span class="input-group-text">Search</span>
-                            <input id="searchBidding" type="text" class="form-control" placeholder="Project, client, location…">
+                            <input id="searchBidding" type="text" class="form-control"
+                                   placeholder="Project, client, location…">
                         </div>
                     </div>
-{{--                    <div class="d-flex justify-content-between align-items-center mb-2">--}}
-{{--                           <button class="btn btn-success btn-sm" id="btnAddInquiry">--}}
-{{--                            + Inquiry--}}
-{{--                        </button>--}}
-{{--                    </div>--}}
-
-
+                    {{--                    <div class="d-flex justify-content-between align-items-center mb-2">--}}
+                    {{--                           <button class="btn btn-success btn-sm" id="btnAddInquiry">--}}
+                    {{--                            + Inquiry--}}
+                    {{--                        </button>--}}
+                    {{--                    </div>--}}
 
 
                     <div class="table-responsive">
@@ -214,14 +272,15 @@
                 {{-- ---------- New Inquiry record ---------- --}}
 
 
-
-                <div class="modal fade modal-atai"id="modalAddInquiry"data-bs-backdrop="false" tabindex="-1" aria-hidden="true">
+                <div class="modal fade modal-atai" id="modalAddInquiry" data-bs-backdrop="false" tabindex="-1"
+                     aria-hidden="true">
 
                     <div class="modal-dialog modal-lg modal-dialog-scrollable">
                         <div class="modal-content bg-dark text-light">
                             <div class="modal-header">
                                 <h5 class="modal-title">Add New Inquiry</h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                <button type="button" class="btn-close btn-close-white"
+                                        data-bs-dismiss="modal"></button>
                             </div>
 
                             <form id="formAddInquiry">
@@ -237,12 +296,14 @@
                                     <div class="row g-3">
                                         <div class="col-md-6">
                                             <label class="form-label">Project</label>
-                                            <select id="projectSelect" name="project" class="form-select form-select-sm"></select>
+                                            <select id="projectSelect" name="project"
+                                                    class="form-select form-select-sm"></select>
                                         </div>
 
                                         <div class="col-md-6">
                                             <label class="form-label">Client</label>
-                                            <select id="clientSelect" name="client" class="form-select form-select-sm"></select>
+                                            <select id="clientSelect" name="client"
+                                                    class="form-select form-select-sm"></select>
                                         </div>
 
                                         <div class="col-md-6">
@@ -257,7 +318,8 @@
 
                                         <div class="col-md-6">
                                             <label class="form-label">Area</label>
-                                            <select id="areaSelect" name="area" class="form-select form-select-sm" required>
+                                            <select id="areaSelect" name="area" class="form-select form-select-sm"
+                                                    required>
                                                 <option value="">Select...</option>
                                                 <option value="Eastern">Eastern</option>
                                                 <option value="Central">Central</option>
@@ -278,43 +340,39 @@
 
                                         <div class="col-md-6">
                                             <label class="form-label">Techincal Submittal</label>
-                                            <select id="TecnicalSubmittalWrap" name="Techincal Submittal" class="form-select form-select-sm" >
-                                               <option value="">Select...</option>
+                                            <select id="TecnicalSubmittalWrap" name="Techincal Submittal"
+                                                    class="form-select form-select-sm">
+                                                <option value="">Select...</option>
                                                 <option value="yes">Yes</option>
                                                 <option value="no">No</option>
                                             </select>
                                         </div>
 
 
-
-
-
-
-
-
-
-
-
                                         <div class="col-md-6">
                                             <label class="form-label">Location</label>
-                                            <select id="locationSelect" name="location" class="form-select form-select-sm">
+                                            <select id="locationSelect" name="location"
+                                                    class="form-select form-select-sm">
                                                 <option value="">Select area first</option>
                                             </select>
                                         </div>
 
                                         <div class="col-md-6">
                                             <label class="form-label">Quotation No</label>
-                                            <input type="text" name="quotation_no" class="form-control form-control-sm" required>
+                                            <input type="text" name="quotation_no" class="form-control form-control-sm"
+                                                   required>
                                         </div>
 
                                         <div class="col-md-3">
                                             <label class="form-label">Quotation Date</label>
-                                            <input type="date" name="quotation_date" class="form-control form-control-sm" required>
+                                            <input type="date" name="quotation_date"
+                                                   class="form-control form-control-sm" required>
                                         </div>
 
                                         <div class="col-md-3">
                                             <label class="form-label">Date Received</label>
-                                            <input type="date" name="date_received" class="form-control form-control-sm" required>
+                                            <input type="date" name="date_received" class="form-control form-control-sm"
+                                                   required>
                                         </div>
 
                                         <div class="col-md-6">
@@ -332,7 +390,8 @@
 
                                         <div class="col-md-3">
                                             <label class="form-label">Price (SAR)</label>
-                                            <input type="number" step="0.01" name="price" class="form-control form-control-sm" required>
+                                            <input type="number" step="0.01" name="price"
+                                                   class="form-control form-control-sm" required>
                                         </div>
 
                                         <div class="col-md-3">
@@ -366,12 +425,12 @@
                                     </div>
 
 
-
-
                                 </div>
 
                                 <div class="modal-footer">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                                            data-bs-dismiss="modal">Cancel
+                                    </button>
                                     <button type="submit" class="btn btn-success btn-sm">
                                         Save Inquiry
                                     </button>
@@ -380,12 +439,13 @@
                         </div>
                     </div>
                 </div>
- {{-- ---------- IN-HAND TAB ---------- --}}
+                {{-- ---------- IN-HAND TAB ---------- --}}
                 <div class="tab-pane fade" id="inhand" role="tabpanel" tabindex="0">
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                         <div class="input-group w-auto">
                             <span class="input-group-text">Search</span>
-                            <input id="searchInhand" type="text" class="form-control" placeholder="Project, client, location…">
+                            <input id="searchInhand" type="text" class="form-control"
+                                   placeholder="Project, client, location…">
                         </div>
                     </div>
 
@@ -416,7 +476,8 @@
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                         <div class="input-group w-auto">
                             <span class="input-group-text">Search</span>
-                            <input id="searchLost" type="text" class="form-control" placeholder="Project, client, location…">
+                            <input id="searchLost" type="text" class="form-control"
+                                   placeholder="Project, client, location…">
                         </div>
                     </div>
 
@@ -447,7 +508,8 @@
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                         <div class="input-group w-auto">
                             <span class="input-group-text">Search</span>
-                            <input id="searchPOreceived" type="text" class="form-control" placeholder="Project, client, location…">
+                            <input id="searchPOreceived" type="text" class="form-control"
+                                   placeholder="Project, client, location…">
                         </div>
                     </div>
 
@@ -478,7 +540,8 @@
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                         <div class="input-group w-auto">
                             <span class="input-group-text">Search</span>
-                            <input id="searchNoPOreceived" type="text" class="form-control" placeholder="Project, client, location…">
+                            <input id="searchNoPOreceived" type="text" class="form-control"
+                                   placeholder="Project, client, location…">
                         </div>
                     </div>
 
@@ -555,7 +618,8 @@
                     <div class="mt-3">
                         <label class="form-label mb-1">Upload Submittal (PDF)</label>
                         <input id="biddingSubmittalFile" type="file" accept="application/pdf" class="form-control">
-                        <button class="btn btn-sm btn-outline-primary mt-2" id="uploadBiddingSubmittalBtn" type="button">
+                        <button class="btn btn-sm btn-outline-primary mt-2" id="uploadBiddingSubmittalBtn"
+                                type="button">
                             Upload Submittal
                         </button>
 
@@ -564,10 +628,10 @@
                             <div class="ratio ratio-16x9 border rounded overflow-hidden">
                                 <iframe id="biddingSubmittalFrame" src="" title="Submittal" loading="lazy"></iframe>
                             </div>
-                            <a id="biddingSubmittalLink" class="d-inline-block mt-2" href="#" target="_blank" rel="noopener">Open full PDF</a>
+                            <a id="biddingSubmittalLink" class="d-inline-block mt-2" href="#" target="_blank"
+                               rel="noopener">Open full PDF</a>
                         </div>
                     </div>
-
 
 
                     {{--                <div id="biddingSubmittalPreview" class="submittal-preview d-none">--}}
@@ -579,7 +643,7 @@
                     <div class="modal-action">
                         <button class="btn btn-danger" id="BiddingLostBtn" type="button">LOST</button>
                         <button class="btn btn-success" id="BiddingPOBtn" type="button">PO RECEIVED</button>
-                        <button class="btn btn-warning" id="BiddingInhandBtn"   type="button">IN-HAND</button>
+                        <button class="btn btn-warning" id="BiddingInhandBtn" type="button">IN-HAND</button>
                     </div>
                     <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
                     <button class="btn btn-primary" id="saveBiddingBtn" type="button">Save</button>
@@ -647,7 +711,8 @@
                             <div class="ratio ratio-16x9 border rounded overflow-hidden">
                                 <iframe id="inhandSubmittalFrame" src="" title="Submittal" loading="lazy"></iframe>
                             </div>
-                            <a id="inhandSubmittalLink" class="d-inline-block mt-2" href="#" target="_blank" rel="noopener">Open full PDF</a>
+                            <a id="inhandSubmittalLink" class="d-inline-block mt-2" href="#" target="_blank"
+                               rel="noopener">Open full PDF</a>
                         </div>
                     </div>
                 </div>
@@ -667,8 +732,8 @@
     {{-- ===== LOST MODAL ===== --}}
 
 
-        <div class="modal fade modal-atai" id="lostModal"
-             data-bs-backdrop="false" tabindex="-1" aria-hidden="true">
+    <div class="modal fade modal-atai" id="lostModal"
+         data-bs-backdrop="false" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
@@ -702,7 +767,7 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
-{{--                    <button class="btn btn-primary" id="saveLostBtn" type="button">Save</button>--}}
+                    {{--                    <button class="btn btn-primary" id="saveLostBtn" type="button">Save</button>--}}
                 </div>
             </div>
         </div>
@@ -743,7 +808,7 @@
 
                 <div class="modal-footer">
                     <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
-{{--                    <button class="btn btn-primary" id="savePOreceivedBtn" type="button">Save</button>--}}
+                    {{--                    <button class="btn btn-primary" id="savePOreceivedBtn" type="button">Save</button>--}}
                 </div>
             </div>
         </div>
@@ -751,10 +816,12 @@
 
     {{-- Toast (generic success) --}}
     <div class="position-fixed bottom-0 end-0 p-3" style="z-index:1080">
-        <div id="successToast" class="toast align-items-center text-bg-success border-0" role="status" aria-live="polite" aria-atomic="true">
+        <div id="successToast" class="toast align-items-center text-bg-success border-0" role="status"
+             aria-live="polite" aria-atomic="true">
             <div class="d-flex">
                 <div class="toast-body" id="toastMsg">Updated.</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
+                        aria-label="Close"></button>
             </div>
         </div>
     </div>
@@ -786,51 +853,54 @@
         /* =============================================================================
          *  CONFIG & HELPERS
          * ============================================================================= */
-        const API    = @json(url('/api'));
+        const API = @json(url('/api'));
         const DT_URL = @json(route('projects.datatable'));
-        const $      = window.jQuery;
+        const $ = window.jQuery;
 
-        let CURRENT_PROJECT_ID   = null;
+        let CURRENT_PROJECT_ID = null;
         let CURRENT_QUOTATION_NO = '';
         $.fn.dataTable.ext.errMode = 'console';
 
         const fmtSAR = (n) => new Intl.NumberFormat('en-SA', {
             style: 'currency', currency: 'SAR', maximumFractionDigits: 0
         }).format(Number(n || 0));
+
         function cleanupBackdrops() {
             document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
             document.body.classList.remove('modal-open');
             document.body.style.removeProperty('padding-right');
         }
+
         // global state
-        let PROJ_YEAR     = '2025';
-        let PROJ_REGION   = '';
-        let ATAI_ME       = null;
-        let CAN_VIEW_ALL  = false;
+        let PROJ_YEAR = '2025';
+        let PROJ_REGION = '';
+        let ATAI_ME = null;
+        let CAN_VIEW_ALL = false;
         let currentFamily = ''; // '', 'ductwork','dampers','sound','accessories'
 
         /* ===== Totals state ===== */
-        let TAB_SUMS   = { bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0 };
-        let TAB_COUNTS = { bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0 };
-        let TAB_LOADED = { bidding: false, inhand: false, lost: false, poreceived: false, ponotreceived: false };
+        let TAB_SUMS = {bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
+        let TAB_COUNTS = {bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
+        let TAB_LOADED = {bidding: false, inhand: false, lost: false, poreceived: false, ponotreceived: false};
         let SHOW_CURRENT_TAB_ONLY = false;
 
         // Track which tab is currently active (default = bidding)
         let CURRENT_TAB_KEY = 'bidding';
 
         function resetTabTotals() {
-            TAB_SUMS   = { bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0 };
-            TAB_COUNTS = { bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0 };
-            TAB_LOADED = { bidding: false, inhand: false, lost: false, poreceived: false, ponotreceived: false };
+            TAB_SUMS = {bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
+            TAB_COUNTS = {bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
+            TAB_LOADED = {bidding: false, inhand: false, lost: false, poreceived: false, ponotreceived: false};
             SHOW_CURRENT_TAB_ONLY = false;
             updateHeaderBadges();
         }
+
         function biddingChecklistStatus() {
             const keys = checklistBidding.map(i => i.key);
             const total = keys.length;
-            const done  = keys.filter(k => document.getElementById(`bid_${k}`)?.checked).length;
-            const pct   = total ? Math.round((done / total) * 100) : 0;
-            return { total, done, pct, complete: done === total };
+            const done = keys.filter(k => document.getElementById(`bid_${k}`)?.checked).length;
+            const pct = total ? Math.round((done / total) * 100) : 0;
+            return {total, done, pct, complete: done === total};
         }
 
         function setBiddingActionButtonsEnabled(enabled) {
@@ -844,6 +914,7 @@
                 // btn.classList.toggle('opacity-50', !enabled);
             });
         }
+
         function updateHeaderBadges(tabKey = CURRENT_TAB_KEY) {
             if (!tabKey) return;
             const totalCnt = TAB_COUNTS[tabKey] || 0;
@@ -854,6 +925,7 @@
             if (pEl) pEl.textContent = String(totalCnt);
             if (vEl) vEl.textContent = fmtSAR(totalSum);
         }
+
         function showToast(msg) {
             const toastEl = document.getElementById('successToast');
             if (!toastEl) return;
@@ -1046,14 +1118,14 @@
             $loc.append('<option value="">Select...</option>');
             AREA_LOCATIONS[area].forEach(function (city) {
                 $loc.append(
-                    $('<option>', { value: city, text: city })
+                    $('<option>', {value: city, text: city})
                 );
             });
         }
+
         $('#areaSelect').on('change', function () {
             populateLocations($(this).val());
         });
-
 
 
         /* =============================================================================
@@ -1063,27 +1135,46 @@
             {data: 'id', name: 'id', width: '64px'},
             {data: 'name', name: 'name'},
             {data: 'client', name: 'client'},
-            {data:'salesperson',name:'salesperson'},
+            {data: 'salesperson', name: 'salesperson'},
             {data: 'location', name: 'location'},
             {data: 'area_badge', name: 'area', orderable: true, searchable: false},
             {data: 'quotation_no', name: 'quotation_no'},
             {data: 'atai_products', name: 'atai_products'},
-            {data: 'quotation_value_fmt', name: 'quotation_value', orderable: true, searchable: false, className: 'text-end'},
+            {
+                data: 'quotation_value_fmt',
+                name: 'quotation_value',
+                orderable: true,
+                searchable: false,
+                className: 'text-end'
+            },
             {data: 'status_badge', name: 'status', orderable: true, searchable: false},
-            {data: 'progress_pct', name: 'progress_pct', className: 'text-nowrap', orderable: true, searchable: false, render: renderProgressCell},
+            {
+                data: 'progress_pct',
+                name: 'progress_pct',
+                className: 'text-nowrap',
+                orderable: true,
+                searchable: false,
+                render: renderProgressCell
+            },
             {data: 'actions', orderable: false, searchable: false, className: 'text-end'}
         ];
         const projectColumnsLost = [
             {data: 'id', name: 'id', width: '64px'},
             {data: 'name', name: 'name'},
             {data: 'client', name: 'client'},
-            {data:'salesperson',name:'salesperson'},
+            {data: 'salesperson', name: 'salesperson'},
             {data: 'location', name: 'location'},
             {data: 'area_badge', name: 'area', orderable: true, searchable: false},
             {data: 'quotation_no', name: 'quotation_no'},
             {data: 'quotation_date', name: 'quotation_date'},
             {data: 'atai_products', name: 'atai_products'},
-            {data: 'quotation_value_fmt', name: 'quotation_value', orderable: true, searchable: false, className: 'text-end'},
+            {
+                data: 'quotation_value_fmt',
+                name: 'quotation_value',
+                orderable: true,
+                searchable: false,
+                className: 'text-end'
+            },
             {data: 'status_badge', name: 'status', orderable: true, searchable: false},
             {data: 'actions', orderable: false, searchable: false, className: 'text-end'}
         ];
@@ -1091,14 +1182,20 @@
             {data: 'id', name: 'id', width: '64px'},
             {data: 'name', name: 'name'},
             {data: 'client', name: 'client'},
-            {data:'salesperson',name:'salesperson'},
+            {data: 'salesperson', name: 'salesperson'},
             {data: 'location', name: 'location'},
             {data: 'area_badge', name: 'area', orderable: true, searchable: false},
 
             {data: 'quotation_no', name: 'quotation_no'},
             {data: 'quotation_date', name: 'quotation_date'},
             {data: 'atai_products', name: 'atai_products'},
-            {data: 'quotation_value_fmt', name: 'quotation_value', orderable: true, searchable: false, className: 'text-end'},
+            {
+                data: 'quotation_value_fmt',
+                name: 'quotation_value',
+                orderable: true,
+                searchable: false,
+                className: 'text-end'
+            },
             {data: 'status_badge', name: 'status', orderable: true, searchable: false},
             {data: 'actions', orderable: false, searchable: false, className: 'text-end'}
         ];
@@ -1106,7 +1203,7 @@
             {data: 'id', name: 'id', width: '64px'},
             {data: 'name', name: 'name'},
             {data: 'client', name: 'client'},
-            {data:'salesperson',name:'salesperson'},
+            {data: 'salesperson', name: 'salesperson'},
             {data: 'location', name: 'location'},
             {data: 'area_badge', name: 'area', orderable: true, searchable: false},
             {data: 'quotation_no', name: 'quotation_no'},
@@ -1150,7 +1247,7 @@
                 order: (status === 'bidding' || status === 'inhand') ? [[9, 'desc']] : [[0, 'desc']],
                 ajax: {
                     url: DT_URL,
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    headers: {'X-Requested-With': 'XMLHttpRequest'},
                     data: (d) => {
                         // ---- status + special flags for "No PO" tab ----
                         if (status === 'ponotreceived') {
@@ -1163,16 +1260,16 @@
 
                         d.family = currentFamily || '';
 
-                        const year  = document.querySelector('#projYear')?.value || '';
+                        const year = document.querySelector('#projYear')?.value || '';
                         const month = document.querySelector('#monthSelect')?.value || '';
                         const dFrom = document.querySelector('#dateFrom')?.value || '';
-                        const dTo   = document.querySelector('#dateTo')?.value || '';
+                        const dTo = document.querySelector('#dateTo')?.value || '';
 
                         const areaSel = document.querySelector('#projRegion')?.value || '';
                         const area = CAN_VIEW_ALL ? areaSel : (PROJ_REGION || '');
 
                         if (dFrom) d.date_from = dFrom;
-                        if (dTo)   d.date_to   = dTo;
+                        if (dTo) d.date_to = dTo;
                         if (!dFrom && !dTo) {
                             if (month) d.month = month;
                             const yr = year || PROJ_YEAR || '';
@@ -1197,7 +1294,7 @@
                                 : (json?.sum_quotation_value || 0)
                         );
 
-                        TAB_SUMS[status]   = tabSumHeader;
+                        TAB_SUMS[status] = tabSumHeader;
                         TAB_COUNTS[status] = tabCntHeader;
                         TAB_LOADED[status] = true;
 
@@ -1214,7 +1311,7 @@
                     }
                 },
                 columns: cols,
-                drawCallback: function() {
+                drawCallback: function () {
                     // Make "Project" column clickable to open modal (col index 1)
                     const api = this.api();
                     $(api.table().body()).off('click.openRow').on('click.openRow', 'td:nth-child(2)', function () {
@@ -1249,23 +1346,23 @@
 
 
         const checklistBidding = [
-            { key: "vendor_approved",                label: "Vendor approved (ATAI)" },
-            { key: "specs_compliant",                label: "Product specifications compliant with project requirements" },
-            { key: "regular_discount",               label: "Regular/minimum discount offered" },
-            { key: "client_visit",                   label: "Any visit to client/consultant" },
-            { key: "winning_factor",                 label: "Winning factor (above 50%)" },
-            { key: "prequalification_submitted",     label: "Pre-qualification submitted" }
+            {key: "vendor_approved", label: "Vendor approved (ATAI)"},
+            {key: "specs_compliant", label: "Product specifications compliant with project requirements"},
+            {key: "regular_discount", label: "Regular/minimum discount offered"},
+            {key: "client_visit", label: "Any visit to client/consultant"},
+            {key: "winning_factor", label: "Winning factor (above 50%)"},
+            {key: "prequalification_submitted", label: "Pre-qualification submitted"}
         ];
 
 
         const checklistInhand = [
-            { key: "prices_agreed",              label: "Prices agreed",                       weight: 25 },
-            { key: "payment_terms_agreed",       label: "Payment terms agreed",                weight: 25 },
-            { key: "delivery_schedule_agreed",   label: "Delivery schedule agreed",            weight: 0 },
-            { key: "technical_parameters_approved", label: "Technical parameters approved",    weight: 25 },
-            { key: "material_submitted",         label: "Material submitted",                  weight: 25 },
-            { key: "samples_submitted",          label: "Samples submitted",                   weight: 0 },
-            { key: "factory_visit_required",     label: "Factory visit (if required)",          weight: 0 }
+            {key: "prices_agreed", label: "Prices agreed", weight: 25},
+            {key: "payment_terms_agreed", label: "Payment terms agreed", weight: 25},
+            {key: "delivery_schedule_agreed", label: "Delivery schedule agreed", weight: 0},
+            {key: "technical_parameters_approved", label: "Technical parameters approved", weight: 25},
+            {key: "material_submitted", label: "Material submitted", weight: 25},
+            {key: "samples_submitted", label: "Samples submitted", weight: 0},
+            {key: "factory_visit_required", label: "Factory visit (if required)", weight: 0}
         ];
 
 
@@ -1286,13 +1383,16 @@
 
         function updateChecklistProgress(kind) {
             if (kind === 'bidding') {
-                const st  = biddingChecklistStatus();         // {pct, complete,...}
+                const st = biddingChecklistStatus();         // {pct, complete,...}
                 const pct = st.pct;
 
                 // update progress UI
                 document.getElementById('biddingProgressPct').textContent = pct + '%';
                 const bar = document.getElementById('biddingProgressBar');
-                if (bar) { bar.style.width = pct + '%'; bar.setAttribute('aria-valuenow', String(pct)); }
+                if (bar) {
+                    bar.style.width = pct + '%';
+                    bar.setAttribute('aria-valuenow', String(pct));
+                }
 
                 // enable only at 100%
                 setBiddingActionButtonsEnabled(pct === 100);
@@ -1308,32 +1408,43 @@
             const pct = Math.max(0, Math.min(100, Math.round(total)));
             document.getElementById('inhandProgressPct').textContent = pct + '%';
             const bar = document.getElementById('inhandProgressBar');
-            if (bar) { bar.style.width = pct + '%'; bar.setAttribute('aria-valuenow', String(pct)); }
+            if (bar) {
+                bar.style.width = pct + '%';
+                bar.setAttribute('aria-valuenow', String(pct));
+            }
         }
 
 
         document.addEventListener('change', (e) => {
             if (e.target.closest('#biddingModal')) updateChecklistProgress('bidding');
-            if (e.target.closest('#inhandModal'))  updateChecklistProgress('inhand');
+            if (e.target.closest('#inhandModal')) updateChecklistProgress('inhand');
         });
-      //  nukeStrayBackdrops();
+        //  nukeStrayBackdrops();
         document.getElementById('biddingModal')?.addEventListener('shown.bs.modal', () => {
             const frame = document.getElementById('biddingSubmittalFrame');
-            const url   = SUBMITTAL_STATE.bidding.url;
+            const url = SUBMITTAL_STATE.bidding.url;
             if (frame && url && !frame.src) {
                 frame.style.pointerEvents = 'none';
-                frame.onload = () => { frame.style.pointerEvents = 'auto'; };
-                setTimeout(() => { frame.src = url + `?v=${Date.now()}#view=FitH`; }, 50);
+                frame.onload = () => {
+                    frame.style.pointerEvents = 'auto';
+                };
+                setTimeout(() => {
+                    frame.src = url + `?v=${Date.now()}#view=FitH`;
+                }, 50);
             }
         });
-       // nukeStrayBackdrops();
+        // nukeStrayBackdrops();
         document.getElementById('inhandModal')?.addEventListener('shown.bs.modal', () => {
             const frame = document.getElementById('inhandSubmittalFrame');
-            const url   = SUBMITTAL_STATE.inhand.url;
+            const url = SUBMITTAL_STATE.inhand.url;
             if (frame && url && !frame.src) {
                 frame.style.pointerEvents = 'none';
-                frame.onload = () => { frame.style.pointerEvents = 'auto'; };
-                setTimeout(() => { frame.src = url + `?v=${Date.now()}#view=FitH`; }, 50);
+                frame.onload = () => {
+                    frame.style.pointerEvents = 'auto';
+                };
+                setTimeout(() => {
+                    frame.src = url + `?v=${Date.now()}#view=FitH`;
+                }, 50);
             }
         });
 
@@ -1344,7 +1455,7 @@
                 id: row.id,
                 name: row.name ?? row.projectName ?? '-',
                 client: row.client ?? row.clientName ?? '-',
-                salesperson: row.salesperson ??  '-',
+                salesperson: row.salesperson ?? '-',
                 location: row.location ?? row.projectLocation ?? '-',
                 area: row.area ?? '-',
                 quotationValue: Number(qVal),
@@ -1358,13 +1469,14 @@
                 comments: row.comments ?? '',
             };
         }
+
         function fillDetails(dlId, p) {
             const dl = document.getElementById(dlId);
             if (!dl) return;
             const rows = [
                 ['Project', p.name],
                 ['Client', p.client],
-                ['salesperson',p.salesperson],
+                ['salesperson', p.salesperson],
                 ['Location', p.location],
                 ['Area', p.area || '—'],
                 ['Quotation No', p.quotationNo || '—'],
@@ -1378,25 +1490,28 @@
             dl.innerHTML = rows.map(([label, val]) =>
                 `<dt class="col-5 text-muted">${label}</dt><dd class="col-7">${val ?? '—'}</dd>`).join('');
         }
+
         function normalizeStatusToKind(s) {
             const t = String(s || '').toLowerCase().trim();
             if (/^po[-_\s]?received|po[-_\s]?recieved$/.test(t) || t === 'po') return 'poreceived';
-            if (/^in[\s-]?hand$/.test(t) || ['accepted','won','order','order in hand','ih'].includes(t)) return 'inhand';
-            if (['bidding','open','submitted','pending','quote','quoted','rfq','inquiry','enquiry'].includes(t)) return 'bidding';
-            if (['lost','rejected','cancelled','canceled','closed lost','declined','not awarded'].includes(t)) return 'lost';
+            if (/^in[\s-]?hand$/.test(t) || ['accepted', 'won', 'order', 'order in hand', 'ih'].includes(t)) return 'inhand';
+            if (['bidding', 'open', 'submitted', 'pending', 'quote', 'quoted', 'rfq', 'inquiry', 'enquiry'].includes(t)) return 'bidding';
+            if (['lost', 'rejected', 'cancelled', 'canceled', 'closed lost', 'declined', 'not awarded'].includes(t)) return 'lost';
             return 'bidding';
         }
+
         function nukeStrayBackdrops() {
             // remove duplicate/old backdrops and reset body state
             document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
             document.body.classList.remove('modal-open');
             document.body.style.removeProperty('padding-right');
         }
+
         function openProjectModalFromData(row) {
-          //  cleanupBackdrops();
+            //  cleanupBackdrops();
 
             const p = normalizeRow(row);
-            CURRENT_PROJECT_ID   = p.id || row.id || null;
+            CURRENT_PROJECT_ID = p.id || row.id || null;
             CURRENT_QUOTATION_NO = p.quotationNo || p.quotation_no || '-';
             const kind = normalizeStatusToKind(p.status);
 
@@ -1410,7 +1525,10 @@
                     const pct = Math.max(0, Math.min(100, Number(p.biddingProgress)));
                     document.getElementById('biddingProgressPct').textContent = pct + '%';
                     const bar = document.getElementById('biddingProgressBar');
-                    if (bar) { bar.style.width = pct + '%'; bar.setAttribute('aria-valuenow', String(pct)); }
+                    if (bar) {
+                        bar.style.width = pct + '%';
+                        bar.setAttribute('aria-valuenow', String(pct));
+                    }
                     setBiddingActionButtonsEnabled(pct === 100);
                 } else {
                     // compute from the checkboxes just rendered
@@ -1436,7 +1554,10 @@
                     const pct = p.inhandProgress;
                     document.getElementById('inhandProgressPct').textContent = pct + '%';
                     const bar = document.getElementById('inhandProgressBar');
-                    if (bar) { bar.style.width = pct + '%'; bar.setAttribute('aria-valuenow', String(pct)); }
+                    if (bar) {
+                        bar.style.width = pct + '%';
+                        bar.setAttribute('aria-valuenow', String(pct));
+                    }
                 } else {
                     updateChecklistProgress('inhand');
                 }
@@ -1465,7 +1586,7 @@
                 if (list) {
                     list.innerHTML = (p.notes || []).map(n => `
                 <div class="border-start ps-2">
-                  <div class="text-muted">${(n.created_at || '').replace('T',' ').replace('Z','')}</div>
+                  <div class="text-muted">${(n.created_at || '').replace('T', ' ').replace('Z', '')}</div>
                   <div>${n.note}</div>
                 </div>`).join('') || '<div class="text-muted">No notes yet.</div>';
                 }
@@ -1494,7 +1615,9 @@
                     headers: {'X-Requested-With': 'XMLHttpRequest'}
                 });
                 if (res.ok) detail = await res.json();
-            } catch (err) { console.warn('Detail fetch failed', err); }
+            } catch (err) {
+                console.warn('Detail fetch failed', err);
+            }
             if (detail) row = hydrateRowWithDetail(row, detail);
             openProjectModalFromData(row);
         });
@@ -1516,7 +1639,10 @@
         let dtBid, dtIn, dtLost, dtPO, dtNoPO;
         document.getElementById('searchBidding')?.addEventListener('input', e => dtBid && dtBid.search(e.target.value).draw());
         document.getElementById('searchInhand')?.addEventListener('input', e => {
-            if (dtIn) { dtIn.search(e.target.value); dtIn.page(0).draw('page'); }
+            if (dtIn) {
+                dtIn.search(e.target.value);
+                dtIn.page(0).draw('page');
+            }
         });
         document.getElementById('searchLost')?.addEventListener('input', e => dtLost && dtLost.search(e.target.value).draw());
         document.getElementById('searchPOreceived')?.addEventListener('input', e => dtPO && dtPO.search(e.target.value).draw());
@@ -1538,7 +1664,7 @@
 
         /* Apply filters */
         document.getElementById('projApply')?.addEventListener('click', () => {
-            PROJ_YEAR   = document.getElementById('projYear')?.value || '';
+            PROJ_YEAR = document.getElementById('projYear')?.value || '';
             PROJ_REGION = CAN_VIEW_ALL ? (document.getElementById('projRegion')?.value || '') : '';
             resetTabTotals();
             dtBid?.page(0).draw('page');
@@ -1575,10 +1701,10 @@
                 if (opt) yearSel.value = '2025';
             }
 
-            dtBid  = initProjectsTable('#tblBidding',      'bidding');
-            dtIn   = initProjectsTable('#tblInhand',       'inhand');
-            dtLost = initProjectsTable('#tblLost',         'lost');
-            dtPO   = initProjectsTable('#tblPOreceived',   'poreceived');
+            dtBid = initProjectsTable('#tblBidding', 'bidding');
+            dtIn = initProjectsTable('#tblInhand', 'inhand');
+            dtLost = initProjectsTable('#tblLost', 'lost');
+            dtPO = initProjectsTable('#tblPOreceived', 'poreceived');
             dtNoPO = initProjectsTable('#tblNoPOreceived', 'ponotreceived');
         })();
 
@@ -1597,10 +1723,10 @@
                 status: d.status_display ?? d.status ?? row.status,
 
                 checklistBidding: d.checklistBidding ?? {},
-                checklistInhand:  d.checklistInhand ?? {},
+                checklistInhand: d.checklistInhand ?? {},
 
                 biddingProgress: d.biddingProgress,
-                inhandProgress:  d.inhandProgress,
+                inhandProgress: d.inhandProgress,
 
                 notes: d.notes ?? [],
                 progressHistory: d.progressHistory ?? [],
@@ -1633,9 +1759,10 @@
             }
             return res.json();
         }
+
         async function postChecklist(pid, phase, payload) {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-            const url  = phase === 'bidding'
+            const url = phase === 'bidding'
                 ? `/projects/${pid}/checklist/bidding`
                 : `/projects/${pid}/checklist/inhand`;
 
@@ -1649,7 +1776,7 @@
                 },
                 body: JSON.stringify(payload)
             });
-            if (!res.ok) throw new Error((await res.json().catch(()=>({}))).message || res.statusText);
+            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || res.statusText);
             return res.json();
         }
 
@@ -1672,11 +1799,11 @@
             const checked = (id) => !!document.getElementById(id)?.checked;
             try {
                 const r = await postChecklist(CURRENT_PROJECT_ID, 'bidding', {
-                    vendor_approved:            checked('bid_vendor_approved'),
-                    specs_compliant:            checked('bid_specs_compliant'),
-                    regular_discount:           checked('bid_regular_discount'),
-                    client_visit:               checked('bid_client_visit'),
-                    winning_factor:             checked('bid_winning_factor'),
+                    vendor_approved: checked('bid_vendor_approved'),
+                    specs_compliant: checked('bid_specs_compliant'),
+                    regular_discount: checked('bid_regular_discount'),
+                    client_visit: checked('bid_client_visit'),
+                    winning_factor: checked('bid_winning_factor'),
                     prequalification_submitted: checked('bid_prequalification_submitted'),
                 });
 
@@ -1684,11 +1811,14 @@
                 setBiddingActionButtonsEnabled(pct === 100);
                 document.getElementById('biddingProgressPct').textContent = pct + '%';
                 const bar = document.getElementById('biddingProgressBar');
-                if (bar) { bar.style.width = pct + '%'; bar.setAttribute('aria-valuenow', String(pct)); }
+                if (bar) {
+                    bar.style.width = pct + '%';
+                    bar.setAttribute('aria-valuenow', String(pct));
+                }
 
                 const noteText = (document.getElementById('biddingComments')?.value || '').trim();
                 if (noteText) {
-                    await postProjectUpdate(CURRENT_PROJECT_ID, { action: 'add_note', note: noteText });
+                    await postProjectUpdate(CURRENT_PROJECT_ID, {action: 'add_note', note: noteText});
                     document.getElementById('biddingComments').value = '';
                 }
 
@@ -1736,22 +1866,25 @@
                 //     discount_offered_as_standard: checked('ih_discount_offered_as_standard'),
                 // });
                 const r = await postChecklist(CURRENT_PROJECT_ID, 'inhand', {
-                    prices_agreed:                 checked('ih_prices_agreed'),
-                    payment_terms_agreed:          checked('ih_payment_terms_agreed'),
-                    delivery_schedule_agreed:      checked('ih_delivery_schedule_agreed'),
+                    prices_agreed: checked('ih_prices_agreed'),
+                    payment_terms_agreed: checked('ih_payment_terms_agreed'),
+                    delivery_schedule_agreed: checked('ih_delivery_schedule_agreed'),
                     technical_parameters_approved: checked('ih_technical_parameters_approved'),
-                    material_submitted:            checked('ih_material_submitted'),
-                    samples_submitted:             checked('ih_samples_submitted'),
-                    factory_visit_required:        checked('ih_factory_visit_required'),
+                    material_submitted: checked('ih_material_submitted'),
+                    samples_submitted: checked('ih_samples_submitted'),
+                    factory_visit_required: checked('ih_factory_visit_required'),
                 });
                 const pct = Number(r.progress || 0);
                 document.getElementById('inhandProgressPct').textContent = pct + '%';
                 const bar = document.getElementById('inhandProgressBar');
-                if (bar) { bar.style.width = pct + '%'; bar.setAttribute('aria-valuenow', String(pct)); }
+                if (bar) {
+                    bar.style.width = pct + '%';
+                    bar.setAttribute('aria-valuenow', String(pct));
+                }
 
                 const noteText = (document.getElementById('inhandComments')?.value || '').trim();
                 if (noteText) {
-                    await postProjectUpdate(CURRENT_PROJECT_ID, { action: 'add_note', note: noteText });
+                    await postProjectUpdate(CURRENT_PROJECT_ID, {action: 'add_note', note: noteText});
                     document.getElementById('inhandComments').value = '';
                 }
 
@@ -1781,7 +1914,7 @@
             const noteText = (document.getElementById('POreceivedComments')?.value || '').trim();
             try {
                 if (noteText) {
-                    await postProjectUpdate(CURRENT_PROJECT_ID, { action: 'add_note', note: noteText });
+                    await postProjectUpdate(CURRENT_PROJECT_ID, {action: 'add_note', note: noteText});
                     document.getElementById('POreceivedComments').value = '';
                 }
                 showToast('PO received note saved.');
@@ -1793,25 +1926,25 @@
         });
 
         /* Confirmation dialog helper */
-        function showConfirmDialog({ title, html, confirmText='Continue', tone='warning' }) {
+        function showConfirmDialog({title, html, confirmText = 'Continue', tone = 'warning'}) {
             return new Promise((resolve) => {
                 const toneMap = {
-                    warning: { icon: 'bi-exclamation-triangle-fill text-warning', btn: 'btn-warning' },
-                    danger:  { icon: 'bi-x-octagon-fill text-danger',            btn: 'btn-danger'  },
-                    success: { icon: 'bi-check-circle-fill text-success',        btn: 'btn-success' },
-                    info:    { icon: 'bi-info-circle-fill text-info',            btn: 'btn-info'    }
+                    warning: {icon: 'bi-exclamation-triangle-fill text-warning', btn: 'btn-warning'},
+                    danger: {icon: 'bi-x-octagon-fill text-danger', btn: 'btn-danger'},
+                    success: {icon: 'bi-check-circle-fill text-success', btn: 'btn-success'},
+                    info: {icon: 'bi-info-circle-fill text-info', btn: 'btn-info'}
                 };
                 const t = toneMap[tone] || toneMap.warning;
 
                 // Fill content
                 document.getElementById('confirmTitle').textContent = title || 'Confirm';
                 document.getElementById('confirmTitle').style.color = '#f59e0b';
-                document.getElementById('confirmText').innerHTML    = html || 'Are you sure?';
-                document.getElementById('confirmIcon').innerHTML    = `<i class="bi ${t.icon}" style="font-size:2.4rem;"></i>`;
+                document.getElementById('confirmText').innerHTML = html || 'Are you sure?';
+                document.getElementById('confirmIcon').innerHTML = `<i class="bi ${t.icon}" style="font-size:2.4rem;"></i>`;
 
                 const okBtn = document.getElementById('confirmOkBtn');
                 okBtn.textContent = confirmText;
-                okBtn.className   = 'btn ' + t.btn + ' px-4';
+                okBtn.className = 'btn ' + t.btn + ' px-4';
 
                 const el = document.getElementById('confirmActionModal');
 
@@ -1826,7 +1959,7 @@
                 // 2) Mark this modal as stacked
                 el.classList.add('modal-stack');
 
-                const modal = new bootstrap.Modal(el, { backdrop: true, focus: true });
+                const modal = new bootstrap.Modal(el, {backdrop: true, focus: true});
                 let resolved = false;
 
                 const finalize = (val) => {
@@ -1837,13 +1970,13 @@
                         // tidy up but DO NOT nuke active backdrops mid-show
                         document.body.classList.remove('modal-open');
                         document.body.style.removeProperty('padding-right');
-                    }, { once: true });
+                    }, {once: true});
                     resolve(val);
                 };
 
                 // Wire buttons
                 okBtn.onclick = () => finalize(true);
-                el.querySelector('[data-bs-dismiss="modal"]')?.addEventListener('click', () => finalize(false), { once:true });
+                el.querySelector('[data-bs-dismiss="modal"]')?.addEventListener('click', () => finalize(false), {once: true});
 
                 modal.show();
 
@@ -1862,6 +1995,7 @@
                 cleanupBackdrops();
             }
         });
+
         async function changeProjectStatus(toStatus) {
             if (!CURRENT_PROJECT_ID) return alert('No project selected.');
             const confirmed = await showConfirmDialog({
@@ -1872,9 +2006,9 @@
             });
             if (!confirmed) return;
 
-            ['LostStatusBtn','POreceivedStatusBtn','BiddingLostBtn','BiddingPOBtn'].forEach(id => {
+            ['LostStatusBtn', 'POreceivedStatusBtn', 'BiddingLostBtn', 'BiddingPOBtn'].forEach(id => {
                 const b = document.getElementById(id);
-                if (b) b.setAttribute('disabled','disabled');
+                if (b) b.setAttribute('disabled', 'disabled');
             });
 
             try {
@@ -1884,7 +2018,7 @@
                 });
                 if (!res?.ok) throw new Error(res?.message || 'Update failed');
 
-                ['inhandModal','biddingModal','lostModal','POreceivedModal'].forEach(id => {
+                ['inhandModal', 'biddingModal', 'lostModal', 'POreceivedModal'].forEach(id => {
                     const el = document.getElementById(id);
                     bootstrap.Modal.getInstance(el)?.hide();
                 });
@@ -1905,12 +2039,13 @@
             } catch (err) {
                 alert('Save failed: ' + (err?.message || err));
             } finally {
-                ['LostStatusBtn','POreceivedStatusBtn','BiddingLostBtn','BiddingPOBtn'].forEach(id => {
+                ['LostStatusBtn', 'POreceivedStatusBtn', 'BiddingLostBtn', 'BiddingPOBtn'].forEach(id => {
                     const b = document.getElementById(id);
                     if (b) b.removeAttribute('disabled');
                 });
             }
         }
+
         async function changeProjectType(toType) {
             if (!CURRENT_PROJECT_ID) return alert('No project selected.');
             const ok = await showConfirmDialog({
@@ -1929,8 +2064,9 @@
                 if (!res?.ok) throw new Error(res?.message || 'Update failed');
 
                 // Close any open modals and clean backdrops
-                ['biddingModal','inhandModal','lostModal','POreceivedModal'].forEach(id=>{
-                    const el=document.getElementById(id); bootstrap.Modal.getInstance(el)?.hide();
+                ['biddingModal', 'inhandModal', 'lostModal', 'POreceivedModal'].forEach(id => {
+                    const el = document.getElementById(id);
+                    bootstrap.Modal.getInstance(el)?.hide();
                 });
                 cleanupBackdrops();
 
@@ -1958,15 +2094,27 @@
          * Submittals (shared for Bidding + In-Hand)
          * ============================================================================= */
         const SUBMITTAL_STATE = {
-            bidding: { has: false, url: "", name: "" },
-            inhand:  { has: false, url: "", name: "" }
+            bidding: {has: false, url: "", name: ""},
+            inhand: {has: false, url: "", name: ""}
         };
+
         function _ids(phase) {
             return (phase === 'inhand')
-                ? { file: 'inhandSubmittalFile', wrap: 'inhandSubmittalPreview', frame: 'inhandSubmittalFrame', link: 'inhandSubmittalLink', btn: 'uploadInhandSubmittalBtn' }
-                : { file: 'biddingSubmittalFile', wrap: 'biddingSubmittalPreview', frame: 'biddingSubmittalFrame', link: 'biddingSubmittalLink', btn: 'uploadBiddingSubmittalBtn' };
+                ? {
+                    file: 'inhandSubmittalFile',
+                    wrap: 'inhandSubmittalPreview',
+                    frame: 'inhandSubmittalFrame',
+                    link: 'inhandSubmittalLink',
+                    btn: 'uploadInhandSubmittalBtn'
+                }
+                : {
+                    file: 'biddingSubmittalFile',
+                    wrap: 'biddingSubmittalPreview',
+                    frame: 'biddingSubmittalFrame',
+                    link: 'biddingSubmittalLink',
+                    btn: 'uploadBiddingSubmittalBtn'
+                };
         }
-
 
 
         // Make any returned URL absolute against current origin
@@ -1982,49 +2130,68 @@
         //     }
         // }
 
-        function isSignedUrl(u){
+        function isSignedUrl(u) {
             return typeof u === 'string' && /\b(signature|expires)=/i.test(u);
         }
-        function resolveUrl(u){
-            try { return new URL(u, document.baseURI || window.location.href).toString(); }
-            catch { return u || ''; }
+
+        function resolveUrl(u) {
+            try {
+                return new URL(u, document.baseURI || window.location.href).toString();
+            } catch {
+                return u || '';
+            }
         }
-        function buildFinalUrl(j){
-            const raw  = j?.url_stream || j?.url_rel || '';
+
+        function buildFinalUrl(j) {
+            const raw = j?.url_stream || j?.url_rel || '';
             const base = resolveUrl(raw);
             if (!base) return '';
             return isSignedUrl(base) ? base : base + (base.includes('?') ? '&' : '?') + 'v=' + Date.now();
         }
-        async function loadSubmittalPreview(projectId, phase='bidding'){
+
+        async function loadSubmittalPreview(projectId, phase = 'bidding') {
             const ids = _ids(phase);
-            SUBMITTAL_STATE[phase] = { has:false, url:'', name:'' };
+            SUBMITTAL_STATE[phase] = {has: false, url: '', name: ''};
 
-            const wrap  = document.getElementById(ids.wrap);
+            const wrap = document.getElementById(ids.wrap);
             const frame = document.getElementById(ids.frame);
-            const link  = document.getElementById(ids.link);
+            const link = document.getElementById(ids.link);
 
-            if (wrap)  wrap.classList.add('d-none');
-            if (frame) { frame.removeAttribute('src'); frame.style.pointerEvents = 'none'; }
-            if (link)  { link.removeAttribute('href'); link.textContent = 'Open PDF'; }
+            if (wrap) wrap.classList.add('d-none');
+            if (frame) {
+                frame.removeAttribute('src');
+                frame.style.pointerEvents = 'none';
+            }
+            if (link) {
+                link.removeAttribute('href');
+                link.textContent = 'Open PDF';
+            }
 
             try {
-                const res = await fetch(`/projects/${projectId}/submittal/${phase}`, { credentials:'same-origin' });
+                const res = await fetch(`/projects/${projectId}/submittal/${phase}`, {credentials: 'same-origin'});
                 if (!res.ok) return;
                 const j = await res.json();
                 if (!j?.exists) return;
 
                 const final = buildFinalUrl(j);
-                SUBMITTAL_STATE[phase] = { has: !!final, url: final, name: j.name || 'Open PDF' };
+                SUBMITTAL_STATE[phase] = {has: !!final, url: final, name: j.name || 'Open PDF'};
 
-                if (link && final) { link.href = final; link.textContent = j.name || 'Open PDF'; }
+                if (link && final) {
+                    link.href = final;
+                    link.textContent = j.name || 'Open PDF';
+                }
                 if (frame && final) {
-                    frame.onload = () => { frame.style.pointerEvents = 'auto'; };
-                    setTimeout(() => { frame.src = final + '#view=FitH'; }, 50);
+                    frame.onload = () => {
+                        frame.style.pointerEvents = 'auto';
+                    };
+                    setTimeout(() => {
+                        frame.src = final + '#view=FitH';
+                    }, 50);
                 }
                 if (wrap && final) wrap.classList.remove('d-none');
-            } catch {}
+            } catch {
+            }
         }
-
 
 
         function attachSubmittalUpload(phase = 'bidding') {
@@ -2054,24 +2221,28 @@
                     const res = await fetch(`/projects/${CURRENT_PROJECT_ID}/submittal`, {
                         method: 'POST',
                         credentials: 'same-origin',
-                        headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        },
                         body: fd
                     });
 
                     const ctype = res.headers.get('content-type') || '';
                     if (!res.ok) {
-                        const msg = ctype.includes('application/json') ? (await res.json().catch(()=>({}))).message : `Upload failed (${res.status})`;
+                        const msg = ctype.includes('application/json') ? (await res.json().catch(() => ({}))).message : `Upload failed (${res.status})`;
                         throw new Error(msg || 'Upload failed');
                     }
 
                     const j = await res.json();
                     const final = buildFinalUrl(j);
 
-                    SUBMITTAL_STATE[phase] = { has: !!final, url: final, name: j.name || 'Open PDF' };
+                    SUBMITTAL_STATE[phase] = {has: !!final, url: final, name: j.name || 'Open PDF'};
 
-                    const wrap  = document.getElementById(ids.wrap);
+                    const wrap = document.getElementById(ids.wrap);
                     const frame = document.getElementById(ids.frame);
-                    const link  = document.getElementById(ids.link);
+                    const link = document.getElementById(ids.link);
 
                     if (link && final) {
                         link.href = final;
@@ -2082,8 +2253,12 @@
                         frame.removeAttribute('src');
                         frame.setAttribute('loading', 'lazy');
                         frame.style.pointerEvents = 'none';
-                        frame.onload = () => { frame.style.pointerEvents = 'auto'; };
-                        setTimeout(() => { frame.src = final + '#view=FitH'; }, 50);
+                        frame.onload = () => {
+                            frame.style.pointerEvents = 'auto';
+                        };
+                        setTimeout(() => {
+                            frame.src = final + '#view=FitH';
+                        }, 50);
                     }
 
                     showToast('Submittal uploaded.');
@@ -2107,7 +2282,7 @@
 
             try {
                 if (noteText) {
-                    await postProjectUpdate(CURRENT_PROJECT_ID, { action: 'add_note', note: noteText });
+                    await postProjectUpdate(CURRENT_PROJECT_ID, {action: 'add_note', note: noteText});
                     document.getElementById('lostComments').value = '';
                 }
                 const confirmed = await showConfirmDialog({
@@ -2117,7 +2292,7 @@
                     tone: 'danger'
                 });
                 if (confirmed) {
-                    await postProjectUpdate(CURRENT_PROJECT_ID, { action: 'update_status', to_status: 'Lost' });
+                    await postProjectUpdate(CURRENT_PROJECT_ID, {action: 'update_status', to_status: 'Lost'});
                 }
 
                 bootstrap.Modal.getInstance(document.getElementById('lostModal'))?.hide();
@@ -2129,8 +2304,6 @@
                 alert('Save failed: ' + (err?.message || err));
             }
         });
-
-
 
 
         function normalizeDateInput(selector) {
@@ -2149,11 +2322,11 @@
                     if (parts.length === 3) {
                         // Case 1: YYYY-MM-DD (already OK)
                         if (parts[0].length === 4) {
-                            formatted = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+                            formatted = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
                         }
                         // Case 2: DD-MM-YYYY or DD/MM/YYYY
                         else {
-                            formatted = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+                            formatted = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
                         }
                     }
 
@@ -2170,37 +2343,36 @@
         normalizeDateInput('input[name="quotation_date"], input[name="date_received"]');
 
 
-
         $('#btnExportMonthly').on('click', function () {
 
         });
 
         // Helper to build query string from current filters
         function buildExportParams() {
-            const year     = document.getElementById('projYear')?.value || '';
-            const month    = document.getElementById('monthSelect')?.value || '';
+            const year = document.getElementById('projYear')?.value || '';
+            const month = document.getElementById('monthSelect')?.value || '';
             const dateFrom = document.getElementById('dateFrom')?.value || '';
-            const dateTo   = document.getElementById('dateTo')?.value || '';
-            const areaSel  = document.getElementById('projRegion')?.value || '';
+            const dateTo = document.getElementById('dateTo')?.value || '';
+            const areaSel = document.getElementById('projRegion')?.value || '';
             const salesman = document.getElementById('salesmanInput')?.value?.trim() || '';
-            const family   = document.querySelector('#familyChips .active')?.getAttribute('data-family') || '';
+            const family = document.querySelector('#familyChips .active')?.getAttribute('data-family') || '';
 
             const params = new URLSearchParams();
 
-            if (year)     params.append('year', year);
-            if (month)    params.append('month', month);
+            if (year) params.append('year', year);
+            if (month) params.append('month', month);
             if (dateFrom) params.append('date_from', dateFrom);
-            if (dateTo)   params.append('date_to', dateTo);
-            if (areaSel)  params.append('area', areaSel);
+            if (dateTo) params.append('date_to', dateTo);
+            if (areaSel) params.append('area', areaSel);
             if (salesman) params.append('salesman', salesman);
-            if (family)   params.append('family', family);
+            if (family) params.append('family', family);
 
             return params.toString();
         }
 
         // WEEKLY export (green button)
         document.getElementById('btnExportExcel')?.addEventListener('click', () => {
-            const year  = document.getElementById('projYear')?.value || '';
+            const year = document.getElementById('projYear')?.value || '';
             const month = document.getElementById('monthSelect')?.value || '';
 
             // ❗ Require Year + Month, same as monthly
@@ -2215,7 +2387,7 @@
         // MONTHLY export (new blue button)
         document.getElementById('btnExportMonthly')?.addEventListener('click', () => {
 
-            const year  = $('#projYear').val();
+            const year = $('#projYear').val();
             const month = $('#monthSelect').val();
 
 

@@ -31,7 +31,7 @@ class ProjectExportController extends Controller
 //        }
 
         // 🔐 2) Salesman restriction – THIS is what you asked for
-        if ($user && ! $user->can('view_all_projects')) {
+        if ($user && !$user->can('view_all_projects')) {
 
             // Example: map aliases for that salesman
             // Sohaib -> ['SOHAIB','SOAHIB']
@@ -40,7 +40,7 @@ class ProjectExportController extends Controller
                 'SOHAIB' => ['SOHAIB', 'SOAHIB'],
                 'TAREQ', 'TARIQ' => ['TAREQ', 'TARIQ'],
                 'ABDO', 'ABDU' => ['ABDO', 'ABDU'],
-                'Ahmed'=>['Ahmed','Ahmed'],
+                'Ahmed' => ['Ahmed', 'Ahmed'],
                 default => [strtoupper($user->name)],
             };
 
@@ -65,6 +65,7 @@ class ProjectExportController extends Controller
 
         return $q;
     }
+
     /**
      * Weekly export: multi-sheet, each sheet is a KSA work week (Sun–Thu).
      */
@@ -79,18 +80,18 @@ class ProjectExportController extends Controller
             if (!$date) {
                 $key = 'No Date';
             } else {
-                $c     = \Carbon\Carbon::parse($date);
+                $c = \Carbon\Carbon::parse($date);
                 $start = $c->copy()->startOfWeek(\Carbon\Carbon::SUNDAY);
-                $end   = $start->copy()->addDays(4); // Thursday
-                $key   = $start->format('d-m-Y').' to '.$end->format('d-m-Y');
+                $end = $start->copy()->addDays(4); // Thursday
+                $key = $start->format('d-m-Y') . ' to ' . $end->format('d-m-Y');
             }
             $groups[$key][] = $p;
         }
 
         ksort($groups);
 
-        $fileName       = 'ATAI-Projects-Weekly-' . now()->format('Ymd_His') . '.xlsx';
-        $estimatorName  = optional(\Illuminate\Support\Facades\Auth::user())->name;
+        $fileName = 'ATAI-Projects-Weekly-' . now()->format('Ymd_His') . '.xlsx';
+        $estimatorName = optional(\Illuminate\Support\Facades\Auth::user())->name;
 
         return \Maatwebsite\Excel\Facades\Excel::download(
             new \App\Exports\ProjectsWeeklyExport($groups, $estimatorName),
@@ -105,10 +106,10 @@ class ProjectExportController extends Controller
      */
     public function monthly(Request $request)
     {
-        $year  = (int) $request->input('year');
-        $month = (int) $request->input('month');
+        $year = (int)$request->input('year');
+        $month = (int)$request->input('month');
 
-        if (! $year || ! $month) {
+        if (!$year || !$month) {
             return back()->with('error', 'Please select year and month for monthly export.');
         }
 
@@ -133,8 +134,8 @@ class ProjectExportController extends Controller
             ->orderBy('date_rec')
             ->get();
 
-        $monthName     = Carbon::createFromDate($year, $month, 1)->format('F Y');
-        $fileName      = 'ATAI-Projects-Monthly-' . $monthName . '.xlsx';
+        $monthName = Carbon::createFromDate($year, $month, 1)->format('F Y');
+        $fileName = 'ATAI-Projects-Monthly-' . $monthName . '.xlsx';
         $estimatorName = optional(Auth::user())->name;
 
         return Excel::download(
@@ -142,11 +143,12 @@ class ProjectExportController extends Controller
             $fileName
         );
     }
+
     public function yearly(Request $request)
     {
-        $year = (int) $request->input('year');
+        $year = (int)$request->input('year');
 
-        if (! $year) {
+        if (!$year) {
             return back()->with('error', 'Please select year for yearly export.');
         }
 
@@ -169,8 +171,8 @@ class ProjectExportController extends Controller
             ->orderBy('date_rec')
             ->get();
 
-        $label         = (string) $year;
-        $fileName      = 'ATAI-Projects-Yearly-' . $label . '.xlsx';
+        $label = (string)$year;
+        $fileName = 'ATAI-Projects-Yearly-' . $label . '.xlsx';
         $estimatorName = optional(Auth::user())->name;
 
         return Excel::download(
