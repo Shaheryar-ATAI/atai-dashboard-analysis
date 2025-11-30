@@ -20,6 +20,7 @@
         .thin-input { padding-top: .375rem; padding-bottom: .375rem; }
         .week-badge { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
 
+
         /* Inputs inside the table: make them readable */
         #weeklyTbl input[type="text"],
         #weeklyTbl input[type="tel"],
