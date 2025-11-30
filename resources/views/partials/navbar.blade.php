@@ -89,12 +89,12 @@
                 @endhasanyrole
                 {{-- GM/Admin only --}}
                 @hasanyrole('gm|admin')
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('salesorders.index') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('salesorders.index') }}">
-                        Sales Orders
-                    </a>
-                </li>
+{{--                <li class="nav-item">--}}
+{{--                    <a class="nav-link {{ request()->routeIs('salesorders.index') ? 'active fw-semibold text-primary' : '' }}"--}}
+{{--                       href="{{ route('salesorders.index') }}">--}}
+{{--                        Sales Summary--}}
+{{--                    </a>--}}
+{{--                </li>--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('performance.area*') ? 'active fw-semibold text-primary' : '' }}"
                        href="{{ route('performance.area') }}">
@@ -113,16 +113,16 @@
                         Product Summary
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('accounts.summary') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('powerbi.jump') }}">
-                        Accounts Summary
-                    </a>
-                </li>
+{{--                <li class="nav-item">--}}
+{{--                    <a class="nav-link {{ request()->routeIs('accounts.summary') ? 'active fw-semibold text-primary' : '' }}"--}}
+{{--                       href="{{ route('powerbi.jump') }}">--}}
+{{--                        Accounts Summary--}}
+{{--                    </a>--}}
+{{--                </li>--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active fw-semibold text-primary' : '' }}"
                        href="{{ route('powerbi.jump') }}">
-                        Power BI Dashboard
+                        KPI'S  Dashboard
                     </a>
                 </li>
                 @endhasanyrole

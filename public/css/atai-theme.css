@@ -742,3 +742,13 @@ select option {
         box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
     }
 }
+#gaugeGauge,
+#gaugeGauge > div {
+    min-height: 100px !important;
+}
+
+.gauge-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

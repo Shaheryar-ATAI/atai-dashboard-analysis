@@ -18,6 +18,33 @@ class PerformanceController extends Controller
         if (str_contains($id, '`')) return $id; // already quoted
         return '`' . str_replace('`', '``', $id) . '`';
     }
+    private function productNormExprProjects(string $alias = 'p'): string
+    {
+        // ✅ correct column name from your screenshot
+        $col = "{$alias}.atai_products";
+
+        // use LOWER+TRIM so LIKE checks are reliable
+        return "
+        CASE
+            WHEN $col IS NULL OR TRIM($col) = '' THEN 'Unspecified'
+
+            -- Ductwork
+            WHEN LOWER($col) LIKE '%duct%' THEN 'Ductwork'
+
+            -- Dampers
+            WHEN LOWER($col) LIKE '%damper%' THEN 'Dampers'
+
+            -- Louvers
+            WHEN LOWER($col) LIKE '%louver%' OR LOWER($col) LIKE '%louvre%' THEN 'Louvers'
+
+            -- Sound attenuators / cross-talk attenuators
+            WHEN LOWER($col) LIKE '%attenuator%' OR LOWER($col) LIKE '%cross talk%' THEN 'Sound Attenuators'
+
+            -- Everything else → Accessories
+            ELSE 'Accessories'
+        END
+    ";
+    }
 
     // Quote a qualified identifier: `alias`.`column`
     private function qual(string $alias, string $column): string
@@ -35,7 +62,7 @@ class PerformanceController extends Controller
     // Cast text money → DECIMAL for correct math
     private function poAmountExpr(): string
     {
-        return "CAST(NULLIF(REPLACE(REPLACE(`value_with_vat`, ',', ''), ' ', ''), '') AS DECIMAL(18,2))";
+        return "CAST(NULLIF(REPLACE(REPLACE(`PO Value`, ',', ''), ' ', ''), '') AS DECIMAL(18,2))";
     }
 
     // Normalized area for salesorderlog: prefer Region (normalized), else region
@@ -296,102 +323,114 @@ class PerformanceController extends Controller
     public function productsData(Request $request)
     {
         $kind = $request->get('kind', 'inq');
-        $year = (int)$request->get('year', now()->year);
+        $year = (int) $request->get('year', now()->year);
 
         if ($kind === 'po') {
-            // POs from salesorderlog (use DECIMAL cast)
-            $amount = $this->poAmountExpr();
+            // ---------- POs from salesorderlog ----------
+            $amount = $this->poAmountExpr(); // uses `PO Value`
 
             $rows = DB::table('salesorderlog as s')
                 ->selectRaw("
-                    COALESCE(NULLIF(TRIM(s.products),''),'Unspecified') AS product,
-                    SUM(CASE WHEN MONTH(s.date_rec)=1  THEN $amount ELSE 0 END) AS jan,
-                    SUM(CASE WHEN MONTH(s.date_rec)=2  THEN $amount ELSE 0 END) AS feb,
-                    SUM(CASE WHEN MONTH(s.date_rec)=3  THEN $amount ELSE 0 END) AS mar,
-                    SUM(CASE WHEN MONTH(s.date_rec)=4  THEN $amount ELSE 0 END) AS apr,
-                    SUM(CASE WHEN MONTH(s.date_rec)=5  THEN $amount ELSE 0 END) AS may,
-                    SUM(CASE WHEN MONTH(s.date_rec)=6  THEN $amount ELSE 0 END) AS jun,
-                    SUM(CASE WHEN MONTH(s.date_rec)=7  THEN $amount ELSE 0 END) AS jul,
-                    SUM(CASE WHEN MONTH(s.date_rec)=8  THEN $amount ELSE 0 END) AS aug,
-                    SUM(CASE WHEN MONTH(s.date_rec)=9  THEN $amount ELSE 0 END) AS sep,
-                    SUM(CASE WHEN MONTH(s.date_rec)=10 THEN $amount ELSE 0 END) AS oct,
-                    SUM(CASE WHEN MONTH(s.date_rec)=11 THEN $amount ELSE 0 END) AS nov,
-                    SUM(CASE WHEN MONTH(s.date_rec)=12 THEN $amount ELSE 0 END) AS december,
-                    SUM($amount) AS total
-                ")
+                COALESCE(NULLIF(TRIM(s.Products),''),'Unspecified') AS product,
+                SUM(CASE WHEN MONTH(s.date_rec)=1  THEN $amount ELSE 0 END) AS jan,
+                SUM(CASE WHEN MONTH(s.date_rec)=2  THEN $amount ELSE 0 END) AS feb,
+                SUM(CASE WHEN MONTH(s.date_rec)=3  THEN $amount ELSE 0 END) AS mar,
+                SUM(CASE WHEN MONTH(s.date_rec)=4  THEN $amount ELSE 0 END) AS apr,
+                SUM(CASE WHEN MONTH(s.date_rec)=5  THEN $amount ELSE 0 END) AS may,
+                SUM(CASE WHEN MONTH(s.date_rec)=6  THEN $amount ELSE 0 END) AS jun,
+                SUM(CASE WHEN MONTH(s.date_rec)=7  THEN $amount ELSE 0 END) AS jul,
+                SUM(CASE WHEN MONTH(s.date_rec)=8  THEN $amount ELSE 0 END) AS aug,
+                SUM(CASE WHEN MONTH(s.date_rec)=9  THEN $amount ELSE 0 END) AS sep,
+                SUM(CASE WHEN MONTH(s.date_rec)=10 THEN $amount ELSE 0 END) AS oct,
+                SUM(CASE WHEN MONTH(s.date_rec)=11 THEN $amount ELSE 0 END) AS nov,
+                SUM(CASE WHEN MONTH(s.date_rec)=12 THEN $amount ELSE 0 END) AS december,
+                SUM($amount) AS total
+            ")
                 ->whereYear('s.date_rec', $year)
                 ->groupBy('product')
                 ->orderByDesc('total')
                 ->get();
         } else {
-            // Inquiries from normalized projects
-            $rows = DB::table('vw_projects_normalized as p')
+            // ---------- Inquiries from PROJECTS (using atai_products) ----------
+            $prodExpr = $this->productNormExprProjects('p');
+
+            $rows = DB::table('projects as p')
                 ->selectRaw("
-                    product_norm as product,
-                    SUM(CASE WHEN MONTH(quotation_date)=1  THEN quotation_value ELSE 0 END) AS jan,
-                    SUM(CASE WHEN MONTH(quotation_date)=2  THEN quotation_value ELSE 0 END) AS feb,
-                    SUM(CASE WHEN MONTH(quotation_date)=3  THEN quotation_value ELSE 0 END) AS mar,
-                    SUM(CASE WHEN MONTH(quotation_date)=4  THEN quotation_value ELSE 0 END) AS apr,
-                    SUM(CASE WHEN MONTH(quotation_date)=5  THEN quotation_value ELSE 0 END) AS may,
-                    SUM(CASE WHEN MONTH(quotation_date)=6  THEN quotation_value ELSE 0 END) AS jun,
-                    SUM(CASE WHEN MONTH(quotation_date)=7  THEN quotation_value ELSE 0 END) AS jul,
-                    SUM(CASE WHEN MONTH(quotation_date)=8  THEN quotation_value ELSE 0 END) AS aug,
-                    SUM(CASE WHEN MONTH(quotation_date)=9  THEN quotation_value ELSE 0 END) AS sep,
-                    SUM(CASE WHEN MONTH(quotation_date)=10 THEN quotation_value ELSE 0 END) AS oct,
-                    SUM(CASE WHEN MONTH(quotation_date)=11 THEN quotation_value ELSE 0 END) AS nov,
-                    SUM(CASE WHEN MONTH(quotation_date)=12 THEN quotation_value ELSE 0 END) AS december,
-                    SUM(quotation_value) AS total
-                ")
-                ->whereYear('quotation_date', $year)
-                ->groupBy('product_norm')
+                $prodExpr AS product,
+                SUM(CASE WHEN MONTH(p.quotation_date)=1  THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS jan,
+                SUM(CASE WHEN MONTH(p.quotation_date)=2  THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS feb,
+                SUM(CASE WHEN MONTH(p.quotation_date)=3  THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS mar,
+                SUM(CASE WHEN MONTH(p.quotation_date)=4  THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS apr,
+                SUM(CASE WHEN MONTH(p.quotation_date)=5  THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS may,
+                SUM(CASE WHEN MONTH(p.quotation_date)=6  THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS jun,
+                SUM(CASE WHEN MONTH(p.quotation_date)=7  THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS jul,
+                SUM(CASE WHEN MONTH(p.quotation_date)=8  THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS aug,
+                SUM(CASE WHEN MONTH(p.quotation_date)=9  THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS sep,
+                SUM(CASE WHEN MONTH(p.quotation_date)=10 THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS oct,
+                SUM(CASE WHEN MONTH(p.quotation_date)=11 THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS nov,
+                SUM(CASE WHEN MONTH(p.quotation_date)=12 THEN COALESCE(p.quotation_value,0) ELSE 0 END) AS december,
+                SUM(COALESCE(p.quotation_value,0)) AS total
+            ")
+                ->whereYear('p.quotation_date', $year)
+                ->groupBy('product')
                 ->orderByDesc('total')
                 ->get();
         }
 
-        // DataTables plumbing
-        $draw = (int)$request->get('draw', 1);
-        $search = trim((string)($request->input('search.value') ?? ''));
+        // ----- DataTables plumbing -----
+        $draw   = (int) $request->get('draw', 1);
+        $search = trim((string) ($request->input('search.value') ?? ''));
+
         $data = $rows->toArray();
 
         if ($search !== '') {
-            $data = array_values(array_filter($data, fn($r) => stripos($r->product ?? 'Unspecified', $search) !== false
+            $data = array_values(array_filter(
+                $data,
+                fn ($r) => stripos($r->product ?? 'Unspecified', $search) !== false
             ));
         }
 
-        $recordsTotal = count($rows);
+        $recordsTotal    = count($rows);
         $recordsFiltered = count($data);
-        $start = (int)$request->get('start', 0);
-        $length = (int)$request->get('length', 25);
-        $page = array_slice($data, $start, $length);
-        $sum_total = array_reduce($data, fn($c, $r) => $c + (float)$r->total, 0.0);
+        $start           = (int) $request->get('start', 0);
+        $length          = (int) $request->get('length', 25);
+        $page            = array_slice($data, $start, $length);
+        $sum_total       = array_reduce($data, fn ($c, $r) => $c + (float) $r->total, 0.0);
 
         return response()->json([
-            'draw' => $draw,
-            'recordsTotal' => $recordsTotal,
+            'draw'            => $draw,
+            'recordsTotal'    => $recordsTotal,
             'recordsFiltered' => $recordsFiltered,
-            'data' => $page,
-            'sum_total' => $sum_total,
+            'data'            => $page,
+            'sum_total'       => $sum_total,
         ]);
     }
+
+
 
     /** KPIs for products page */
     public function productsKpis(Request $request)
     {
-        $year = (int)$request->query('year', now()->year);
+        $year = (int) $request->query('year', now()->year);
 
-        $inq = DB::table('vw_projects_normalized as p')
-            ->selectRaw('product_norm as product, SUM(quotation_value) as val')
-            ->whereYear('quotation_date', $year)
-            ->groupBy('product_norm')
+        $prodExpr = $this->productNormExprProjects('p');
+
+        // Inquiries from projects
+        $inq = DB::table('projects as p')
+            ->selectRaw("$prodExpr AS product, SUM(COALESCE(p.quotation_value,0)) AS val")
+            ->whereYear('p.quotation_date', $year)
+            ->groupBy('product')
             ->orderByDesc('val')
             ->get();
 
+        // POs from salesorderlog
         $amount = $this->poAmountExpr();
         $po = DB::table('salesorderlog as s')
-            ->selectRaw("COALESCE(NULLIF(TRIM(s.products),''),'Unspecified') AS product,
-                         SUM($amount) AS val")
+            ->selectRaw("
+            COALESCE(NULLIF(TRIM(s.Products),''),'Unspecified') AS product,
+            SUM($amount) AS val
+        ")
             ->whereYear('s.date_rec', $year)
-            ->where('Status', 'Accepted')
             ->groupBy('product')
             ->orderByDesc('val')
             ->get();
@@ -403,17 +442,19 @@ class PerformanceController extends Controller
         $cats = array_slice($cats, 0, 12);
 
         $mapInq = $inq->pluck('val', 'product');
-        $mapPo = $po->pluck('val', 'product');
+        $mapPo  = $po->pluck('val', 'product');
 
-        $inquiries = array_map(fn($p) => (float)($mapInq[$p] ?? 0), $cats);
-        $pos = array_map(fn($p) => (float)($mapPo[$p] ?? 0), $cats);
+        $inquiries = array_map(fn ($p) => (float) ($mapInq[$p] ?? 0), $cats);
+        $pos       = array_map(fn ($p) => (float) ($mapPo[$p] ?? 0), $cats);
 
         return response()->json([
-            'categories' => $cats,
-            'inquiries' => $inquiries,
-            'pos' => $pos,
+            'categories'    => $cats,
+            'inquiries'     => $inquiries,
+            'pos'           => $pos,
             'sum_inquiries' => array_sum($inquiries),
-            'sum_pos' => array_sum($pos),
+            'sum_pos'       => array_sum($pos),
         ]);
     }
+
+
 }
