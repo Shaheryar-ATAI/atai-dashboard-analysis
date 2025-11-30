@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"/>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<title>Login (simple)</title>
+<style>body{font-family:system-ui;margin:2rem}label,input,select,button{font-size:1rem}</style>
+<h2>Login</h2>
+<label>Name: <input id="name" placeholder="Sohaib / Tariq / Abdo / GM"></label>
+<button id="go">Continue</button>
+
+
+<script>
+
+  const map = { sohaib:'Eastern', tariq:'Central', abdo:'Western', gm:'', shah:'', manager:'' };
+  document.getElementById('go').onclick = () => {
+    const n = (document.getElementById('name').value||'').trim();
+    localStorage.setItem('atai_user', n);
+    localStorage.setItem('atai_region', map[n.toLowerCase()] ?? '');
+    location.href = 'projects.html';
+  };
+</script>

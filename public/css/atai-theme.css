@@ -1,0 +1,744 @@
+/* =====================================================================
+   ATAI THEME — Dark Glass App Theme
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   1) TOKENS / ROOT
+/* =====================================================================
+   ATAI THEME — Dark Glass App Theme (CLEANED)
+   ---------------------------------------------------------------------
+   Notes
+   - All duplicate/overlapping blocks removed.
+   - Sections are labeled clearly.
+   - Forecast table overrides live at the very end so they always win.
+   - Keep this file name or add a version query in HTML to bust cache:
+       <link rel="stylesheet" href="/css/atai-theme.css?v=2025-11-04">
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   1) DESIGN TOKENS / ROOT VARIABLES
+   --------------------------------------------------------------------- */
+:root {
+    /* Brand greens */
+    --atai-green-50:#f4fbe8;
+    --atai-green-100:#e7f4d1;
+    --atai-green-300:#c9e6a0;
+    /* --atai-green-500:#95c53d;  --atai-green-600:#6a922e;  --atai-green-900:#10240e; */
+
+    /* CTA */
+    --cta:#ff6a2a;
+    --cta-700:#e45717;
+
+    /* Panels */
+    --panel-top:#0b1020;
+    --panel-bottom:#1b2134;
+    --panel-line:rgba(255,255,255,.10);
+    --panel-shadow:0 14px 34px rgba(0,0,0,.45);
+
+    /* KPI cards */
+    --kpi-top:#0e1323;
+    --kpi-bottom:#1a2236;
+    --kpi-line:rgba(255,255,255,.08);
+    --kpi-shadow:0 12px 30px rgba(0,0,0,.48);
+    --kpi-shadow-hover:0 18px 38px rgba(0,0,0,.58);
+    --kpi-label:#9cc4ff;
+    --kpi-ink:#e6f0ff;
+
+    /* Focus ring */
+    --ring:0 0 0 .25rem rgba(149,197,61,.28);
+
+    /* Badges */
+    --badge-height:38px;
+    --badge-radius:12px;
+
+    /* App background */
+    --app-grad:
+        radial-gradient(950px 520px at 12% 8%, rgba(149,197,61,.14), transparent 45%),
+        radial-gradient(1100px 600px at 88% 10%, rgba(255,106,42,.10), transparent 45%),
+        linear-gradient(180deg,#0c1020 0%, #0a0f1d 40%, #0b1120 100%);
+}
+
+/* ---------------------------------------------------------------------
+   2) GLOBAL PAGE BACKGROUND + BASE
+   --------------------------------------------------------------------- */
+html, body { height: 100%; }
+body {
+    color: var(--kpi-ink);
+    background: var(--app-grad);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+/* subtle glow under the navbar */
+body::before {
+    content:""; position:fixed; inset:0 0 auto 0; height:110px; z-index:0;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), transparent 70%);
+    pointer-events:none;
+}
+.container, .container-fluid { position: relative; z-index: 1; }
+
+/* ---------------------------------------------------------------------
+   3) NAVBAR (sticky glass) + LAYOUT
+   --------------------------------------------------------------------- */
+.navbar-atai{
+    background:
+        radial-gradient(1200px 400px at 20% -80px, rgba(149,197,61,.15), transparent 55%),
+        radial-gradient(1200px 400px at 85% -60px, rgba(255,106,42,.12), transparent 55%),
+        linear-gradient(180deg, rgba(14,19,35,.96) 0%, rgba(26,34,54,.96) 100%) !important;
+    border-bottom: 1px solid rgba(255,255,255,.08) !important;
+    box-shadow: 0 8px 22px rgba(0,0,0,.35);
+}
+.navbar-atai img { max-height: 40px !important; width: auto !important; }
+.navbar-atai .brand-word{
+    font-weight: 900; letter-spacing:.02em;
+    background: linear-gradient(90deg,#b7ffc2 0%, #61ff87 60%, #e2ffe8 100%);
+    -webkit-background-clip:text; background-clip:text; color: transparent !important;
+}
+/* layout: brand | centered links | right-block */
+.navbar-atai .container-fluid{ display:flex; align-items:center; gap:1rem; }
+.navbar-atai .navbar-collapse{
+    display:flex !important; align-items:center; justify-content:space-between; width:100%;
+}
+.navbar-atai .navbar-nav{
+    flex: 1 1 auto; justify-content: center; margin: 0 auto;
+    overflow-x: auto; overflow-y: hidden; white-space: nowrap;
+    gap:.35rem; padding:.35rem 0; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.navbar-atai .navbar-nav::-webkit-scrollbar{ display:none; }
+/* nav pills */
+.navbar-atai .nav-link{
+    height:38px; display:inline-flex; align-items:center;
+    padding:.35rem .9rem; border-radius:3px;
+    color:#e7eefc !important;
+    background:rgba(255,255,255,.10) !important;
+    border:1px solid rgba(255,255,255,.16) !important;
+    transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.navbar-atai .nav-link:hover{
+    background:rgba(255,255,255,.16) !important;
+    border-color:rgba(255,255,255,.24) !important;
+    transform:translateY(-1px);
+    box-shadow:0 6px 14px rgba(0,0,0,.28);
+}
+.navbar-atai .nav-link.active{
+    background:linear-gradient(180deg, rgba(149,197,61,.28), rgba(149,197,61,.22)) !important;
+    border-color:rgba(149,197,61,.45) !important;
+    color:#fff !important; box-shadow:0 8px 18px rgba(149,197,61,.25);
+}
+.navbar-atai .navbar-text{ color:rgba(231,238,252,.85) !important; }
+/* right block pinned right */
+.navbar-atai .navbar-right{ margin-left:auto; display:flex; align-items:center; gap:.5rem; flex:0 0 auto; }
+/* logout */
+.navbar-atai .btn-logout{
+    height:34px; padding:.25rem .7rem; border-radius: 8px;
+    background:#fc0202 !important; border:1px solid rgba(0,0,0,.18) !important; color:#fff !important;
+}
+.navbar-atai .btn-logout:hover{ filter:brightness(1.05); }
+/* collapse behavior */
+@media (max-width: 991.98px){
+    .navbar-atai .navbar-collapse{ flex-direction: column; align-items: stretch; gap:.5rem; }
+    .navbar-atai .navbar-nav{ justify-content: flex-start; width: 100%; }
+    .navbar-atai .navbar-right{ width:100%; justify-content:space-between; }
+}
+
+/* ---------------------------------------------------------------------
+   4) PANELS / CARDS / CHART BACKGROUNDS
+   --------------------------------------------------------------------- */
+.card, .kpi-card, .hc-panel, .panel, .table-wrap{
+    background: linear-gradient(180deg, var(--panel-top) 0%, var(--panel-bottom) 100%) !important;
+    color: var(--kpi-ink) !important;
+    border: 1px solid var(--panel-line) !important;
+    border-radius: 14px !important;
+    box-shadow: var(--panel-shadow) !important;
+}
+.card-header, .card-body, .card > .list-group{ background:transparent !important; border:0 !important; }
+.card .card-body{ padding:1.25rem; }
+.hc-panel .highcharts-background{ fill:transparent !important; }
+.highcharts-credits{ display:none !important; }
+
+/* ---------------------------------------------------------------------
+   5) FILTER BAR + FORM CONTROLS (GLOBAL LOOK)
+   --------------------------------------------------------------------- */
+.form-control, .form-select{
+    background:rgb(255 255 255 / 74%); color:var(--kpi-ink);
+    border:1px solid var(--panel-line);
+}
+.form-control::placeholder{ color:rgba(230,238,252,.55); }
+.form-control:focus, .form-select:focus{ box-shadow:var(--ring); }
+
+.filters-bar{
+    position:sticky; top:64px; z-index:1029;
+    margin:.35rem 0 .75rem; padding:.6rem .8rem;
+    background:linear-gradient(180deg, rgba(20,26,42,.72), rgba(18,23,38,.62));
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:12px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    box-shadow:0 10px 26px rgba(0,0,0,.35);
+}
+.filters-bar .row, .filters-bar .d-flex{ gap:.55rem; }
+.filters-bar .form-control, .filters-bar .form-select{
+    height:38px; padding:.45rem .7rem;
+    background:rgb(255 255 255 / 54%) !important;
+    border:1px solid rgba(255,255,255,.18) !important;
+    color:#eaf0ff; font-weight:500; box-shadow:inset 0 0 6px rgba(0,0,0,.3);
+}
+.filters-bar .form-control::placeholder{ color:rgba(234,240,255,.55); }
+.filters-bar .form-select option{ background:#121629 !important; color:#e6eefc !important; }
+.filters-bar .form-control:focus, .filters-bar .form-select:focus{
+    border-color:rgba(149,197,61,.55) !important;
+    box-shadow:0 0 0 .2rem rgba(149,197,61,.25) !important;
+}
+.filters-bar .btn, .btn-filter-apply{
+    height:38px; padding:.45rem .9rem; font-weight:700;
+    background:#4666ff; border-color:#3d57d9; color:#fff;
+    box-shadow:0 8px 16px rgba(70,102,255,.25);
+}
+.filters-bar .btn:hover{ filter:brightness(1.05); transform:translateY(-1px); }
+
+/* Family / Region chips */
+#familyChips, #regionChips{ display:flex; flex-wrap:wrap; gap:.5rem; padding:.4rem .1rem .1rem; }
+#familyChips .btn, #regionChips .btn{
+    height:34px; padding:.25rem .75rem; font-weight:600;
+    border-radius:999px !important; border:1px solid rgba(255,255,255,.16) !important;
+    background:rgba(255,255,255,.10) !important; color:#e7eefc !important;
+    box-shadow:0 3px 10px rgba(0,0,0,.25);
+}
+#familyChips .btn:hover, #regionChips .btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.16) !important; border-color:rgba(255,255,255,.24) !important; }
+#familyChips .btn.active, #regionChips .btn.active{
+    background:linear-gradient(180deg, rgba(149,197,61,.30), rgba(149,197,61,.22)) !important;
+    border-color:rgba(149,197,61,.45) !important; color:#fff !important;
+    box-shadow:0 8px 18px rgba(149,197,61,.28);
+}
+
+/* ---------------------------------------------------------------------
+   6) GENERIC TABS (used on multiple pages)
+   --------------------------------------------------------------------- */
+.nav-tabs{ border:none; gap:.6rem; }
+.nav-tabs .nav-link{
+    border:1px solid var(--panel-line);
+    background:rgba(255,255,255,.10);
+    color:var(--kpi-ink); padding:.5rem 1rem; border-radius:10px; font-weight:700;
+    transition: background .2s, border-color .2s, transform .15s;
+}
+.nav-tabs .nav-link:hover{ transform:translateY(-1px); }
+.nav-tabs .nav-link.active{ background:rgba(255,255,255,.16); border-color:rgba(149,197,61,.35); }
+
+/* ---------------------------------------------------------------------
+   7) KPI CARDS (Home panels etc.)
+   --------------------------------------------------------------------- */
+.kpi-card{
+    background:linear-gradient(180deg, var(--kpi-top) 0%, var(--kpi-bottom) 100%) !important;
+    border:1px solid var(--kpi-line) !important; box-shadow:var(--kpi-shadow) !important;
+}
+.kpi-card:hover{ transform:translateY(-2px); box-shadow:var(--kpi-shadow-hover) !important; }
+.kpi-label{ font-size:.8rem; letter-spacing:.08em; text-transform:uppercase; color:var(--kpi-label); opacity:.95; }
+.kpi-value{ font-size:1.6rem; font-weight:800; color:#95c53d; }
+.kpi-card .kpi-foot,
+.kpi-card > .card-body > .text-center:last-child{
+    color:#dff4ff !important; font-weight:800 !important; letter-spacing:.06em; text-transform:uppercase;
+    text-shadow:0 0 10px rgba(64,211,255,.45);
+}
+.kpi-card .highcharts-data-label text{
+    fill:#eaf6ff !important; font-weight:700 !important; text-shadow:0 0 8px rgba(64,211,255,.35);
+}
+
+/* ---------------------------------------------------------------------
+   8) DATATABLES (Dark theme)
+   --------------------------------------------------------------------- */
+.dataTables_wrapper{
+    background:rgba(0,0,0,.25); border-radius:16px; padding:1rem;
+    box-shadow:inset 0 0 10px rgba(255,255,255,.05), 0 6px 20px rgba(0,0,0,.45);
+}
+.table, table.dataTable{ --bs-table-bg: transparent !important; background:transparent !important; color:#e9eefb !important; }
+.dt-container .table>:not(caption)>*>*,
+table.dataTable>thead>tr>th,
+table.dataTable>tbody>tr>td,
+table.dataTable>tfoot>tr>th{ background-color: transparent !important; color:#e9eefb !important; border-color: rgba(255,255,255,.08) !important; }
+/* Enhanced header look */
+table.dataTable thead{
+    background: linear-gradient(180deg, #626262 0%, #000 100%) !important;
+    color: #cfe6ff !important;
+    border-bottom: 2px solid rgba(149,197,61,0.35) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+table.dataTable thead th{ padding:.75rem 1rem; font-size:.85rem; font-weight:800 !important; text-transform:uppercase; letter-spacing:.05em; background:transparent !important; }
+table.dataTable thead th.sorting:after,
+table.dataTable thead th.sorting_asc:after,
+table.dataTable thead th.sorting_desc:after{ color:#95c53d !important; opacity:.8; }
+table.dataTable tbody tr{ background-color: rgba(0,0,0,0.2) !important; border-bottom:1px solid rgba(255,255,255,.06); transition:background .2s, transform .2s; }
+table.dataTable tbody tr:nth-child(odd){ background-color:rgba(255,255,255,.02) !important; }
+table.dataTable tbody tr:nth-child(even){ background-color:rgba(255,255,255,.05) !important; }
+table.dataTable tbody tr:hover{ background:linear-gradient(90deg, rgba(149,197,61,.12), rgba(149,197,61,.05)) !important; box-shadow:0 0 8px rgba(149,197,61,.25); transform:scale(1.002); cursor:pointer; }
+table.dataTable tbody td:nth-child(1){ color:#a4e869 !important; }
+.dataTables_wrapper .dataTables_paginate .paginate_button{ border-radius:6px; background:rgba(255,255,255,.08) !important; color:#e6eefc !important; margin:0 2px; padding:0 4px; border:none; transition:all .2s; }
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover{ background:rgba(149,197,61,.4) !important; color:#fff !important; }
+.dataTables_wrapper .dataTables_paginate .paginate_button.current{ background:#95c53d !important; color:#0b220b !important; font-weight:700; }
+.dataTables_wrapper .dataTables_filter input, .dataTables_wrapper .dataTables_length select{ background: rgba(0,0,0,.35) !important; border: 1px solid rgba(255,255,255,.20) !important; color: #e6eefc !important; border-radius:6px; padding:4px 8px; }
+.dataTables_info{ color:#cdd6f4 !important; font-weight:500; }
+
+/* ---------------------------------------------------------------------
+   9) BUTTONS (Utility styles)
+   --------------------------------------------------------------------- */
+.btn-atai, .btn-cta{
+    --bs-btn-bg: var(--cta);
+    --bs-btn-border-color: var(--cta-700);
+    --bs-btn-hover-bg:#ff6a2a; --bs-btn-hover-border-color:#e45717;
+    --bs-btn-focus-shadow-rgb:255,106,42;
+    --bs-btn-active-bg:#e45717; --bs-btn-active-border-color:#d64f14;
+    color:#fff; font-weight:800; letter-spacing:.02em;
+    box-shadow:0 10px 22px rgba(255,106,42,.25);
+}
+.btn-outline-light{ color:var(--kpi-ink); border-color:var(--panel-line); }
+.btn-outline-light:hover{ background:rgba(255,255,255,.12); }
+
+/* ---------------------------------------------------------------------
+   10) MODALS (dark glass look)
+   --------------------------------------------------------------------- */
+.modal-atai ~ .modal-backdrop.show{ background:rgba(5,8,16,.72); backdrop-filter:blur(2px); }
+.modal-atai .modal-dialog{ filter:drop-shadow(0 18px 50px rgba(0,0,0,.55)); }
+.modal-atai .modal-content{
+    background:linear-gradient(180deg, rgba(18,23,38,.96), rgba(13,18,30,.94)) !important;
+    color:#eaf0ff !important; border:1px solid rgba(255,255,255,.12) !important;
+    border-radius:16px !important; box-shadow:0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06) !important;
+    overflow:hidden;
+}
+.modal-atai .modal-header, .modal-atai .modal-footer{ background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border-color:rgba(255,255,255,.10); }
+.modal-atai .btn-close{ filter:invert(1) grayscale(1) brightness(1.2); opacity:.85; }
+.modal-atai .btn-close:hover{ opacity:1; }
+.modal-atai .card{ background:linear-gradient(180deg, #0f1526 0%, #151c2e 100%) !important; color:#eaf0ff !important; border:1px solid rgba(255,255,255,.10) !important; border-radius:14px !important; box-shadow:0 10px 26px rgba(0,0,0,.45) !important; }
+.modal-atai dl.row{ --pad:.25rem; }
+.modal-atai dt{ color:#9fb1d6 !important; font-weight:700; opacity:.95; margin-bottom:var(--pad); }
+.modal-atai dd{ color:#eaf0ff; margin-bottom:.6rem; border-bottom:1px dashed rgba(255,255,255,.06); padding-bottom:.35rem; }
+.modal-atai .form-label{ color:#dbe6ff; font-weight:600; }
+.modal-atai .form-control, .modal-atai .form-select, .modal-atai textarea{ background:rgba(255,255,255,.10) !important; border:1px solid rgba(255,255,255,.18) !important; color:#eaf0ff !important; box-shadow:inset 0 0 6px rgba(0,0,0,.30); }
+.modal-atai .form-control::placeholder, .modal-atai textarea::placeholder{ color:rgba(234,240,255,.60) !important; }
+.modal-atai .form-control:focus, .modal-atai .form-select:focus, .modal-atai textarea:focus{ border-color:rgba(149,197,61,.55) !important; box-shadow:0 0 0 .2rem rgba(149,197,61,.22) !important; }
+.modal-atai input[type="checkbox"]{ accent-color:#95c53d; }
+.modal-atai .progress{ height:10px; border-radius:999px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.12); }
+.modal-atai .progress-bar{ background:linear-gradient(90deg, #7fcf43, #95c53d); box-shadow:inset 0 6px 16px rgba(149,197,61,.35); border-radius:999px; }
+.modal-atai .modal-footer .btn{ border-radius:10px; font-weight:700; }
+.modal-atai .modal-footer .btn-secondary{ background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.18); color:#eaf0ff; }
+.modal-atai .modal-footer .btn-primary{ background:#4666ff; border-color:#3d57d9; box-shadow:0 8px 16px rgba(70,102,255,.25); }
+.modal-atai .modal-footer .btn-success{ background:#31c16a; border-color:#29a959; }
+.modal-atai .modal-footer .btn-danger{ background:#ff5b5b; border-color:#e24b4b; }
+.modal-atai .modal-footer .modal-action{ margin-right:auto; display:inline-flex; gap:.5rem; align-items:center; }
+.modal-atai .modal-body::-webkit-scrollbar{ height:10px; width:10px; }
+.modal-atai .modal-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.18); border-radius:8px; }
+
+/* ---------------------------------------------------------------------
+   11) ESTIMATOR / TOOLBARS
+   --------------------------------------------------------------------- */
+.glass-row{
+    position:relative; display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.8rem .9rem;
+    background:
+        radial-gradient(1000px 400px at 10% -80px, rgba(149,197,61,.12), transparent 55%),
+        radial-gradient(1100px 420px at 90% -70px, rgba(70,102,255,.10), transparent 55%),
+        linear-gradient(180deg, rgba(22,27,44,.78), rgba(20,25,40,.66));
+    border:1px solid rgba(255,255,255,.10); border-radius:12px;
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); box-shadow:0 10px 26px rgba(0,0,0,.35);
+}
+.glass-row h4{ color:#eaf0ff; font-weight:800; }
+.et-left{ display:flex; align-items:center; gap:.8rem; min-width:260px; }
+.et-right{ display:flex; align-items:end; gap:.6rem; flex-wrap:wrap; margin-left:auto; }
+.et-field{ display:flex; flex-direction:column; min-width:150px; }
+.et-field .form-label{ color:#cfe0ff; font-weight:600; margin:0 0 .15rem; }
+.et-right .form-control, .et-right .form-select{
+    height:36px; padding:.4rem .6rem; font-weight:600; color:#eaf0ff;
+    background:rgba(255,255,255,.10) !important; border:1px solid rgba(255,255,255,.18) !important;
+    box-shadow:inset 0 0 6px rgba(0,0,0,.30);
+}
+.et-right .form-control::placeholder{ color:rgba(234,240,255,.60); }
+.et-right .form-control:focus, .et-right .form-select:focus{ border-color:rgba(149,197,61,.55) !important; box-shadow:0 0 0 .2rem rgba(149,197,61,.22) !important; }
+/* Dedicated estimator toolbar variant */
+.estimator-toolbar.glass-row{ display:flex; align-items:center; gap:1rem; background:#faf8f869; backdrop-filter:saturate(180%) blur(8px); border:1px solid rgba(0,0,0,.06); border-radius:12px; padding:.75rem 1rem; }
+.et-left{ display:flex; align-items:center; gap:.75rem; flex:1 1 0; min-width:260px; }
+.et-right{ display:flex; align-items:end; gap:.75rem; flex:1 1 0; justify-content:flex-end; flex-wrap:wrap; }
+.et-center{ flex:0 0 auto; margin:0 auto; }
+@media (max-width:992px){ .glass-row{ flex-direction:column; align-items:stretch; gap:.75rem; } .et-left{ justify-content:space-between; } .et-right{ justify-content:flex-start; } }
+@media (max-width:576px){ .et-field{ min-width:130px; } }
+
+/* ---------------------------------------------------------------------
+   12) WORD-BREAK / TABLE RESPONSIVENESS HELPERS
+   --------------------------------------------------------------------- */
+.panel, .hc-panel, .table-wrap{ border-radius:14px !important; }
+.fw-semibold{ color:#61ff87; }
+
+/* prevent vertical letter-breaking in tables */
+table, td, th{ word-break: normal !important; white-space: nowrap; hyphens: auto; }
+.table-wrap, .dataTables_wrapper{ overflow-x:auto !important; -webkit-overflow-scrolling: touch; }
+/* opt-in wrapping when needed */
+td.wrap, th.wrap{ white-space: normal !important; overflow-wrap:anywhere; word-break:break-word; }
+@media (max-width: 576px){ table.dataTable { font-size: 12px; } }
+
+/* ---------------------------------------------------------------------
+   13) SPECIAL: Region Pie warn icon (used on dashboard pie)
+   --------------------------------------------------------------------- */
+#projectsRegionPie{ position: relative; }
+.warn-pulse{
+    position:absolute; right:10px; top:10px; width:48px; height:48px; display:none; z-index:20; cursor:pointer;
+    filter: drop-shadow(0 0 8px rgba(255, 0, 0, 0.9)) drop-shadow(0 0 15px rgba(255, 60, 60, 0.8));
+    animation: pulseGlow 1s ease-in-out infinite; transition: transform .2s ease-in-out;
+}
+.warn-pulse:hover{ transform: scale(1.2); filter: drop-shadow(0 0 14px rgba(255, 40, 40, 1)) drop-shadow(0 0 30px rgba(255, 0, 0, 0.8)); }
+@keyframes pulseGlow{ 0%,100%{ transform:scale(1); opacity:.85; } 50%{ transform:scale(1.15); opacity:1; } }
+
+/* ---------------------------------------------------------------------
+   14) SUBMITTAL PREVIEW (PDF frame in modals)
+   --------------------------------------------------------------------- */
+.submittal-preview{ position:relative; max-height:420px; overflow:auto; }
+.submittal-preview iframe,
+.submittal-preview object,
+.submittal-preview embed{ width:100%; height:420px; display:block; border:0; }
+/* Sticky modal footer never covered by preview */
+.modal-footer{ position:sticky; bottom:0; z-index:3; background: var(--bs-body-bg); }
+
+/* ---------------------------------------------------------------------
+   15) KPI SWITCHER PANELS (cards vs charts)
+   --------------------------------------------------------------------- */
+.kpi-switcher{ position: relative; min-height:440px; }
+.kpi-panel{ position:absolute; inset:0; opacity:0; transform:translateX(16px); transition:opacity .35s ease, transform .35s ease; pointer-events:none; }
+.kpi-panel--active{ opacity:1; transform:translateX(0); pointer-events:auto; }
+.kpi-cards-head{ display:flex; align-items:baseline; justify-content:space-between; gap:1rem; margin-bottom:.5rem; }
+.cards-title{ font-weight:800; font-size:1.25rem; }
+.muted{ color:#9aa7bd; font-size:.85rem; }
+.kpi-cards-grid{ display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:.75rem; }
+@media (max-width:1200px){ .kpi-cards-grid{ grid-template-columns: repeat(4, minmax(0,1fr)); } }
+@media (max-width:768px){ .kpi-cards-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.kpi-mini{ background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:.75rem .9rem; }
+.kpi-mini .kpi-label{ font-size:.75rem; letter-spacing:.02em; color:#b8c4da; text-transform:uppercase; }
+.kpi-mini .kpi-value{ font-weight:800; font-size:1.05rem; margin-top:.15rem; color:#eaf2ff; }
+.kpi-mini .kpi-sub{ font-size:.75rem; color:#9aa7bd; margin-top:.2rem; }
+.kpi-mini.ok{ box-shadow: 0 0 0 1px rgba(16,185,129,.25) inset; }
+.kpi-mini.warn{ box-shadow: 0 0 0 1px rgba(250,204,21,.25) inset; }
+.kpi-mini.dang{ box-shadow: 0 0 0 1px rgba(244,63,94,.25) inset; }
+
+/* ---------------------------------------------------------------------
+   16) FINAL FORECAST PAGE — INPUTS/SELECTS + ROW STRIPES (OVERRIDES WIN)
+   --------------------------------------------------------------------- */
+/* Row background for contrast inside forecast tables */
+/*.forecast-page .table tbody tr{ background-color:#1c2130 !important; }*/
+/*.forecast-page .table tbody tr:nth-child(even){ background-color:#23293c !important; }*/
+/*.forecast-page .table tbody tr:hover{ background-color:#2b314a !important; }*/
+
+/* Inputs & textareas: light background + black text for readability */
+/*.forecast-page .table td input.form-control,*/
+/*.forecast-page .table td textarea.form-control{*/
+/*  background:#ffffff !important; color:#000 !important; -webkit-text-fill-color:#000 !important;*/
+/*  border:1px solid #bfc6d1 !important; border-radius:6px !important; font-weight:500;*/
+/*  caret-color:#000 !important; box-shadow:none !important;*/
+/*}*/
+/* Selects in forecast table */
+/*.forecast-page td.pf-cell select.form-select,*/
+/*.forecast-page .table td select.form-select{*/
+/*  background:#ffffff !important; color:#000 !important; -webkit-text-fill-color:#000 !important;*/
+/*  border:1px solid #e7e6e6 !important; border-radius:.5rem !important; font-weight:500;*/
+/*  caret-color:#000 !important; box-shadow:none !important; text-align-last:center;*/
+/*  min-height:calc(1.5em + .5rem + 2px); padding-right:2rem;*/
+/*}*/
+/* Options panel remains dark */
+/*.forecast-page .table td select.form-select option{ background:#0f1526 !important; color:#eaf0ff !important; }*/
+/*.forecast-page .table td select.form-select option:checked,*/
+/*.forecast-page .table td select.form-select option:hover{ background:#1f283e !important; color:#fff !important; }*/
+/* Focus look */
+/*.forecast-page .table td input.form-control:focus,*/
+/*.forecast-page .table td textarea.form-control:focus,*/
+/*.forecast-page .table td select.form-select:focus{ border-color:#0078ff !important; box-shadow:0 0 0 2px rgba(0,120,255,.25) !important; }*/
+/* Placeholders */
+/*.forecast-page .table td input::placeholder,*/
+/*.forecast-page .table td textarea::placeholder{ color:#6c727d !important; opacity:1 !important; }*/
+/* Autofill override */
+/*.forecast-page input:-webkit-autofill,*/
+/*.forecast-page input:-webkit-autofill:hover,*/
+/*.forecast-page input:-webkit-autofill:focus{*/
+/*  -webkit-text-fill-color:#000 !important; -webkit-box-shadow:0 0 0 1000px #ffffff inset !important;*/
+/*  transition: background-color 9999s ease-in-out 0s !important;*/
+/*}*/
+
+/* ---------------------------------------------------------------------
+   17) ACTIVE STATE CHIPS / SMALL UTILITIES
+   --------------------------------------------------------------------- */
+.btn-chip.btn-outline-primary.active{ background:#198754; border-color:#198754; color:#fff; }
+#familyChips .btn.active, #statusTabs .nav-link.active, #regionChips .btn.active{ background:#198754; border-color:#198754; color:#fff; }
+#familyChips, #statusChips{ margin-bottom:.5rem; }
+.text-muted{ color:#c53636 !important; }
+
+
+/* ==============================================
+   FORECAST TOTAL ROW — brighten summary labels
+   ============================================== */
+.forecast-page .table tfoot th,
+.forecast-page .table tfoot td {
+    background-color: #181d2c !important;
+    color: #ffffff !important;              /* brighter white */
+    font-weight: 700 !important;            /* bolder text */
+    letter-spacing: .02em;
+    text-transform: uppercase;
+}
+
+/* If you want a slight neon green tint instead of pure white */
+.forecast-page .table tfoot th:first-child {
+    color: #b8ff8a !important;              /* soft bright green for label */
+}
+/* =========================================================
+   FIXES — Forecast footer bar brighter + tidy overrides
+   (Place AT THE VERY END of atai-theme.css)
+   ========================================================= */
+
+
+/* Make the left-most label pop slightly green (optional) */
+.forecast-page table.table tfoot tr th:first-child {
+    color: #caff9c !important;
+}
+
+/* 2) Ensure body zebra stripes never bleed into tfoot */
+.forecast-page table.table tfoot tr { background: transparent !important; }
+.forecast-page table.table tfoot tr:hover { background: transparent !important; }
+
+
+/* 4) Selects (force white + center) */
+.forecast-page table.table td select.form-select {
+    background:#ffffff !important;
+    color:#000 !important;
+    -webkit-text-fill-color:#000 !important;
+    border:1px solid #e7e6e6 !important;
+    border-radius:.5rem !important;
+    text-align-last:center;
+    min-height:calc(1.5em + .5rem + 2px);
+    padding-right:2rem;
+}
+
+/* 5) Focus ring on all editable controls in the table */
+.forecast-page table.table td input.form-control:focus,
+.forecast-page table.table td textarea.form-control:focus,
+.forecast-page table.table td select.form-select:focus {
+    border-color:#ffffff !important;
+    box-shadow:0 0 0 2px rgba(0,120,255,.25) !important;
+}
+
+/* 6) (Optional tidy) Use a neutral muted color globally instead of red */
+.text-muted { color:#9aa7bd !important; }
+
+
+
+
+
+
+
+/* === Dark Theme Select Styling === */
+select.form-select,
+select {
+    background-color: #1e1e1e !important;   /* dark background */
+    color: #f1f1f1 !important;              /* light text */
+    border: 1px solid #3a3a3a !important;   /* subtle border */
+    border-radius: 0.5rem;
+    box-shadow: none;
+}
+
+/* Dropdown arrow */
+select.form-select:focus {
+    border-color: #00c27f !important;       /* green accent when focused */
+    outline: none;
+    box-shadow: 0 0 5px rgba(0, 194, 127, 0.6);
+}
+
+/* === For dropdown list options (Chrome/Edge/Webkit) === */
+select option {
+    background-color: #1e1e1e;
+    color: #f1f1f1;
+}
+
+/* === For Firefox === */
+@-moz-document url-prefix() {
+    select {
+        background-color: #1e1e1e !important;
+        color: #f1f1f1 !important;
+    }
+    option {
+        background-color: #1e1e1e !important;
+        color: #f1f1f1 !important;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ====== AI Insight Fancy Button ====== */
+.btn-ai-insight {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(90deg, #6f42c1, #198754);
+    color: #fff;
+    border: none;
+    border-radius: 50px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 12px rgba(105, 255, 140, 0.4);
+    transition: all 0.25s ease-in-out;
+}
+
+.btn-ai-insight:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 18px rgba(105, 255, 140, 0.6);
+}
+
+/* “Thinking” animation while AI is working */
+.btn-ai-insight.thinking {
+    background: linear-gradient(270deg, #198754, #6f42c1, #20c997);
+    background-size: 600% 600%;
+    animation: aiGradientShift 3s ease infinite;
+}
+
+@keyframes aiGradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Three bouncing dots for “thinking…” effect */
+.ai-dots span {
+    display: inline-block;
+    opacity: 0.3;
+    animation: bounce 1.4s infinite;
+    font-weight: bold;
+    font-size: 1.2em;
+}
+.ai-dots span:nth-child(1) { animation-delay: 0s; }
+.ai-dots span:nth-child(2) { animation-delay: 0.2s; }
+.ai-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+    40% { transform: scale(1.1); opacity: 1; }
+}
+
+/* Icon pulse effect */
+.btn-ai-insight i {
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* === AI Insight Modal (final visual polish) === */
+/*.modal.ai-insight .modal-content {*/
+/*    background-color: #ffffff !important;*/
+/*    color: #212529 !important;*/
+/*    border-radius: 1rem;*/
+/*    border: none;*/
+/*    box-shadow: 0 0 25px rgba(0,0,0,0.4);*/
+/*    opacity: 1 !important;              !* remove transparency *!*/
+/*}*/
+
+/*.modal.ai-insight .modal-body {*/
+/*    color: #212529 !important;*/
+/*    line-height: 1.6;*/
+/*    backdrop-filter: none !important;   !* cancel blur on some browsers *!*/
+/*}*/
+
+/*!* darker backdrop behind modal *!*/
+/*.modal-backdrop.show {*/
+/*    background-color: rgba(0,0,0,0.65) !important;*/
+/*    opacity: 1 !important;*/
+/*}*/
+
+/*!* section titles and colors *!*/
+/*.modal.ai-insight .fw-semibold {*/
+/*    text-transform: uppercase;*/
+/*    margin-top: 1rem;*/
+/*    margin-bottom: 0.5rem;*/
+/*    font-weight: 600;*/
+/*}*/
+
+/*.modal.ai-insight .text-danger {*/
+/*    color: #d63333 !important;  !* bold red *!*/
+/*}*/
+/*.modal.ai-insight .text-success {*/
+/*    color: #198754 !important;  !* Bootstrap green *!*/
+/*}*/
+
+
+/*.toast {*/
+/*    background-color: #ffffff !important;*/
+/*    color: #212529 !important;*/
+/*    border-radius: 1rem;*/
+/*    box-shadow: 0 0 20px rgba(0,0,0,0.35);*/
+/*    opacity: 1 !important; !* solid background *!*/
+/*}*/
+
+
+
+
+.metric-toggle { display:flex; gap:.5rem; align-items:center; }
+.metric-toggle .chip-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:.35rem .8rem; border-radius:12px;
+    background: rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);
+    color:#7aa2ff; font-weight:600; cursor:pointer;
+    transition:background .2s, color .2s, border-color .2s, transform .05s;
+}
+.metric-toggle .chip-btn:hover{ background: rgba(255,255,255,.10); }
+.metric-toggle .btn-check:focus + .chip-btn{ outline:2px solid rgba(98,132,255,.35); outline-offset:2px; }
+.metric-toggle .btn-check:active + .chip-btn,
+.metric-toggle .chip-btn:active{ transform:scale(0.98); }
+
+/* ✅ selected state */
+.metric-toggle .btn-check:checked + .chip-btn{
+    background:#4c6ef5;            /* your brand blue */
+    color:#fff;
+    border-color:transparent;
+    box-shadow: 0 0 0 0.2rem rgba(76,110,245,.25);
+}
+
+
+
+#badgeStaleBidding.badge-pulse {
+    animation: badgePulse 1.2s infinite;
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); /* Bootstrap danger-ish */
+}
+
+@keyframes badgePulse {
+    0% {
+        transform: translateY(0) scale(1);
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+    70% {
+        transform: translateY(-1px) scale(1.08);
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+    }
+    100% {
+        transform: translateY(0) scale(1);
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+    }
+}

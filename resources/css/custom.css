@@ -1,0 +1,39 @@
+:root {
+  --bs-primary: #fefffc;   /* Light green */
+  --bs-primary-rgb: 149, 197, 61;
+
+  --atai-green: #95c53d;
+  --atai-dark: #1d3b1a;
+  --atai-black: #000000;
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: var(--atai-green);
+  border-color: var(--atai-green);
+}
+.btn-primary:hover {
+  background-color: #7ca830;  /* darker hover */
+  border-color: #7ca830;
+}
+
+/* Navbar */
+.navbar {
+  background: linear-gradient(90deg, #95c53d 0%, #7ca830 100%);
+  color: white;
+}
+.navbar .nav-link,
+.navbar-brand {
+  color: white !important;
+}
+
+/* Cards & Panels */
+.card {
+  border-radius: 10px;
+  box-shadow: 0px 2px 8px rgba(0,0,0,0.05);
+}
+
+/* Headings */
+h1, h2, h3, h4, h5 {
+  color: var(--atai-dark);
+}

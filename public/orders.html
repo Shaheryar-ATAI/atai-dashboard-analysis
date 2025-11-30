@@ -1,0 +1,43 @@
+<!doctype html><meta charset="utf-8"/>
+<title>Sales Order Log (PO Received)</title>
+<style>
+  body{font-family:system-ui;margin:1.5rem}
+  table{border-collapse:collapse;width:100%} th,td{border:1px solid #ddd;padding:.5rem;text-align:left}
+  .row{display:flex;gap:1rem;align-items:center;margin-bottom:1rem}
+</style>
+<h2>Sales Order Log (PO Received)</h2>
+<div class="row">
+  <label>Area:
+    <select id="area"><option value="">All</option><option>Eastern</option><option>Central</option><option>Western</option></select>
+  </label>
+  <button id="apply">Apply</button>
+  <a href="projects.html">← Back to Inquiries</a>
+</div>
+<table>
+  <thead><tr><th>Name</th><th>Client</th><th>Location</th><th>Area</th><th style="text-align:right">Price (SAR)</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="5">Loading…</td></tr></tbody>
+</table>
+<script>
+const BASE = location.origin + '/atai-lite/public';
+const userRegion = localStorage.getItem('atai_region') || '';
+document.getElementById('area').value = userRegion;
+
+function url(path, params={}) { const u=new URL(BASE+path); for (const [k,v] of Object.entries(params)) if (v) u.searchParams.set(k,v); return u.toString(); }
+function money(n){ return (Number(n)||0).toLocaleString('en-US'); }
+
+async function go(){
+  const area = document.getElementById('area').value;
+  const list = await fetch(url('/api/orders', {area})).then(r=>r.json());
+  const rows = (list.data||[]).map(p=>`
+    <tr>
+      <td>${p.name}</td>
+      <td>${p.client??''}</td>
+      <td>${p.location??''}</td>
+      <td>${p.area}</td>
+      <td style="text-align:right">${money(p.price)}</td>
+    </tr>`).join('') || `<tr><td colspan="5">No orders</td></tr>`;
+  document.getElementById('rows').innerHTML = rows;
+}
+document.getElementById('apply').onclick = go;
+go();
+</script>

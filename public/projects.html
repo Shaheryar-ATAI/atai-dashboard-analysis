@@ -1,0 +1,68 @@
+<!doctype html><meta charset="utf-8"/>
+<title>Inquiries (Projects)</title>
+<script src="https://code.highcharts.com/highcharts.js"></script>
+<style>
+  body{font-family:system-ui;margin:1.5rem}
+  table{border-collapse:collapse;width:100%} th,td{border:1px solid #ddd;padding:.5rem;text-align:left}
+  .row{display:flex;gap:1rem;align-items:center;margin-bottom:1rem}
+</style>
+
+<h2>Inquiries (Projects)</h2>
+<div class="row">
+  <label>Status:
+    <select id="status"><option value="">All</option><option>bidding</option><option>inhand</option></select>
+  </label>
+  <label>Area:
+    <select id="area"><option value="">All</option><option>Eastern</option><option>Central</option><option>Western</option></select>
+  </label>
+  <button id="apply">Apply</button>
+  <a href="orders.html">Sales Order Log →</a>
+</div>
+
+<table>
+  <thead><tr><th>Name</th><th>Client</th><th>Location</th><th>Area</th><th>Status</th><th style="text-align:right">Price (SAR)</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="6">Loading…</td></tr></tbody>
+</table>
+
+<h3 style="margin-top:2rem">KPIs</h3>
+<div id="k1" style="height:300px;margin-bottom:1rem"></div>
+<div id="k2" style="height:300px"></div>
+
+<script>
+const BASE = location.origin + '/atai-lite/public'; // XAMPP path; if you run php -S, change to just ''
+const userRegion = localStorage.getItem('atai_region') || '';
+document.getElementById('area').value = userRegion;
+
+function url(path, params={}) {
+  const u = new URL(BASE + path);
+  for (const [k,v] of Object.entries(params)) if (v) u.searchParams.set(k,v);
+  return u.toString();
+}
+function money(n){ return (Number(n)||0).toLocaleString('en-US'); }
+
+async function go(){
+  const status = document.getElementById('status').value;
+  const area   = document.getElementById('area').value;
+
+  const list = await fetch(url('/api/inquiries', {status, area})).then(r=>r.json());
+  const rows = (list.data||[]).map(p=>`
+    <tr>
+      <td>${p.name}</td>
+      <td>${p.client??''}</td>
+      <td>${p.location??''}</td>
+      <td>${p.area}</td>
+      <td>${p.status}</td>
+      <td style="text-align:right">${money(p.price)}</td>
+    </tr>`).join('') || `<tr><td colspan="6">No data</td></tr>`;
+  document.getElementById('rows').innerHTML = rows;
+
+  const k = await fetch(url('/api/kpis', {area})).then(r=>r.json());
+  Highcharts.chart('k1', { chart:{type:'pie'}, title:{text:'By Status'},
+    series:[{ data:(k.status||[]).map(s=>({name:s.status,y:+s.cnt||0})) }] });
+  Highcharts.chart('k2', { chart:{type:'bar'}, title:{text:'Sum by Area'},
+    xAxis:{categories:(k.area||[]).map(a=>a.area)},
+    series:[{ name:'SAR', data:(k.area||[]).map(a=>+a.sum_price||0) }] });
+}
+document.getElementById('apply').onclick = go;
+go();
+</script>
