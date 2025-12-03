@@ -98,22 +98,29 @@ class ForecastController extends Controller
         // --- Preferred: nested rows like new_orders[3][customer_name] ---
         if (is_array($nested) && !empty($nested) && is_array(reset($nested))) {
             $rows = array_values(array_filter(array_map(function ($row) {
-                $val = (float)($row['value_sar'] ?? 0);
-                $pct = isset($row['percentage']) && $row['percentage'] !== '' ? (float)$row['percentage'] : null;
+                // Clean value: remove commas/spaces BEFORE casting
+                $rawVal = $row['value_sar'] ?? '0';
+                $val    = (float)preg_replace('/[^\d.\-]/', '', (string)$rawVal);
+
+                $pct = isset($row['percentage']) && $row['percentage'] !== ''
+                    ? (float)$row['percentage']
+                    : null;
+
                 $row = array_map(fn($v) => is_string($v) ? trim($v) : $v, $row);
 
                 if (empty($row['customer_name']) && empty($row['products']) && empty($row['project_name']) && $val <= 0) {
                     return null;
                 }
+
                 return [
-                    'customer_name' => $row['customer_name'] ?? null,
-                    'project_name' => $row['project_name'] ?? null,
-                    'quotation_no' => $row['quotation_no'] ?? null,   // <— NEW
-                    'products' => $row['products'] ?? null,
+                    'customer_name'  => $row['customer_name'] ?? null,
+                    'project_name'   => $row['project_name'] ?? null,
+                    'quotation_no'   => $row['quotation_no'] ?? null,
+                    'products'       => $row['products'] ?? null,
                     'product_family' => $row['product_family'] ?? null,
-                    'percentage' => $pct,
-                    'value_sar' => $val,
-                    'remarks' => $row['remarks'] ?? null,
+                    'percentage'     => $pct,
+                    'value_sar'      => $val,
+                    'remarks'        => $row['remarks'] ?? null,
                 ];
             }, $nested)));
 
@@ -136,13 +143,13 @@ class ForecastController extends Controller
 
         for ($i = 0; $i < $max; $i++) {
             $row = [
-                'customer_name' => trim((string)($customers[$i] ?? '')),
-                'products' => trim((string)($products[$i] ?? '')),
-                'project_name' => trim((string)($projects[$i] ?? '')),
-                'percentage' => isset($pcts[$i]) && $pcts[$i] !== '' ? (float)$pcts[$i] : null,
-                'value_sar' => (float)($values[$i] ?? 0),
-                'quotation_no' => trim((string)($quotes[$i] ?? '')),
-                'remarks' => trim((string)($remarks[$i] ?? '')),
+                'customer_name'  => trim((string)($customers[$i] ?? '')),
+                'products'       => trim((string)($products[$i] ?? '')),
+                'project_name'   => trim((string)($projects[$i] ?? '')),
+                'percentage'     => isset($pcts[$i]) && $pcts[$i] !== '' ? (float)$pcts[$i] : null,
+                'value_sar'      => (float)preg_replace('/[^\d.\-]/', '', (string)($values[$i] ?? '0')),
+                'quotation_no'   => trim((string)($quotes[$i] ?? '')),
+                'remarks'        => trim((string)($remarks[$i] ?? '')),
                 'product_family' => trim((string)($families[$i] ?? '')),
             ];
             $empty = $row['customer_name'] === '' && $row['products'] === '' && $row['project_name'] === '' && $row['value_sar'] <= 0;
@@ -161,8 +168,7 @@ class ForecastController extends Controller
         string $salesman,
         string $region,
         bool   $allowSameMonthReplace = false
-    ): array
-    {
+    ): array {
         $errors = [];
 
         // Track pairs present in "new" to forbid the same pair in "carry"
@@ -170,7 +176,9 @@ class ForecastController extends Controller
         foreach ($rowsNew as $r) {
             $ck = $this->norm($r['customer_name'] ?? '');
             $pk = $this->norm($r['project_name'] ?? '');
-            if ($ck && $pk) $pairsNew["$ck|$pk"] = true;
+            if ($ck && $pk) {
+                $pairsNew["$ck|$pk"] = true;
+            }
         }
 
         // Track duplicates within the current submission
@@ -182,20 +190,21 @@ class ForecastController extends Controller
             $projRaw = $row['project_name'] ?? '';
             $custKey = $this->norm($custRaw);
             $projKey = $this->norm($projRaw);
-            $label = strtoupper($type) . ' Row ' . ($i + 1);
+            $label   = strtoupper($type) . ' Row ' . ($i + 1);
 
+            // --- Required fields: Customer + Project still required ---
             if ($custKey === '' || $projKey === '') {
                 $errors[$label][] = 'Customer and Project are required.';
                 return;
             }
 
-            // Quotation format check (advisory server-side)
+            // --- Quotation format check (OPTIONAL, only if filled) ---
             $qtn = trim((string)($row['quotation_no'] ?? ''));
             if ($qtn !== '' && !preg_match(self::QTN_RE, $qtn)) {
                 $errors[$label][] = 'Quotation No. must match S.0000.0.0000.XX.R0 (e.g., S.4135.1.2605.MH.R0).';
             }
 
-            // De-dup within this submission
+            // --- De-dup within this submission by Customer + Project ---
             $pkey = "$custKey|$projKey";
             if (isset($seenSubmission[$pkey])) {
                 $errors[$label][] = 'Duplicate entry in this submission for the same Customer/Project.';
@@ -203,19 +212,23 @@ class ForecastController extends Controller
             }
             $seenSubmission[$pkey] = true;
 
-            // Percentage rules
-            if (!is_numeric($row['percentage'] ?? null)) {
-                $errors[$label][] = 'Percentage is required and must be numeric.';
-                return;
-            }
-            $pct = (float)$row['percentage'];
-            if ($pct < 75) {
-                $errors[$label][] = 'Percentage must be at least 75%.';
+            // --- Percentage: NOW OPTIONAL + NO MIN LIMIT ---
+            // If user leaves it blank → no error, no extra rule.
+            // If user fills it → must be numeric, but can be any number.
+            $pctRaw = $row['percentage'] ?? null;
+            $pct    = null;
+            if ($pctRaw !== '' && $pctRaw !== null) {
+                if (!is_numeric($pctRaw)) {
+                    $errors[$label][] = 'Percentage must be numeric if provided.';
+                    return;
+                }
+                $pct = (float)$pctRaw;
+                // NOTE: no ">= 75%" rule anymore
             }
 
-            // Historical checks
+            // --- Historical checks (NEW vs CARRY logic), but WITHOUT % comparisons ---
             $prior = $this->latestPriorForUser($salesman, $region, $custKey, $projKey, $year, $monthNo);
-            $same = $this->existsSameMonthForUser($salesman, $region, $custKey, $projKey, $year, $monthNo);
+            $same  = $this->existsSameMonthForUser($salesman, $region, $custKey, $projKey, $year, $monthNo);
 
             if ($type === 'new') {
                 if ($same && !$allowSameMonthReplace) {
@@ -234,11 +247,13 @@ class ForecastController extends Controller
                     $errors[$label][] = 'No previous forecast found for you. This looks NEW — put it in New Orders.';
                     return;
                 }
-                $lastPct = (float)($prior->percentage ?? 0);
-                if ($pct <= $lastPct) {
-                    $when = $this->monthLabel($prior);
-                    $errors[$label][] = "Percentage must be greater than last time ({$lastPct}% in {$when}).";
-                }
+
+                // ⛔ OLD RULE REMOVED:
+                // $lastPct = (float)($prior->percentage ?? 0);
+                // if ($pct !== null && $pct <= $lastPct) {
+                //     $when = $this->monthLabel($prior);
+                //     $errors[$label][] = "Percentage must be greater than last time ({$lastPct}% in {$when}).";
+                // }
             }
         };
 
@@ -251,6 +266,7 @@ class ForecastController extends Controller
 
         return $errors;
     }
+
 
 
     protected function replaceSheet(

@@ -92,7 +92,7 @@
         }
 
         #tblA thead th, #tblB thead th {
-            background-color: transparent !important; /* use the thead color */
+            background-color: #1f2636 !important; /* use the thead color */
             color: inherit !important;
             border-color: rgba(255, 255, 255, .18);
         }
@@ -332,7 +332,7 @@
                                 <th>Products</th>
                                 <th>Project Name</th>
                                 <th style="width:160px;">Quotation No.</th>
-                                <th style="width:110px;" class="text-center">% (≥75)</th>
+                                <th style="width:110px;" class="text-center">% (optional)</th>
                                 <th class="text-end" style="width:140px;">Value (SAR)</th>
                                 <th style="width:160px;">Product Family</th>
                                 <th style="width:220px;">Remarks</th>

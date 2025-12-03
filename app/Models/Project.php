@@ -151,6 +151,8 @@ class Project extends Model
 
         return static::query()
             ->whereNull('deleted_at')
+            ->whereNull('status')
+            ->whereNull('status_current')
             ->whereIn('area', $normalizedRegions)
             ->when(!empty($normalizedSalesmen), function (Builder $q) use ($normalizedSalesmen) {
                 $q->whereIn(
@@ -232,4 +234,22 @@ class Project extends Model
         {
             return $this->belongsTo(User::class, 'coordinator_updated_by_id');
         }
+
+    /**
+     * Extract base project code from a quotation number.
+     * Example: "S.4339.1A.3010.JK.R0" -> "S.4339"
+     */
+    public static function extractBaseCode(?string $quotationNo): ?string
+    {
+        if (!$quotationNo) {
+            return null;
+        }
+
+        $parts = explode('.', $quotationNo);
+        if (count($parts) >= 2) {
+            return $parts[0] . '.' . $parts[1];   // "S.4339"
+        }
+
+        return $quotationNo;
+    }
 }

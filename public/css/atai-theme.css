@@ -1,10 +1,4 @@
 /* =====================================================================
-   ATAI THEME — Dark Glass App Theme
-   ===================================================================== */
-
-/* ---------------------------------------------------------------------
-   1) TOKENS / ROOT
-/* =====================================================================
    ATAI THEME — Dark Glass App Theme (CLEANED)
    ---------------------------------------------------------------------
    Notes
@@ -288,29 +282,77 @@ table.dataTable tbody td:nth-child(1){ color:#a4e869 !important; }
 }
 .btn-outline-light{ color:var(--kpi-ink); border-color:var(--panel-line); }
 .btn-outline-light:hover{ background:rgba(255,255,255,.12); }
-
 /* ---------------------------------------------------------------------
-   10) MODALS (dark glass look)
+   10) MODALS (dark glass look + unified backdrop)
    --------------------------------------------------------------------- */
-.modal-atai ~ .modal-backdrop.show{ background:rgba(5,8,16,.72); backdrop-filter:blur(2px); }
-.modal-atai .modal-dialog{ filter:drop-shadow(0 18px 50px rgba(0,0,0,.55)); }
+
+/* GLOBAL backdrop for all modals (light + transparent) */
+.modal-backdrop,
+.modal-backdrop.fade,
+.modal-backdrop.show {
+    background-color: #000000 !important;
+    opacity: 0.18 !important;   /* 0.18 is quite light; change to 0.10 if you want almost no dim */
+    transition: none !important;
+}
+
+/* Z-indexes for normal & stacked modals */
+.modal {
+    z-index: 1065 !important;
+}
+.modal-backdrop {
+    z-index: 1060 !important;
+}
+.modal.modal-stack {
+    z-index: 1075 !important;
+}
+.modal-backdrop.modal-stack {
+    z-index: 1070 !important;
+}
+
+/* Glassy dark modal shell */
+.modal-atai .modal-dialog{
+    filter:drop-shadow(0 18px 50px rgba(0,0,0,.55));
+}
 .modal-atai .modal-content{
     background:linear-gradient(180deg, rgba(18,23,38,.96), rgba(13,18,30,.94)) !important;
     color:#eaf0ff !important; border:1px solid rgba(255,255,255,.12) !important;
-    border-radius:16px !important; box-shadow:0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06) !important;
+    border-radius:16px !Important; box-shadow:0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06) !important;
     overflow:hidden;
 }
-.modal-atai .modal-header, .modal-atai .modal-footer{ background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border-color:rgba(255,255,255,.10); }
-.modal-atai .btn-close{ filter:invert(1) grayscale(1) brightness(1.2); opacity:.85; }
+.modal-atai .modal-header,
+.modal-atai .modal-footer{
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+    border-color:rgba(255,255,255,.10);
+}
+.modal-atai .btn-close{
+    filter:invert(1) grayscale(1) brightness(1.2);
+    opacity:.85;
+}
 .modal-atai .btn-close:hover{ opacity:1; }
-.modal-atai .card{ background:linear-gradient(180deg, #0f1526 0%, #151c2e 100%) !important; color:#eaf0ff !important; border:1px solid rgba(255,255,255,.10) !important; border-radius:14px !important; box-shadow:0 10px 26px rgba(0,0,0,.45) !important; }
+.modal-atai .card{
+    background:linear-gradient(180deg, #0f1526 0%, #151c2e 100%) !important;
+    color:#eaf0ff !important; border:1px solid rgba(255,255,255,.10) !important;
+    border-radius:14px !important; box-shadow:0 10px 26px rgba(0,0,0,.45) !important;
+}
 .modal-atai dl.row{ --pad:.25rem; }
 .modal-atai dt{ color:#9fb1d6 !important; font-weight:700; opacity:.95; margin-bottom:var(--pad); }
 .modal-atai dd{ color:#eaf0ff; margin-bottom:.6rem; border-bottom:1px dashed rgba(255,255,255,.06); padding-bottom:.35rem; }
 .modal-atai .form-label{ color:#dbe6ff; font-weight:600; }
-.modal-atai .form-control, .modal-atai .form-select, .modal-atai textarea{ background:rgba(255,255,255,.10) !important; border:1px solid rgba(255,255,255,.18) !important; color:#eaf0ff !important; box-shadow:inset 0 0 6px rgba(0,0,0,.30); }
-.modal-atai .form-control::placeholder, .modal-atai textarea::placeholder{ color:rgba(234,240,255,.60) !important; }
-.modal-atai .form-control:focus, .modal-atai .form-select:focus, .modal-atai textarea:focus{ border-color:rgba(149,197,61,.55) !important; box-shadow:0 0 0 .2rem rgba(149,197,61,.22) !important; }
+.modal-atai .form-control,
+.modal-atai .form-select,
+.modal-atai textarea{
+    background:rgba(255,255,255,.10) !important; border:1px solid rgba(255,255,255,.18) !important;
+    color:#eaf0ff !important; box-shadow:inset 0 0 6px rgba(0,0,0,.30);
+}
+.modal-atai .form-control::placeholder,
+.modal-atai textarea::placeholder{
+    color:rgba(234,240,255,.60) !important;
+}
+.modal-atai .form-control:focus,
+.modal-atai .form-select:focus,
+.modal-atai textarea:focus{
+    border-color:rgba(149,197,61,.55) !important; box-shadow:0 0 0 .2rem rgba(149,197,61,.22) !important;
+}
 .modal-atai input[type="checkbox"]{ accent-color:#95c53d; }
 .modal-atai .progress{ height:10px; border-radius:999px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.12); }
 .modal-atai .progress-bar{ background:linear-gradient(90deg, #7fcf43, #95c53d); box-shadow:inset 0 6px 16px rgba(149,197,61,.35); border-radius:999px; }
@@ -322,7 +364,6 @@ table.dataTable tbody td:nth-child(1){ color:#a4e869 !important; }
 .modal-atai .modal-footer .modal-action{ margin-right:auto; display:inline-flex; gap:.5rem; align-items:center; }
 .modal-atai .modal-body::-webkit-scrollbar{ height:10px; width:10px; }
 .modal-atai .modal-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.18); border-radius:8px; }
-
 /* ---------------------------------------------------------------------
    11) ESTIMATOR / TOOLBARS
    --------------------------------------------------------------------- */
@@ -413,87 +454,27 @@ td.wrap, th.wrap{ white-space: normal !important; overflow-wrap:anywhere; word-b
 /* ---------------------------------------------------------------------
    16) FINAL FORECAST PAGE — INPUTS/SELECTS + ROW STRIPES (OVERRIDES WIN)
    --------------------------------------------------------------------- */
-/* Row background for contrast inside forecast tables */
-/*.forecast-page .table tbody tr{ background-color:#1c2130 !important; }*/
-/*.forecast-page .table tbody tr:nth-child(even){ background-color:#23293c !important; }*/
-/*.forecast-page .table tbody tr:hover{ background-color:#2b314a !important; }*/
-
-/* Inputs & textareas: light background + black text for readability */
-/*.forecast-page .table td input.form-control,*/
-/*.forecast-page .table td textarea.form-control{*/
-/*  background:#ffffff !important; color:#000 !important; -webkit-text-fill-color:#000 !important;*/
-/*  border:1px solid #bfc6d1 !important; border-radius:6px !important; font-weight:500;*/
-/*  caret-color:#000 !important; box-shadow:none !important;*/
-/*}*/
-/* Selects in forecast table */
-/*.forecast-page td.pf-cell select.form-select,*/
-/*.forecast-page .table td select.form-select{*/
-/*  background:#ffffff !important; color:#000 !important; -webkit-text-fill-color:#000 !important;*/
-/*  border:1px solid #e7e6e6 !important; border-radius:.5rem !important; font-weight:500;*/
-/*  caret-color:#000 !important; box-shadow:none !important; text-align-last:center;*/
-/*  min-height:calc(1.5em + .5rem + 2px); padding-right:2rem;*/
-/*}*/
-/* Options panel remains dark */
-/*.forecast-page .table td select.form-select option{ background:#0f1526 !important; color:#eaf0ff !important; }*/
-/*.forecast-page .table td select.form-select option:checked,*/
-/*.forecast-page .table td select.form-select option:hover{ background:#1f283e !important; color:#fff !important; }*/
-/* Focus look */
-/*.forecast-page .table td input.form-control:focus,*/
-/*.forecast-page .table td textarea.form-control:focus,*/
-/*.forecast-page .table td select.form-select:focus{ border-color:#0078ff !important; box-shadow:0 0 0 2px rgba(0,120,255,.25) !important; }*/
-/* Placeholders */
-/*.forecast-page .table td input::placeholder,*/
-/*.forecast-page .table td textarea::placeholder{ color:#6c727d !important; opacity:1 !important; }*/
-/* Autofill override */
-/*.forecast-page input:-webkit-autofill,*/
-/*.forecast-page input:-webkit-autofill:hover,*/
-/*.forecast-page input:-webkit-autofill:focus{*/
-/*  -webkit-text-fill-color:#000 !important; -webkit-box-shadow:0 0 0 1000px #ffffff inset !important;*/
-/*  transition: background-color 9999s ease-in-out 0s !important;*/
-/*}*/
-
-/* ---------------------------------------------------------------------
-   17) ACTIVE STATE CHIPS / SMALL UTILITIES
-   --------------------------------------------------------------------- */
-.btn-chip.btn-outline-primary.active{ background:#198754; border-color:#198754; color:#fff; }
-#familyChips .btn.active, #statusTabs .nav-link.active, #regionChips .btn.active{ background:#198754; border-color:#198754; color:#fff; }
-#familyChips, #statusChips{ margin-bottom:.5rem; }
-.text-muted{ color:#c53636 !important; }
-
-
-/* ==============================================
-   FORECAST TOTAL ROW — brighten summary labels
-   ============================================== */
+/* Summary/footer row brighter */
 .forecast-page .table tfoot th,
 .forecast-page .table tfoot td {
     background-color: #181d2c !important;
-    color: #ffffff !important;              /* brighter white */
-    font-weight: 700 !important;            /* bolder text */
+    color: #ffffff !important;
+    font-weight: 700 !important;
     letter-spacing: .02em;
     text-transform: uppercase;
 }
-
-/* If you want a slight neon green tint instead of pure white */
+/* left-most label green-ish */
 .forecast-page .table tfoot th:first-child {
-    color: #b8ff8a !important;              /* soft bright green for label */
+    color: #b8ff8a !important;
 }
-/* =========================================================
-   FIXES — Forecast footer bar brighter + tidy overrides
-   (Place AT THE VERY END of atai-theme.css)
-   ========================================================= */
-
-
 /* Make the left-most label pop slightly green (optional) */
 .forecast-page table.table tfoot tr th:first-child {
     color: #caff9c !important;
 }
-
-/* 2) Ensure body zebra stripes never bleed into tfoot */
+/* Ensure body zebra stripes never bleed into tfoot */
 .forecast-page table.table tfoot tr { background: transparent !important; }
 .forecast-page table.table tfoot tr:hover { background: transparent !important; }
-
-
-/* 4) Selects (force white + center) */
+/* Selects (force white + center) */
 .forecast-page table.table td select.form-select {
     background:#ffffff !important;
     color:#000 !important;
@@ -504,8 +485,7 @@ td.wrap, th.wrap{ white-space: normal !important; overflow-wrap:anywhere; word-b
     min-height:calc(1.5em + .5rem + 2px);
     padding-right:2rem;
 }
-
-/* 5) Focus ring on all editable controls in the table */
+/* Focus ring on all editable controls in the table */
 .forecast-page table.table td input.form-control:focus,
 .forecast-page table.table td textarea.form-control:focus,
 .forecast-page table.table td select.form-select:focus {
@@ -513,39 +493,38 @@ td.wrap, th.wrap{ white-space: normal !important; overflow-wrap:anywhere; word-b
     box-shadow:0 0 0 2px rgba(0,120,255,.25) !important;
 }
 
-/* 6) (Optional tidy) Use a neutral muted color globally instead of red */
+/* ---------------------------------------------------------------------
+   17) ACTIVE STATE CHIPS / SMALL UTILITIES
+   --------------------------------------------------------------------- */
+.btn-chip.btn-outline-primary.active{ background:#198754; border-color:#198754; color:#fff; }
+#familyChips .btn.active, #statusTabs .nav-link.active, #regionChips .btn.active{ background:#198754; border-color:#198754; color:#fff; }
+#familyChips, #statusChips{ margin-bottom:.5rem; }
+
+/* Neutral muted color globally (not red) */
 .text-muted { color:#9aa7bd !important; }
 
-
-
-
-
-
-
+/* ---------------------------------------------------------------------
+   18) SELECT DARK THEME (GLOBAL)
+   --------------------------------------------------------------------- */
 /* === Dark Theme Select Styling === */
 select.form-select,
 select {
-    background-color: #1e1e1e !important;   /* dark background */
-    color: #f1f1f1 !important;              /* light text */
-    border: 1px solid #3a3a3a !important;   /* subtle border */
+    background-color: #1e1e1e !important;
+    color: #f1f1f1 !important;
+    border: 1px solid #3a3a3a !important;
     border-radius: 0.5rem;
     box-shadow: none;
 }
-
-/* Dropdown arrow */
 select.form-select:focus {
-    border-color: #00c27f !important;       /* green accent when focused */
+    border-color: #00c27f !important;
     outline: none;
     box-shadow: 0 0 5px rgba(0, 194, 127, 0.6);
 }
-
-/* === For dropdown list options (Chrome/Edge/Webkit) === */
 select option {
     background-color: #1e1e1e;
     color: #f1f1f1;
 }
-
-/* === For Firefox === */
+/* Firefox */
 @-moz-document url-prefix() {
     select {
         background-color: #1e1e1e !important;
@@ -557,25 +536,9 @@ select option {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/* ---------------------------------------------------------------------
+   19) AI INSIGHT BUTTON + MODAL DECORATION
+   --------------------------------------------------------------------- */
 /* ====== AI Insight Fancy Button ====== */
 .btn-ai-insight {
     position: relative;
@@ -589,25 +552,21 @@ select option {
     box-shadow: 0 0 12px rgba(105, 255, 140, 0.4);
     transition: all 0.25s ease-in-out;
 }
-
 .btn-ai-insight:hover {
     transform: scale(1.05);
     box-shadow: 0 0 18px rgba(105, 255, 140, 0.6);
 }
-
 /* “Thinking” animation while AI is working */
 .btn-ai-insight.thinking {
     background: linear-gradient(270deg, #198754, #6f42c1, #20c997);
     background-size: 600% 600%;
     animation: aiGradientShift 3s ease infinite;
 }
-
 @keyframes aiGradientShift {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
-
 /* Three bouncing dots for “thinking…” effect */
 .ai-dots span {
     display: inline-block;
@@ -619,12 +578,10 @@ select option {
 .ai-dots span:nth-child(1) { animation-delay: 0s; }
 .ai-dots span:nth-child(2) { animation-delay: 0.2s; }
 .ai-dots span:nth-child(3) { animation-delay: 0.4s; }
-
 @keyframes bounce {
     0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
     40% { transform: scale(1.1); opacity: 1; }
 }
-
 /* Icon pulse effect */
 .btn-ai-insight i {
     animation: pulse 2s infinite;
@@ -635,70 +592,9 @@ select option {
     100% { transform: scale(1); opacity: 1; }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* === AI Insight Modal (final visual polish) === */
-/*.modal.ai-insight .modal-content {*/
-/*    background-color: #ffffff !important;*/
-/*    color: #212529 !important;*/
-/*    border-radius: 1rem;*/
-/*    border: none;*/
-/*    box-shadow: 0 0 25px rgba(0,0,0,0.4);*/
-/*    opacity: 1 !important;              !* remove transparency *!*/
-/*}*/
-
-/*.modal.ai-insight .modal-body {*/
-/*    color: #212529 !important;*/
-/*    line-height: 1.6;*/
-/*    backdrop-filter: none !important;   !* cancel blur on some browsers *!*/
-/*}*/
-
-/*!* darker backdrop behind modal *!*/
-/*.modal-backdrop.show {*/
-/*    background-color: rgba(0,0,0,0.65) !important;*/
-/*    opacity: 1 !important;*/
-/*}*/
-
-/*!* section titles and colors *!*/
-/*.modal.ai-insight .fw-semibold {*/
-/*    text-transform: uppercase;*/
-/*    margin-top: 1rem;*/
-/*    margin-bottom: 0.5rem;*/
-/*    font-weight: 600;*/
-/*}*/
-
-/*.modal.ai-insight .text-danger {*/
-/*    color: #d63333 !important;  !* bold red *!*/
-/*}*/
-/*.modal.ai-insight .text-success {*/
-/*    color: #198754 !important;  !* Bootstrap green *!*/
-/*}*/
-
-
-/*.toast {*/
-/*    background-color: #ffffff !important;*/
-/*    color: #212529 !important;*/
-/*    border-radius: 1rem;*/
-/*    box-shadow: 0 0 20px rgba(0,0,0,0.35);*/
-/*    opacity: 1 !important; !* solid background *!*/
-/*}*/
-
-
-
-
+/* ---------------------------------------------------------------------
+   20) METRIC TOGGLE CHIPS
+   --------------------------------------------------------------------- */
 .metric-toggle { display:flex; gap:.5rem; align-items:center; }
 .metric-toggle .chip-btn{
     display:inline-flex; align-items:center; justify-content:center;
@@ -712,22 +608,21 @@ select option {
 .metric-toggle .btn-check:focus + .chip-btn{ outline:2px solid rgba(98,132,255,.35); outline-offset:2px; }
 .metric-toggle .btn-check:active + .chip-btn,
 .metric-toggle .chip-btn:active{ transform:scale(0.98); }
-
-/* ✅ selected state */
+/* selected state */
 .metric-toggle .btn-check:checked + .chip-btn{
-    background:#4c6ef5;            /* your brand blue */
+    background:#4c6ef5;
     color:#fff;
     border-color:transparent;
     box-shadow: 0 0 0 0.2rem rgba(76,110,245,.25);
 }
 
-
-
+/* ---------------------------------------------------------------------
+   21) STALE BIDDING BADGE + GAUGE SIZES
+   --------------------------------------------------------------------- */
 #badgeStaleBidding.badge-pulse {
     animation: badgePulse 1.2s infinite;
-    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); /* Bootstrap danger-ish */
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
 }
-
 @keyframes badgePulse {
     0% {
         transform: translateY(0) scale(1);
@@ -746,9 +641,15 @@ select option {
 #gaugeGauge > div {
     min-height: 100px !important;
 }
-
 .gauge-wrap {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+.btnDeleteCoordinator {
+    font-weight: 600;
+}
+
+.btnDeleteCoordinator i.bi-trash {
+    margin-right: 2px;
 }

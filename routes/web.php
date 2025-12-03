@@ -1,6 +1,7 @@
 <?php
 
 //use App\Http\Controllers\AiInsightController;
+use App\Http\Controllers\BncProjectController;
 use App\Http\Controllers\EstimatorReportController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\ForecastPdfController;
@@ -239,18 +240,13 @@ Route::middleware('auth')->group(function () {
 
     });
 
-
     /* ===================================================================
-           | Project Cordinator
-           * =================================================================== */
-
+     | Project Coordinator
+     * =================================================================== */
 
     Route::get('/project-coordinator', [ProjectCoordinatorController::class, 'index'])
         ->name('coordinator.index');
 
-//        Route::post('/project-coordinator/po-received',
-//            [ProjectCoordinatorController::class, 'storePo'])
-//            ->name('coordinator.storePo');
     Route::post('/project-coordinator/store-po', [ProjectCoordinatorController::class, 'storePo'])
         ->name('coordinator.storePo');
 
@@ -268,7 +264,27 @@ Route::middleware('auth')->group(function () {
         [ProjectCoordinatorController::class, 'salesOrderAttachments']
     )->name('coordinator.salesorders.attachments');
 
+    /* NEW: soft delete endpoints */
+    Route::delete(
+        '/coordinator/projects/{project}',
+        [ProjectCoordinatorController::class, 'destroyProject']
+    )->name('coordinator.projects.destroy');
 
+    Route::delete(
+        '/coordinator/salesorders/{salesorder}',
+        [ProjectCoordinatorController::class, 'destroySalesOrder']
+    )->name('coordinator.salesorders.destroy');
+
+
+
+    Route::get(
+        '/coordinator/related-quotations',
+        [ProjectCoordinatorController::class, 'relatedQuotations']
+    )->name('coordinator.relatedQuotations');
+    Route::get(
+        '/coordinator/search-quotations',
+        [ProjectCoordinatorController::class, 'searchQuotations']
+    )->name('coordinator.searchQuotations');
     /* ===================================================================
      | ESTIMATION (Sales + GM/Admin)
      * =================================================================== */
@@ -300,6 +316,39 @@ Route::middleware('auth')->group(function () {
 // 4️⃣ Optional KPI Page (visual dashboard page)
     Route::view('/sales-orders/manager/kpi', 'sales_orders.manager.manager_kpi')
         ->name('salesorders.manager.kpi');
+
+
+
+
+
+
+
+    Route::middleware(['auth'])->group(function () {
+
+        // Main page
+        Route::get('/bnc', [BncProjectController::class, 'index'])
+            ->name('bnc.index');
+
+        // DataTable AJAX
+        Route::get('/bnc/datatable', [BncProjectController::class, 'datatable'])
+            ->name('bnc.datatable');
+
+        // Upload BNC CSV
+        Route::post('/bnc/upload', [BncProjectController::class, 'upload'])
+            ->name('bnc.upload');
+
+        // Show single project (for modal)
+        Route::get('/bnc/{bncProject}', [BncProjectController::class, 'show'])
+            ->name('bnc.show');
+
+        // Update checkpoints from modal
+        Route::post('/bnc/{bncProject}', [BncProjectController::class, 'update'])
+            ->name('bnc.update');
+    });
+
+
+
+
     /* ===================================================================
      | GM / ADMIN ONLY
      * =================================================================== */
@@ -354,7 +403,22 @@ Route::middleware('auth')->group(function () {
             abort_if(empty($url), 404);
             return redirect()->away($url);
         })->name('powerbi.jump');
+
+
+
+
+
+
+        // ---------- BNC Project Manager Routes ----------
+        // (admins upload files, gm/admin can view all regions)
+        Route::post('/bnc/upload', [BncProjectController::class, 'upload'])
+            ->name('bnc.upload');
+
+        Route::get('/bnc/manage', [BncProjectController::class, 'manage'])
+            ->name('bnc.manage'); // optional manager page
     });
+
+
     // ================= END GM / ADMIN ONLY =================
 });
 

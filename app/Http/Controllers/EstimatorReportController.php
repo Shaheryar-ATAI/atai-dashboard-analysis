@@ -33,24 +33,33 @@ class EstimatorReportController extends Controller
      */
     protected function estimatorBaseQuery(Request $request): Builder
     {
+        /** @var \App\Models\User $user */
         $user = $request->user();
-        $q = Project::query()->whereNull('deleted_at');
 
-        // 🔐 Region restriction for estimators
+        $q = Project::query()
+            ->whereNull('deleted_at');
+
+        // 🔐 Normal estimator: only their own inquiries (same as DataTable)
         if (!$user->hasRole('Admin') && !$user->hasRole('GM')) {
+
+            // Match region if user has one
             if ($user->region) {
                 $q->where('area', strtoupper($user->region));
             }
+
+            // Match estimator_name exactly like DataTable
+            $nameKey = strtoupper(trim($user->name));
+            $q->whereRaw("UPPER(TRIM(estimator_name)) = ?", [$nameKey]);
         }
 
-        // 🧲 Family filter (ductwork / dampers / etc.) – optional
+        // 🧲 Product family filter (optional)
         if ($family = $request->input('family')) {
             if ($family !== 'all') {
                 $q->where('atai_products', 'LIKE', "%{$family}%");
             }
         }
 
-        // (optional) from/to date on the Estimator page
+        // 📅 Optional from/to date filters (same field as listing: date_rec)
         if ($from = $request->input('from')) {
             $q->whereDate('date_rec', '>=', $from);
         }
@@ -91,7 +100,7 @@ class EstimatorReportController extends Controller
 
     public function exportWeekly(Request $request)
     {
-        $year = (int)$request->input('year');
+        $year  = (int)$request->input('year');
         $month = (int)$request->input('month');
 
         if (!$year || !$month) {
@@ -106,6 +115,11 @@ class EstimatorReportController extends Controller
             ->orderBy($dateExpr)
             ->get();
 
+        // 🔴 NEW: if there is no data, DO NOT call Excel at all
+        if ($rows->isEmpty()) {
+            return back()->with('error', 'No inquiries found for the selected month and year.');
+        }
+
         // ---- group rows into weeks (Sun–Thu) ----
         $groups = [];
         foreach ($rows as $p) {
@@ -114,16 +128,16 @@ class EstimatorReportController extends Controller
             if (!$date) {
                 $key = 'No Date';
             } else {
-                $c = Carbon::parse($date);
-                $start = $c->copy()->startOfWeek(Carbon::SUNDAY);
-                $end = $start->copy()->addDays(4); // Thursday
-                $key = $start->format('d-m-Y') . ' to ' . $end->format('d-m-Y');
+                $c      = Carbon::parse($date);
+                $start  = $c->copy()->startOfWeek(Carbon::SUNDAY);
+                $end    = $start->copy()->addDays(4); // Thursday
+                $key    = $start->format('d-m-Y') . ' to ' . $end->format('d-m-Y');
             }
             $groups[$key][] = $p;
         }
         ksort($groups);
 
-        $fileName = 'ATAI-Projects-Weekly-' . now()->format('Ymd_His') . '.xlsx';
+        $fileName      = 'ATAI-Projects-Weekly-' . now()->format('Ymd_His') . '.xlsx';
         $estimatorName = optional(Auth::user())->name;
 
         return Excel::download(
@@ -131,6 +145,7 @@ class EstimatorReportController extends Controller
             $fileName
         );
     }
+
 
 
     public function projects()

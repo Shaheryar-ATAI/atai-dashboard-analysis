@@ -1,0 +1,571 @@
+{{-- resources/views/bnc/index.blade.php --}}
+@extends('layouts.app')
+
+@section('title', 'BNC Projects')
+
+@push('head')
+    {{-- DataTables (Bootstrap 5 build) --}}
+    <link href="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet"
+          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
+
+    <style>
+        /* BNC PAGE ONLY – kill the dark overlay completely */
+        .modal-backdrop,
+        .modal-backdrop.fade,
+        .modal-backdrop.show {
+            background-color: transparent !important;
+            opacity: 0 !important;
+        }
+
+        /* Keep modals above content */
+        .modal {
+            z-index: 1065 !important;
+        }
+
+        /* Pretty text block for BNC YAML-style sections */
+        .bnc-pre {
+            white-space: pre-wrap;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            line-height: 1.35;
+        }
+    </style>
+@endpush
+
+@section('content')
+    <div class="container-fluid py-3">
+
+        {{-- Header + Upload button --}}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h4 mb-0 text-white">BNC Projects</h1>
+
+            @hasrole('admin')
+            <button class="btn btn-sm btn-outline-light"
+                    data-bs-toggle="modal"
+                    data-bs-target="#bncUploadModal">
+                <i class="bi bi-upload me-1"></i>
+                Upload BNC Excel
+            </button>
+            @endhasrole
+        </div>
+
+        {{-- Filters row --}}
+        <div class="card mb-3 atai-card-dark">
+            <div class="card-body py-2">
+                <form id="bncFilters" class="row g-2 align-items-end">
+
+                    {{-- Region filter only for admin+gm; sales see fixed region via backend --}}
+                    @hasanyrole('admin|gm')
+                    <div class="col-md-2">
+                        <label class="form-label form-label-sm text-white-50 mb-1">Region</label>
+                        <select name="region" id="bnc_region" class="form-select form-select-sm">
+                            <option value="">All Regions</option>
+                            <option value="Eastern" {{ request('region') === 'Eastern' ? 'selected' : '' }}>Eastern</option>
+                            <option value="Central" {{ request('region') === 'Central' ? 'selected' : '' }}>Central</option>
+                            <option value="Western" {{ request('region') === 'Western' ? 'selected' : '' }}>Western</option>
+                        </select>
+                    </div>
+                    @endhasanyrole
+
+                    <div class="col-md-2">
+                        <label class="form-label form-label-sm text-white-50 mb-1">Stage</label>
+                        <select name="stage" id="bnc_stage" class="form-select form-select-sm">
+                            <option value="">All</option>
+                            <option value="Concept">Concept</option>
+                            <option value="Design">Design</option>
+                            <option value="Tender">Tender</option>
+                            <option value="Under Construction">Under Construction</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label form-label-sm text-white-50 mb-1">Lead Status</label>
+                        <select name="lead_qualified" id="bnc_lead_qualified" class="form-select form-select-sm">
+                            <option value="">All</option>
+                            <option value="Hot">Hot</option>
+                            <option value="Warm">Warm</option>
+                            <option value="Cold">Cold</option>
+                            <option value="Unknown">Unknown</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label form-label-sm text-white-50 mb-1">Approached</label>
+                        <select name="approached" id="bnc_approached" class="form-select form-select-sm">
+                            <option value="">All</option>
+                            <option value="1">Yes</option>
+                            <option value="0">No</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label form-label-sm text-white-50 mb-1">Search</label>
+                        <input type="text" name="q" id="bnc_q" class="form-control form-control-sm"
+                               placeholder="Project / client / city">
+                    </div>
+
+                    <div class="col-md-2 d-flex gap-2">
+                        <button type="button" id="bncApplyFilters" class="btn btn-sm btn-primary flex-grow-1">
+                            <i class="bi bi-funnel me-1"></i> Apply
+                        </button>
+                        <button type="button" id="bncResetFilters" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- KPI row --}}
+        <div class="row g-3 mb-3">
+            <div class="col-md-2">
+                <div class="card kpi-card">
+                    <div class="card-body py-2">
+                        <div class="text-white-50 small">Total Projects</div>
+                        <div id="kpi_total_projects" class="fs-5 fw-semibold text-white">
+                            {{ number_format($kpis['total_projects'] ?? 0) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card kpi-card">
+                    <div class="card-body py-2">
+                        <div class="text-white-50 small">Total Value (USD)</div>
+                        <div id="kpi_total_value" class="fs-5 fw-semibold text-white">
+                            {{ number_format($kpis['total_value'] ?? 0, 0) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card kpi-card">
+                    <div class="card-body py-2">
+                        <div class="text-white-50 small">Approached</div>
+                        <div id="kpi_approached" class="fs-5 fw-semibold text-white">
+                            {{ number_format($kpis['approached'] ?? 0) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card kpi-card">
+                    <div class="card-body py-2">
+                        <div class="text-white-50 small">Qualified (Hot/Warm)</div>
+                        <div id="kpi_qualified" class="fs-5 fw-semibold text-white">
+                            {{ number_format($kpis['qualified'] ?? 0) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card kpi-card">
+                    <div class="card-body py-2">
+                        <div class="text-white-50 small">Expected Closures (30d)</div>
+                        <div id="kpi_expected_close" class="fs-5 fw-semibold text-white">
+                            {{ number_format($kpis['expected_close30'] ?? 0) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Main table --}}
+        <div class="card atai-card-dark">
+            <div class="card-body">
+                <table id="tblBncProjects" class="table table-sm table-hover align-middle w-100">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Project</th>
+                        <th>City</th>
+                        <th>Region</th>
+                        <th>Stage</th>
+                        <th>Value (USD)</th>
+                        <th>Value (SAR)</th>          {{-- NEW --}}
+                        <th>Quoted?</th>               {{-- NEW --}}
+                        <th>Quoted Value (SAR)</th>    {{-- NEW --}}
+                        <th>Approached</th>
+                        <th>Lead</th>
+                        <th>Penetration %</th>
+                        <th>Expected Close</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {{-- filled by DataTables via AJAX --}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- Modal: Project details / edit checkpoints --}}
+    <div class="modal fade modal-atai" id="bncDetailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bnc_modal_title">BNC Project Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        {{-- Left: BNC info --}}
+                        <div class="col-md-6">
+                            <h6 class="text-white-50 mb-2">Project Information</h6>
+                            <dl class="row small mb-3" id="bnc_info_basic">
+                                {{-- filled by JS --}}
+                            </dl>
+
+                            <hr class="border-secondary my-2">
+
+                            <h6 class="text-white-50 mb-2">Overview Info</h6>
+                            <div id="bnc_overview_block" class="bnc-pre small mb-3"></div>
+
+                            <h6 class="text-white-50 mb-2">Parties (Consultant / Contractors / MEP)</h6>
+                            <div id="bnc_parties_block" class="bnc-pre small mb-3"></div>
+
+                            <h6 class="text-white-50 mb-2">Latest News</h6>
+                            <div id="bnc_latest_block" class="bnc-pre small"></div>
+                        </div>
+
+                        {{-- Right: Checkpoints form --}}
+                        <div class="col-md-6">
+                            <h6 class="text-white-50 mb-2">ATAI Checkpoints</h6>
+                            <form id="bncCheckpointForm">
+                                @csrf
+                                <input type="hidden" id="bnc_project_id">
+
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label form-label-sm">Approached</label>
+                                        <select id="bnc_approached_input" name="approached"
+                                                class="form-select form-select-sm">
+                                            <option value="0">No</option>
+                                            <option value="1">Yes</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label form-label-sm">Lead Status</label>
+                                        <select id="bnc_lead_qualified_input" name="lead_qualified"
+                                                class="form-select form-select-sm">
+                                            <option value="Unknown">Unknown</option>
+                                            <option value="Hot">Hot</option>
+                                            <option value="Warm">Warm</option>
+                                            <option value="Cold">Cold</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label form-label-sm">Penetration %</label>
+                                        <input type="number" min="0" max="100"
+                                               id="bnc_penetration_input"
+                                               name="penetration_percent"
+                                               class="form-control form-control-sm">
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label form-label-sm">Expected Close Date</label>
+                                        <input type="date" id="bnc_expected_input"
+                                               name="expected_close_date"
+                                               class="form-control form-control-sm">
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="form-check mt-4">
+                                            <input class="form-check-input" type="checkbox" value="1"
+                                                   id="bnc_boq_shared" name="boq_shared">
+                                            <label class="form-check-label small" for="bnc_boq_shared">
+                                                BOQ Shared
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="form-check mt-4">
+                                            <input class="form-check-input" type="checkbox" value="1"
+                                                   id="bnc_submittal_shared" name="submittal_shared">
+                                            <label class="form-check-label small" for="bnc_submittal_shared">
+                                                Submittal Shared
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="form-check mt-4">
+                                            <input class="form-check-input" type="checkbox" value="1"
+                                                   id="bnc_submittal_approved" name="submittal_approved">
+                                            <label class="form-check-label small" for="bnc_submittal_approved">
+                                                Submittal Approved
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label class="form-label form-label-sm">Notes</label>
+                                        <textarea id="bnc_notes_input" name="notes"
+                                                  class="form-control form-control-sm" rows="3"></textarea>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <small class="text-white-50" id="bnc_audit_info"></small>
+                    <button type="button" class="btn btn-sm btn-primary" id="bncSaveCheckpointBtn">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Modal: Upload BNC Excel (admin only) --}}
+    @hasrole('admin')
+    <div class="modal fade modal-atai" id="bncUploadModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Upload BNC Excel</h5>
+                    <button type="button" class="btn-close btn-close-white"
+                            data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="bncUploadForm"
+                      method="POST"
+                      action="{{ route('bnc.upload') }}"
+                      enctype="multipart/form-data">
+                    @csrf
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label form-label-sm">Region</label>
+                            <select name="region" class="form-select form-select-sm" required>
+                                <option value="">-- Select Region --</option>
+                                <option value="Eastern">Eastern</option>
+                                <option value="Central">Central</option>
+                                <option value="Western">Western</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label form-label-sm">BNC Excel File</label>
+                            <input type="file" name="file"
+                                   class="form-control @error('file') is-invalid @enderror"
+                                   accept=".csv" required>
+                            <div class="form-text text-white-50 small">
+                                Export from BNC website and upload here.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="bi bi-upload me-1"></i> Upload & Import
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endhasrole
+@endsection
+
+@push('scripts')
+    <script src="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.js"></script>
+    <script>
+        (function () {
+            const $ = window.jQuery;
+
+            const getVal = (id) => {
+                const el = document.getElementById(id);
+                return el ? el.value : '';
+            };
+
+            const formatDate = (val) => {
+                if (!val) return '';
+                const s = String(val);
+                const datePart = s.split('T')[0]; // YYYY-MM-DD from ISO
+
+                // if BNC sends some weird epoch/placeholder you want to hide:
+                if (datePart === '1970-01-01' || datePart === '1969-12-31') return '';
+
+                return datePart;
+            };
+
+            // DataTable
+            const table = $('#tblBncProjects').DataTable({
+                processing: true,
+                serverSide: true,
+                pageLength: 25,
+                order: [[5, 'desc']], // Value (USD) column
+                ajax: {
+                    url: @json(route('bnc.datatable')),
+                    data: function (d) {
+                        d.region         = getVal('bnc_region');
+                        d.stage          = getVal('bnc_stage');
+                        d.lead_qualified = getVal('bnc_lead_qualified');
+                        d.approached     = getVal('bnc_approached');
+                        d.q              = getVal('bnc_q');
+                    }
+                },
+                columns: [
+                    { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false },
+                    { data: 'project_name', name: 'project_name' },
+                    { data: 'city', name: 'city' },
+                    { data: 'region', name: 'region' },
+                    { data: 'stage', name: 'stage' },
+                    { data: 'value_usd', name: 'value_usd', className: 'text-end' },
+                    { data: 'value_sar', name: 'value_sar', className: 'text-end', orderable: false, searchable: false },
+                    { data: 'quoted_status', name: 'quoted_status', orderable: false, searchable: false },
+                    { data: 'quoted_value_sar', name: 'quoted_value_sar', className: 'text-end', orderable: false, searchable: false },
+                    { data: 'approached', name: 'approached', orderable: false, searchable: false },
+                    { data: 'lead_qualified', name: 'lead_qualified' },
+                    { data: 'penetration_percent', name: 'penetration_percent', className: 'text-center' },
+                    { data: 'expected_close_date', name: 'expected_close_date' },
+                    { data: 'actions', name: 'actions', orderable: false, searchable: false, className: 'text-end' },
+                ]
+            });
+
+            // Filters
+            document.getElementById('bncApplyFilters').addEventListener('click', function () {
+                table.ajax.reload();
+            });
+
+            document.getElementById('bncResetFilters').addEventListener('click', function () {
+                document.getElementById('bncFilters').reset();
+                table.ajax.reload();
+            });
+
+            // View button -> JSON -> modal
+            $(document).on('click', '.btn-bnc-view', function () {
+                const id = $(this).data('id');
+                if (!id) return;
+
+                fetch(@json(url('/bnc')) + '/' + id)
+                    .then(res => res.json())
+                    .then(data => {
+                        fillBncModal(data);
+                        const modal = new bootstrap.Modal(document.getElementById('bncDetailsModal'));
+                        modal.show();
+                    });
+            });
+
+            function fillBncModal(p) {
+                const safe = (v) => (v ?? '');
+                const fmtNum = (n) => Number(n || 0).toLocaleString('en-US');
+
+                // --- Modal title ---
+                document.getElementById('bnc_modal_title').textContent =
+                    safe(p.project_name) + (p.reference_no ? ' (' + p.reference_no + ')' : '');
+
+                // --- Basic info block ---
+                const basic = document.getElementById('bnc_info_basic');
+                basic.innerHTML = `
+                    <dt class="col-sm-4">City</dt><dd class="col-sm-8">${safe(p.city)}</dd>
+                    <dt class="col-sm-4">Region</dt><dd class="col-sm-8">${safe(p.region)}</dd>
+                    <dt class="col-sm-4">Stage</dt><dd class="col-sm-8">${safe(p.stage)}</dd>
+                    <dt class="col-sm-4">Industry</dt><dd class="col-sm-8">${safe(p.industry)}</dd>
+                    <dt class="col-sm-4">Client</dt><dd class="col-sm-8">${safe(p.client)}</dd>
+                    <dt class="col-sm-4">Value (USD)</dt><dd class="col-sm-8">${fmtNum(p.value_usd)}</dd>
+                    <dt class="col-sm-4">Award Date</dt><dd class="col-sm-8">${formatDate(p.award_date)}</dd>
+                `;
+
+                // helper: convert "a; b; c" into bullet-style lines
+                const bullets = (txt) => {
+                    if (!txt) return '';
+                    return String(txt)
+                        .split(';')
+                        .map(s => s.trim())
+                        .filter(Boolean)
+                        .map(s => '• ' + s)
+                        .join('\n');
+                };
+
+                // --- Overview Info (TAB 1 style) ---
+                const overview = `
+Reference Number: ${safe(p.reference_no)}
+Project Sector: ${safe(p.project_sector || p.project_sector_label)}
+Project Industry: ${safe(p.industry)}
+Project Type: ${safe(p.project_type || '')}
+Stage: ${safe(p.stage)}
+Value (USD): ${fmtNum(p.value_usd)}
+Last Updated: ${safe(p.last_updated || '')}
+GPS: ${safe(p.gps || '')}
+                `.trim();
+
+                document.getElementById('bnc_overview_block').textContent = overview;
+
+                // --- Parties block (TAB 2 style) ---
+                const parties = [
+                    'Consultant(s):',
+                    bullets(p.consultant),
+                    '',
+                    'Main Contractor(s):',
+                    bullets(p.main_contractor),
+                    '',
+                    'MEP Contractor(s):',
+                    bullets(p.mep_contractor),
+                ].join('\n');
+
+                document.getElementById('bnc_parties_block').textContent = parties.trim();
+
+                // --- Latest News (TAB 3 style) ---
+                document.getElementById('bnc_latest_block').textContent =
+                    p.latest_news ? String(p.latest_news) : 'No recent news available.';
+
+                // --- Checkpoints (right side) ---
+                document.getElementById('bnc_project_id').value = p.id;
+                document.getElementById('bnc_approached_input').value = p.approached ? '1' : '0';
+                document.getElementById('bnc_lead_qualified_input').value = p.lead_qualified ?? 'Unknown';
+                document.getElementById('bnc_penetration_input').value = p.penetration_percent ?? 0;
+                document.getElementById('bnc_expected_input').value = p.expected_close_date ?? '';
+
+                document.getElementById('bnc_boq_shared').checked = !!p.boq_shared;
+                document.getElementById('bnc_submittal_shared').checked = !!p.submittal_shared;
+                document.getElementById('bnc_submittal_approved').checked = !!p.submittal_approved;
+                document.getElementById('bnc_notes_input').value = p.notes ?? '';
+
+                let auditText = '';
+                if (p.created_at) auditText += 'Created: ' + p.created_at;
+                if (p.updated_at) auditText += (auditText ? ' | ' : '') + 'Last updated: ' + p.updated_at;
+                document.getElementById('bnc_audit_info').textContent = auditText;
+            }
+
+            // Save checkpoints
+            document.getElementById('bncSaveCheckpointBtn')?.addEventListener('click', function () {
+                const form = document.getElementById('bncCheckpointForm');
+                const id   = document.getElementById('bnc_project_id').value;
+                if (!id) return;
+
+                const formData = new FormData(form);
+
+                fetch(@json(url('/bnc')) + '/' + id, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': formData.get('_token'),
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                })
+                    .then(res => res.json())
+                    .then(() => {
+                        alert('Saved');
+                        table.ajax.reload(null, false);
+                    });
+            });
+        })();
+
+        // Global backdrop cleanup (same pattern as other pages)
+        function cleanupBackdrops() {
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+        }
+
+        document.addEventListener('shown.bs.modal', function () {
+            cleanupBackdrops();
+        });
+    </script>
+@endpush

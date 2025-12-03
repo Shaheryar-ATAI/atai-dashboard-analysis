@@ -87,6 +87,16 @@
                     </a>
                 </li>
                 @endhasanyrole
+
+
+                @hasanyrole('sales_eastern|sales_central|sales_western|admin|gm')
+                <li class="nav-item">
+                    <a href="{{ route('bnc.index') }}"
+                       class="nav-link {{ request()->routeIs('bnc.index') ? 'active' : '' }}">
+                        <i class="bi bi-building-check me-1"></i>
+                        BNC Projects
+                    </a>
+                </li>
                 {{-- GM/Admin only --}}
                 @hasanyrole('gm|admin')
 {{--                <li class="nav-item">--}}
@@ -113,6 +123,12 @@
                         Product Summary
                     </a>
                 </li>
+
+
+
+
+
+                @endhasanyrole
 {{--                <li class="nav-item">--}}
 {{--                    <a class="nav-link {{ request()->routeIs('accounts.summary') ? 'active fw-semibold text-primary' : '' }}"--}}
 {{--                       href="{{ route('powerbi.jump') }}">--}}

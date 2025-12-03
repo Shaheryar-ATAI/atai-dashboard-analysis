@@ -9,19 +9,13 @@ use App\Models\SalesOrderLog;
 use Illuminate\Http\Request;
 use App\Models\SalesOrderAttachment;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Maatwebsite\Excel\Facades\Excel;
-use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\WithHeadings;
 use App\Exports\Coordinator\SalesOrdersMonthExport;
 use App\Exports\Coordinator\SalesOrdersYearExport;
 
 class ProjectCoordinatorController extends Controller
 {
-
-
     private function coordinatorSalesmenScope($user): array
     {
         $name = strtolower(trim($user->name ?? ''));
@@ -45,37 +39,27 @@ class ProjectCoordinatorController extends Controller
         return [];
     }
 
+    private function coordinatorRegionScope($user): array
+    {
+        $userRegion = strtolower($user->region ?? '');
+
+        if (method_exists($user, 'can') && $user->can('viewAllRegions')) {
+            return ['eastern', 'central', 'western'];
+        }
+
+        if ($userRegion === 'western') {
+            return ['eastern', 'central', 'western'];
+        }
+
+        return ['eastern', 'central', 'western'];
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
         $userRegion = strtolower($user->region ?? '');
-
-
-        // 🔹 Region scope for coordinators:
-        // - Eastern / Central users → Eastern + Central
-        // - Western users → Western only
-        // - GM / Admin (canViewAll) → all
-
-        // region scope (Eastern/Central/Western etc.)
         $regionsScope = $this->coordinatorRegionScope($user);
-        // salesman scope (Sohaib/Tariq/Jamal etc.)
         $salesmenScope = $this->coordinatorSalesmenScope($user);
-
-
-        /*
-        |------------------------------------------------------------------
-        |  Salesmen scope per coordinator
-        |------------------------------------------------------------------
-        |
-        | Shenoy (project_coordinator_eastern):
-        |   → Sohaib, Tariq, Jamal
-        |
-        | Niyas (project_coordinator_western):
-        |   → Abdo, Ahmed
-        |
-        | GM / Admin:
-        |   → all of them
-        */
 
         // Projects (filtered by region + salesman)
         $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
@@ -84,29 +68,19 @@ class ProjectCoordinatorController extends Controller
             ->get();
 
         // Sales Orders (same logic)
-        $salesOrdersQuery = SalesOrderLog::coordinatorBaseQuery($regionsScope, $salesmenScope);
+        $salesOrdersQuery = SalesOrderLog::coordinatorBaseQuery($regionsScope);
         $salesOrders = (clone $salesOrdersQuery)
             ->orderByDesc('date_rec')
             ->get();
-        /*
-        |--------------------------------------------------------------------------
-        |  KPIs
-        |--------------------------------------------------------------------------
-        */
 
+        // KPIs
         $kpiProjectsCount = Project::kpiProjectsCountForCoordinator($regionsScope);
 
         $salesKpis = SalesOrderLog::kpisForCoordinator($regionsScope);
         $kpiSalesOrdersCount = $salesKpis['count'];
         $kpiSalesOrdersValue = $salesKpis['value'];
 
-        /*
-        |--------------------------------------------------------------------------
-        |  CHART DATA (Quotation vs PO by region)
-        |--------------------------------------------------------------------------
-        */
-
-        // Chart (still by region, but only for visible records)
+        // CHART DATA (Quotation vs PO by region)
         $projectByRegion = Project::quotationTotalsByRegion($regionsScope);
         $poByRegion = SalesOrderLog::poTotalsByRegion($regionsScope);
 
@@ -147,20 +121,34 @@ class ProjectCoordinatorController extends Controller
         $data = $request->validate([
             'source' => ['required', 'in:project,salesorder'],
             'record_id' => ['required', 'integer'],
+
+            // LEFT-SIDE (inquiry) fields – editable when source = salesorder
+            'project' => ['nullable', 'string', 'max:255'],
+            'client' => ['nullable', 'string', 'max:255'],
+            'salesman' => ['nullable', 'string', 'max:255'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'area' => ['nullable', 'string', 'max:255'],
+            'quotation_no' => ['nullable', 'string', 'max:255'],
+            'quotation_date' => ['nullable', 'date'],
+            'date_received' => ['nullable', 'date'],
+            'atai_products' => ['nullable', 'string', 'max:255'],
+            'quotation_value' => ['nullable', 'numeric', 'min:0'],
+
+            // RIGHT-SIDE (PO) fields
             'job_no' => ['nullable', 'string', 'max:255'],
             'po_no' => ['required', 'string', 'max:255'],
             'po_date' => ['required', 'date'],
             'po_value' => ['required', 'numeric', 'min:0'],
             'payment_terms' => ['nullable', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
-            'attachments.*' => ['file', 'max:51200'], // 50 MB
+            'attachments.*' => ['file', 'max:51200'],
             'oaa' => ['nullable', 'string', 'max:50'],
         ]);
 
         try {
             return DB::transaction(function () use ($data, $request, $user) {
 
-                // ---------- your existing logic starts here ----------
+                // ---------------- UPDATE EXISTING SALES ORDER ----------------
                 if ($data['source'] === 'salesorder') {
                     /** @var \App\Models\SalesOrderLog $so */
                     $so = SalesOrderLog::findOrFail($data['record_id']);
@@ -174,30 +162,61 @@ class ProjectCoordinatorController extends Controller
                     }
 
                     $poValueWithVat = round($data['po_value'] * 1.15, 2);
+// Use edited values, falling back to existing if needed
+                    $client = $data['client'] ?? $so->client;
+                    $projectName = $data['project'] ?? $so->project;
+                    $salesSource = $data['salesman'] ?? $so->salesman;
+                    $location = $data['location'] ?? $so->location;
+                    $area = $data['area'] ?? $so->area;
+                    $quoteNo = $data['quotation_no'] ?? $so->quotation_no;
+                    $dateReceived = $data['date_received'] ?? optional($so->date_rec)->format('Y-m-d');
+                    $products = $data['atai_products'] ?? $so->atai_products;
+                    // $quotationVal  = $data['quotation_value'] ?? $so->po_value;
 
                     DB::update("
-                    UPDATE `salesorderlog`
-                    SET
-                        `PO. No.`        = ?,
-                        `date_rec`       = ?,
-                        `PO Value`       = ?,
-                        `value_with_vat` = ?,
-                        `Payment Terms`  = ?,
-                        `Status`         = ?,
-                        `Job No.`        = ?,
-                        `Remarks`        = ?,
-                        created_by_id    = $user->id,
-                        `updated_at`     = NOW()
-                    WHERE `id` = ?
-                ", [
+    UPDATE `salesorderlog`
+    SET
+        `Client Name`      = ?,
+        `Project Name`     = ?,
+        `Sales Source`     = ?,
+        `Location`         = ?,
+        `project_region`   = ?,
+        `region`           = ?,
+        `Products`         = ?,
+        `Products_raw`     = ?,
+        `Quote No.`        = ?,
+        `date_rec`         = ?,
+        `PO. No.`          = ?,
+        `PO Value`         = ?,
+        `value_with_vat`   = ?,
+        `Payment Terms`    = ?,
+        `Status`           = ?,
+        `Job No.`          = ?,
+        `Factory Loc`      = ?,
+        `Remarks`          = ?,
+        created_by_id      = ?,
+        `updated_at`       = NOW()
+    WHERE `id` = ?
+", [
+                        $client,
+                        $projectName,
+                        $salesSource,
+                        $location,
+                        $area,                    // project_region
+                        $area,                    // region
+                        $products,
+                        $products,
+                        $quoteNo,
+                        $dateReceived ?: $data['po_date'], // fallback
                         $data['po_no'],
-                        $data['po_date'],
                         $data['po_value'],
                         $poValueWithVat,
                         $data['payment_terms'] ?? null,
                         $data['oaa'] ?? null,
                         $data['job_no'] ?? null,
+                        $area,                   // Factory Loc
                         $data['remarks'] ?? null,
+                        $user->id,
                         $so->id,
                     ]);
 
@@ -233,75 +252,115 @@ class ProjectCoordinatorController extends Controller
                     ]);
                 }
 
-                // ---------- CREATE NEW PO (from Projects tab) ----------
-                /** @var \App\Models\Project $project */
-                $project = Project::findOrFail($data['record_id']);
+                // ---------------- CREATE NEW PO (FROM PROJECT) ----------------
+                // ---------- CREATE NEW PO (from Projects tab, single OR multiple) ----------
+                $mainProject = Project::findOrFail($data['record_id']);
 
-                if (!is_null($project->status_current)) {
+// Extra project IDs chosen in modal
+                $extraIds = $request->input('extra_project_ids', []);
+                $projectIds = array_unique(
+                    array_filter(
+                        array_merge([$mainProject->id], (array)$extraIds),
+                        fn($id) => !empty($id)
+                    )
+                );
+
+// Load all selected projects
+                $projects = Project::query()
+                    ->whereIn('id', $projectIds)
+                    ->get();
+
+                if ($projects->isEmpty()) {
                     return response()->json([
                         'ok' => false,
-                        'message' => 'This project already has a PO. Please edit it from the Sales Order Log tab.',
+                        'message' => 'No projects found to attach this PO to.',
                     ], 422);
                 }
 
-                $poValueWithVat = round($data['po_value'] * 1.15, 2);
+// Check none already have PO
+                if ($projects->contains(fn(Project $p) => !is_null($p->status_current))) {
+                    return response()->json([
+                        'ok' => false,
+                        'message' => 'One or more selected quotations already have a PO. Please check Sales Order Log.',
+                    ], 422);
+                }
 
-                DB::insert("
-                INSERT INTO `salesorderlog`
-                (
-                    `Client Name`, `region`, `project_region`, `Location`, `date_rec`,
-                    `PO. No.`, `Products`, `Products_raw`, `Quote No.`, `Ref.No.`, `Cur`,
-                    `PO Value`, `value_with_vat`, `Payment Terms`,
-                    `Project Name`, `Project Location`,
-                    `Status`, `Job No.`, `Factory Loc`, `Sales Source`,
-                    `Remarks`, `created_by_id`, `created_at`
-                )
-                VALUES (?,?,?,?,?,
-                        ?,?,?,?,?,
-                        ?,?,?,?,
-                        ?,?,
-                        ?,?,?,?,
-                        ?,?,NOW())
-            ", [
-                    $project->client_name,
-                    $project->area,
-                    $project->area,
-                    $project->project_location,
-                    $data['po_date'],
-                    $data['po_no'],
-                    $project->atai_products,
-                    $project->atai_products,
-                    $project->quotation_no,
-                    null,
-                    'SAR',
-                    $data['po_value'],
-                    $poValueWithVat,
-                    $data['payment_terms'] ?? null,
-                    $project->project_name,
-                    $project->project_location,
-                    $data['oaa'] ?? null,
-                    $data['job_no'] ?? null,
-                    $project->area,
-                    $project->salesman ?? $project->salesperson,
-                    $data['remarks'] ?? null,
-                    $user->id,
-                ]);
+// Total quotation value of selected projects
+                $totalQuoted = (float)$projects->sum('quotation_value');
+                if ($totalQuoted <= 0) {
+                    // Fallback: equal split
+                    $totalQuoted = 0;
+                }
 
-                $soId = DB::getPdo()->lastInsertId();
-
-                $project->status = 'PO-RECEIVED';
-                $project->status_current = 'PO-RECEIVED';
-                $project->coordinator_updated_by_id = $user->id;
-                $project->save();
-
-                // attachments
+                $attachments = [];
                 if ($request->hasFile('attachments')) {
                     $files = $request->file('attachments');
-                    if (!is_array($files)) {
-                        $files = [$files];
+                    $attachments = is_array($files) ? $files : [$files];
+                }
+
+                foreach ($projects as $project) {
+
+                    // share ratio
+                    if ($totalQuoted > 0) {
+                        $ratio = max(0, (float)$project->quotation_value) / $totalQuoted;
+                    } else {
+                        $ratio = 1 / max(1, $projects->count());
                     }
 
-                    foreach ($files as $file) {
+                    $poValue = round($data['po_value'] * $ratio, 2);
+                    $poValueWithVat = round($poValue * 1.15, 2);
+
+                    DB::insert("
+        INSERT INTO `salesorderlog`
+        (
+            `Client Name`, `region`, `project_region`, `Location`, `date_rec`,
+            `PO. No.`, `Products`, `Products_raw`, `Quote No.`, `Ref.No.`, `Cur`,
+            `PO Value`, `value_with_vat`, `Payment Terms`,
+            `Project Name`, `Project Location`,
+            `Status`, `Job No.`, `Factory Loc`, `Sales Source`,
+            `Remarks`, `created_by_id`, `created_at`
+        )
+        VALUES (?,?,?,?,?,
+                ?,?,?,?,?,
+                ?,?,?,?,
+                ?,?,
+                ?,?,?,?,
+                ?,?,NOW())
+    ", [
+                        $project->client_name,
+                        $project->area,
+                        $project->area,
+                        $project->project_location,
+                        $data['po_date'],
+                        $data['po_no'],
+                        $project->atai_products,
+                        $project->atai_products,
+                        $project->quotation_no,
+                        null,
+                        'SAR',
+                        $poValue,
+                        $poValueWithVat,
+                        $data['payment_terms'] ?? null,
+                        $project->project_name,
+                        $project->project_location,
+                        $data['oaa'] ?? null,
+                        $data['job_no'] ?? null,
+                        $project->area,
+                        $project->salesman ?? $project->salesperson,
+                        $data['remarks'] ?? null,
+                        $user->id,
+                    ]);
+
+                    $soId = DB::getPdo()->lastInsertId();
+
+                    // Mark project as PO-RECEIVED
+                    $project->status = 'PO-RECEIVED';
+                    $project->status_current = 'PO-RECEIVED';
+                    $project->coordinator_updated_by_id = $user->id;
+                    $project->save();
+
+                    // Attach documents to each SO
+                    foreach ($attachments as $file) {
                         if (!$file || !$file->isValid()) {
                             continue;
                         }
@@ -322,7 +381,7 @@ class ProjectCoordinatorController extends Controller
 
                 return response()->json([
                     'ok' => true,
-                    'message' => 'PO saved, project updated to PO-RECEIVED, and files uploaded.',
+                    'message' => 'PO saved for selected quotations, projects updated to PO-RECEIVED, and files uploaded.',
                 ]);
             });
         } catch (\Throwable $e) {
@@ -335,25 +394,8 @@ class ProjectCoordinatorController extends Controller
         }
     }
 
-
-    private function coordinatorRegionScope($user): array
-    {
-        $userRegion = strtolower($user->region ?? '');
-
-        if (method_exists($user, 'can') && $user->can('viewAllRegions')) {
-            return ['eastern', 'central', 'western'];
-        }
-
-        if ($userRegion === 'western') {
-            return ['western'];
-        }
-
-        return ['eastern', 'central'];
-    }
-
-
     /**
-     * Return a single sales order + attachments (for View button in coordinator screen)
+     * Return a single sales order + attachments (for View button)
      */
     public function showSalesOrder(Request $request, SalesOrderLog $salesorder)
     {
@@ -397,12 +439,12 @@ class ProjectCoordinatorController extends Controller
     }
 
     /**
-     * Export Sales Order Log for selected month (plus region / date range filters)
+     * Export Sales Order Log for selected month (plus filters)
      */
     public function exportSalesOrders(Request $request): BinaryFileResponse
     {
         $user = $request->user();
-        $regionsScope = $this->coordinatorRegionScope($user);   // ['eastern', 'central'] etc.
+        $regionsScope = $this->coordinatorRegionScope($user);
 
         $month = (int)$request->input('month'); // 1..12
         if (!$month) {
@@ -413,15 +455,13 @@ class ProjectCoordinatorController extends Controller
         $region = $request->input('region', 'all');
         $from = $request->input('from');
         $to = $request->input('to');
-        $salesman = strtoupper(trim($request->input('salesman', '')));   // from chip
+        $salesman = strtoupper(trim($request->input('salesman', '')));
 
-        // normalise region names to match DB values (Eastern/Central/Western)
         $normalizedRegions = array_map(
             fn($r) => ucfirst(strtolower($r)),
             $regionsScope
         );
 
-        // Canonical salesman → all accepted spellings in DB
         $salesmanAliasMap = [
             'SOHAIB' => ['SOHAIB', 'SOAHIB'],
             'TARIQ' => ['TARIQ', 'TAREQ'],
@@ -430,50 +470,45 @@ class ProjectCoordinatorController extends Controller
             'AHMED' => ['AHMED'],
         ];
 
-        // ❗ use DB::table so we get plain stdClass rows (no Eloquent accessors)
         $query = DB::table('salesorderlog')
             ->whereNull('deleted_at')
             ->whereIn('region', $normalizedRegions)
             ->selectRaw("
-            `Client Name`      AS client,
-            `project_region`   AS area,
-            `Location`         AS location,
-            `date_rec`         AS date_rec,
-            `PO. No.`          AS po_no,
-            `Products`         AS atai_products,
-            `Products_raw`     AS products_raw,
-            `Quote No.`        AS quotation_no,
-            `Ref.No.`          AS ref_no,
-            `Cur`              AS cur,
-            `PO Value`         AS po_value,
-            `value_with_vat`   AS value_with_vat,
-            `Payment Terms`    AS payment_terms,
-            `Project Name`     AS project,
-            `Project Location` AS project_location,
-            `Status`           AS status,
-            `Sales OAA`        AS oaa,
-            `Job No.`          AS job_no,
-            `Factory Loc`      AS factory_loc,
-            `Sales Source`     AS salesman,
-            `Remarks`          AS remarks
-        ");
+                `Client Name`      AS client,
+                `project_region`   AS area,
+                `Location`         AS location,
+                `date_rec`         AS date_rec,
+                `PO. No.`          AS po_no,
+                `Products`         AS atai_products,
+                `Products_raw`     AS products_raw,
+                `Quote No.`        AS quotation_no,
+                `Ref.No.`          AS ref_no,
+                `Cur`              AS cur,
+                `PO Value`         AS po_value,
+                `value_with_vat`   AS value_with_vat,
+                `Payment Terms`    AS payment_terms,
+                `Project Name`     AS project,
+                `Project Location` AS project_location,
+                `Status`           AS status,
+                `Sales OAA`        AS oaa,
+                `Job No.`          AS job_no,
+                `Factory Loc`      AS factory_loc,
+                `Sales Source`     AS salesman,
+                `Remarks`          AS remarks
+            ");
 
-        // Region dropdown filter
         if ($region && strtolower($region) !== 'all') {
             $query->where('project_region', ucfirst(strtolower($region)));
         }
 
-        // Salesman chip filter (with aliases)
         if ($salesman && $salesman !== 'ALL') {
             $aliases = $salesmanAliasMap[$salesman] ?? [$salesman];
             $query->whereIn('Sales Source', $aliases);
         }
 
-        // Month + year filters (PO date = date_rec)
         $query->whereYear('date_rec', $year)
             ->whereMonth('date_rec', $month);
 
-        // Optional From / To date filters
         if ($from) {
             $query->whereDate('date_rec', '>=', $from);
         }
@@ -481,7 +516,6 @@ class ProjectCoordinatorController extends Controller
             $query->whereDate('date_rec', '<=', $to);
         }
 
-        // get rows as Illuminate\Support\Collection
         $rows = collect($query->orderBy('date_rec')->get());
 
         $filename = sprintf('sales_orders_%d_%02d.xlsx', $year, $month);
@@ -506,7 +540,6 @@ class ProjectCoordinatorController extends Controller
         $to = $request->input('to');
         $salesman = strtoupper(trim($request->input('salesman', '')));
 
-        // You’ll add salesman handling inside the export class
         $export = new SalesOrdersYearExport($regionsScope, $year, $region, $from, $to, $salesman);
         $filename = sprintf('sales_orders_%d_full_year.xlsx', $year);
 
@@ -515,9 +548,6 @@ class ProjectCoordinatorController extends Controller
 
     public function salesOrderAttachments(SalesOrderLog $salesorder)
     {
-        // Optional: if you want region security same as index(),
-        // you can re-use your region scope check here.
-
         $salesorder->load('attachments');
 
         $items = $salesorder->attachments->map(function ($a) {
@@ -533,6 +563,176 @@ class ProjectCoordinatorController extends Controller
         return response()->json([
             'ok' => true,
             'attachments' => $items,
+        ]);
+    }
+
+    /* ======================================================================
+     *  DELETE (SOFT DELETE) – Inquiries & Sales Orders
+     * =================================================================== */
+
+    public function destroyProject(Request $request, Project $project)
+    {
+        $user = $request->user();
+        $regionsScope = $this->coordinatorRegionScope($user);
+        $salesmenScope = $this->coordinatorSalesmenScope($user);
+
+        // region check
+        if (!in_array(strtolower($project->area ?? ''), $regionsScope, true)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'You are not allowed to delete this inquiry (region mismatch).',
+            ], 403);
+        }
+
+        // salesman check (only if scope list is not empty)
+        if (!empty($salesmenScope)) {
+            $allowed = array_map('strtoupper', $salesmenScope);
+            $projSm = strtoupper(trim($project->salesman ?? $project->salesperson ?? ''));
+            if ($projSm && !in_array($projSm, $allowed, true)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'You are not allowed to delete this inquiry (salesman mismatch).',
+                ], 403);
+            }
+        }
+
+        $project->delete(); // Soft delete
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Inquiry deleted successfully (soft delete).',
+        ]);
+    }
+
+    public function destroySalesOrder(Request $request, SalesOrderLog $salesorder)
+    {
+        $user = $request->user();
+        $regionsScope = $this->coordinatorRegionScope($user);
+
+        if (!in_array(strtolower($salesorder->area ?? ''), $regionsScope, true)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'You are not allowed to delete this sales order (region mismatch).',
+            ], 403);
+        }
+
+        $salesorder->delete(); // soft delete
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Sales order deleted successfully (soft delete).',
+        ]);
+    }
+
+    /**
+     * Return list of related quotations with the same base project code.
+     * Used by coordinator modal when ticking "Multiple quotations".
+     */
+    public function relatedQuotations(Request $request)
+    {
+        $projectId = (int)$request->input('project_id');
+        $quotationNo = trim((string)$request->input('quotation_no'));
+
+        if (!$projectId || !$quotationNo) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Missing project_id or quotation_no.',
+                'projects' => [],
+            ], 400);
+        }
+
+        $base = Project::extractBaseCode($quotationNo);
+        if (!$base) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Unable to detect base code.',
+                'projects' => [],
+            ], 200);
+        }
+
+        $projects = Project::query()
+            ->whereNull('deleted_at')
+            ->where('id', '<>', $projectId)
+            ->where('quotation_no', 'LIKE', $base . '%')
+            ->orderBy('quotation_no')
+            ->get([
+                'id',
+                'project_name',
+                'client_name',
+                'quotation_no',
+                'area',
+                'quotation_value',
+            ]);
+
+        return response()->json([
+            'ok' => true,
+            'base' => $base,
+            'projects' => $projects->map(function ($p) {
+                return [
+                    'id' => $p->id,
+                    'quotation_no' => $p->quotation_no,
+                    'project' => $p->project_name,
+                    'client' => $p->client_name,
+                    'area' => $p->area,
+                    'quotation_value' => (float)$p->quotation_value,
+                ];
+            })->values(),
+        ]);
+    }
+
+    /**
+     * Search projects by quotation number (for multi-quotation PO picker).
+     */
+    public function searchQuotations(Request $request)
+    {
+        $term = trim((string)$request->input('term', ''));
+        $user = $request->user();
+
+        if ($term === '') {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Search term is required.',
+                'results' => [],
+            ], 400);
+        }
+
+        // Respect coordinator region scope
+        $regionsScope = $this->coordinatorRegionScope($user);
+        $normalizedRegions = array_map(
+            fn($r) => ucfirst(strtolower($r)),
+            $regionsScope
+        );
+
+        $projects = Project::query()
+            ->whereNull('deleted_at')
+            // only fresh inquiries (no PO yet) – you asked for this
+            ->whereNull('status')
+            ->whereNull('status_current')
+            ->whereIn('area', $normalizedRegions)
+            ->where('quotation_no', 'LIKE', '%' . $term . '%')
+            ->orderBy('quotation_no')
+            ->limit(20)
+            ->get([
+                'id',
+                'project_name',
+                'client_name',
+                'quotation_no',
+                'area',
+                'quotation_value',
+            ]);
+
+        return response()->json([
+            'ok' => true,
+            'results' => $projects->map(function ($p) {
+                return [
+                    'id' => $p->id,
+                    'quotation_no' => $p->quotation_no,
+                    'project' => $p->project_name,
+                    'client' => $p->client_name,
+                    'area' => $p->area,
+                    'quotation_value' => (float)$p->quotation_value,
+                ];
+            })->values(),
         ]);
     }
 }
