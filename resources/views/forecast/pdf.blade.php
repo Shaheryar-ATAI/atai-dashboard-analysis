@@ -233,7 +233,7 @@
                 <tr class="no-b">
                     <td class="no-b">Issued By</td>
                     <td class="no-b">
-                        <div class="ibox">{{ $issuedBy }}</div>
+                        <div class="ibox">{{ $issuedBy }}& Mr. Tareq</div>
                     </td>
                 </tr>
                 <tr class="no-b">

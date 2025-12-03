@@ -243,10 +243,10 @@ class ForecastController extends Controller
                     $errors[$label][] = 'This pair is already in New Orders in this submission. Keep it in New, not Carry.';
                     return;
                 }
-                if (!$prior) {
-                    $errors[$label][] = 'No previous forecast found for you. This looks NEW — put it in New Orders.';
-                    return;
-                }
+//                if (!$prior) {
+//                    $errors[$label][] = 'No previous forecast found for you. This looks NEW — put it in New Orders.';
+//                    return;
+//                }
 
                 // ⛔ OLD RULE REMOVED:
                 // $lastPct = (float)($prior->percentage ?? 0);
