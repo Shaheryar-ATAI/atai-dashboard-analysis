@@ -103,6 +103,7 @@
         .coord-filter-note {
             font-size: 0.8rem;
         }
+
         .btnDeleteCoordinator i.bi-trash {
             color: #ff4b4b !important;
             font-size: 1.1rem !important;
@@ -402,6 +403,91 @@
                     </table>
                 </div>
 
+{{--                --}}{{-- Sales Orders table --}}
+{{--                <div id="wrapSalesOrdersTable" class="d-none">--}}
+{{--                    <table id="tblCoordinatorSalesOrders"--}}
+{{--                           class="table table-sm table-striped table-hover align-middle w-100">--}}
+{{--                        <thead>--}}
+{{--                        <tr>--}}
+{{--                            <th>PO No</th>--}}
+{{--                            <th>Quotation No</th>--}}
+{{--                            <th>Job No</th>--}}
+{{--                            <th>Project</th>--}}
+{{--                            <th>Client</th>--}}
+{{--                            <th>Salesman</th>--}}
+{{--                            <th>Area</th>--}}
+{{--                            <th>ATAI Products</th>--}}
+{{--                            <th>PO Date</th>--}}
+{{--                            <th>PO Value (SAR)</th>--}}
+{{--                            <th>Value with VAT (SAR)</th>--}}
+{{--                            <th>Created By</th>--}}
+{{--                            <th style="width: 1%;">Action</th>--}}
+{{--                        </tr>--}}
+{{--                        </thead>--}}
+{{--                        <tbody>--}}
+{{--                        @foreach($salesOrders as $so)--}}
+{{--                            <tr>--}}
+{{--                                <td>{{ $so->po_no ?? '-' }}</td>--}}
+{{--                                <td>{{ $so->quotation_no ?? '-' }}</td>--}}
+{{--                                <td>{{ $so->job_no ?? '-' }}</td>--}}
+{{--                                <td>{{ $so->project ?? '-' }}</td>--}}
+{{--                                <td>{{ $so->client ?? '-' }}</td>--}}
+{{--                                <td>{{ $so->salesman ?? '-' }}</td>--}}
+{{--                                <td>{{ $so->area ?? '-' }}</td>--}}
+{{--                                <td>{{ $so->atai_products ?? '-' }}</td>--}}
+{{--                                <td>{{ optional($so->po_date)->format('Y-m-d') ?? '-' }}</td>--}}
+{{--                                <td>{{ number_format($so->total_po_value ?? 0, 0) }}</td>--}}
+{{--                                <td>{{ number_format($so->value_with_vat ?? (($so->total_po_value ?? 0) * 1.15), 0) }}</td>--}}
+{{--                                <td>{{ optional($so->creator)->name ?? '-' }}</td>--}}
+
+{{--                                <td class="table-actions">--}}
+{{--                                    <div class="btn-group btn-group-sm" role="group">--}}
+{{--                                        --}}{{-- View button --}}
+{{--                                        <button--}}
+{{--                                            type="button"--}}
+{{--                                            class="btn btn-outline-light btnViewCoordinator"--}}
+{{--                                            data-source="salesorder"--}}
+{{--                                            data-id="{{ $so->id }}"--}}
+{{--                                            data-project="{{ $so->project }}"--}}
+{{--                                            data-client="{{ $so->client }}"--}}
+{{--                                            data-salesman="{{ $so->salesman }}"--}}
+{{--                                            data-location="{{ $so->location }}"--}}
+{{--                                            data-area="{{ $so->area }}"--}}
+{{--                                            data-quotation-no="{{ $so->quotation_no }}"--}}
+{{--                                            data-quotation-date="{{ optional($so->quotation_date)->format('Y-m-d') }}"--}}
+{{--                                            data-date-received="{{ optional($so->date_received)->format('Y-m-d') }}"--}}
+{{--                                            data-products="{{ $so->atai_products }}"--}}
+{{--                                            data-price="{{ $so->quotation_value }}"--}}
+{{--                                            data-status="{{ strtoupper(trim($so->status ?? '')) }}"--}}
+{{--                                            data-oaa="{{ $so->oaa }}"--}}
+{{--                                            data-job-no="{{ $so->job_no }}"--}}
+{{--                                            data-payment-terms="{{ $so->payment_terms }}"--}}
+{{--                                            data-remarks="{{ $so->remarks }}"--}}
+{{--                                            data-po-no="{{ $so->po_no }}"--}}
+{{--                                            data-po-date="{{ optional($so->po_date)->format('Y-m-d') }}"--}}
+{{--                                            data-po-value="{{ $so->total_po_value }}"--}}
+{{--                                        >--}}
+{{--                                            <i class="bi bi-eye"></i> View--}}
+{{--                                        </button>--}}
+
+{{--                                        --}}{{-- Delete button --}}
+{{--                                        <button--}}
+{{--                                            type="button"--}}
+{{--                                            class="btn btn-outline-danger btnDeleteCoordinator"--}}
+{{--                                            data-source="salesorder"--}}
+{{--                                            data-id="{{ $so->id }}"--}}
+{{--                                            data-label="{{ $so->po_no ?? $so->quotation_no ?? 'this sales order' }}"--}}
+{{--                                        >--}}
+{{--                                            <i class="bi bi-trash"></i> Delete--}}
+{{--                                        </button>--}}
+{{--                                    </div>--}}
+{{--                                </td>--}}
+{{--                            </tr>--}}
+{{--                        @endforeach--}}
+{{--                        </tbody>--}}
+{{--                    </table>--}}
+{{--                </div>--}}
+
                 {{-- Sales Orders table --}}
                 <div id="wrapSalesOrdersTable" class="d-none">
                     <table id="tblCoordinatorSalesOrders"
@@ -409,7 +495,7 @@
                         <thead>
                         <tr>
                             <th>PO No</th>
-                            <th>Quotation No</th>
+                            <th>Quotation No(s)</th>
                             <th>Job No</th>
                             <th>Project</th>
                             <th>Client</th>
@@ -427,17 +513,17 @@
                         @foreach($salesOrders as $so)
                             <tr>
                                 <td>{{ $so->po_no ?? '-' }}</td>
-                                <td>{{ $so->quotation_no ?? '-' }}</td>
+                                <td>{{ $so->quotation_no ?? '-' }}</td> {{-- comma-separated list --}}
                                 <td>{{ $so->job_no ?? '-' }}</td>
                                 <td>{{ $so->project ?? '-' }}</td>
                                 <td>{{ $so->client ?? '-' }}</td>
                                 <td>{{ $so->salesman ?? '-' }}</td>
                                 <td>{{ $so->area ?? '-' }}</td>
                                 <td>{{ $so->atai_products ?? '-' }}</td>
-                                <td>{{ optional($so->po_date)->format('Y-m-d') ?? '-' }}</td>
+                                <td>{{ \Illuminate\Support\Carbon::parse($so->po_date)->format('Y-m-d') }}</td>
                                 <td>{{ number_format($so->total_po_value ?? 0, 0) }}</td>
-                                <td>{{ number_format($so->value_with_vat ?? (($so->total_po_value ?? 0) * 1.15), 0) }}</td>
-                                <td>{{ optional($so->creator)->name ?? '-' }}</td>
+                                <td>{{ number_format($so->value_with_vat ?? 0, 0) }}</td>
+                                <td>{{ $so->created_by ?? '-' }}</td>
 
                                 <td class="table-actions">
                                     <div class="btn-group btn-group-sm" role="group">
@@ -446,39 +532,40 @@
                                             type="button"
                                             class="btn btn-outline-light btnViewCoordinator"
                                             data-source="salesorder"
-                                            data-id="{{ $so->id }}"
+                                            data-id="{{ $so->id }}" {{-- MIN(id) of group --}}
                                             data-project="{{ $so->project }}"
                                             data-client="{{ $so->client }}"
                                             data-salesman="{{ $so->salesman }}"
-                                            data-location="{{ $so->location }}"
+                                            data-location="" {{-- optional, if you want to add --}}
                                             data-area="{{ $so->area }}"
-                                            data-quotation-no="{{ $so->quotation_no }}"
-                                            data-quotation-date="{{ optional($so->quotation_date)->format('Y-m-d') }}"
-                                            data-date-received="{{ optional($so->date_received)->format('Y-m-d') }}"
+                                            data-quotation-no="{{ $so->quotation_no }}" {{-- combined list --}}
+                                            data-quotation-date="{{ $so->po_date }}"
+                                            data-date-received="{{ $so->po_date }}"
                                             data-products="{{ $so->atai_products }}"
-                                            data-price="{{ $so->quotation_value }}"
-                                            data-status="{{ strtoupper(trim($so->status ?? '')) }}"
-                                            data-oaa="{{ $so->oaa }}"
+                                            data-price="{{ $so->total_po_value }}"
+                                            data-status=""
+                                            data-oaa=""
                                             data-job-no="{{ $so->job_no }}"
-                                            data-payment-terms="{{ $so->payment_terms }}"
-                                            data-remarks="{{ $so->remarks }}"
+                                            data-payment-terms=""
+                                            data-remarks=""
                                             data-po-no="{{ $so->po_no }}"
-                                            data-po-date="{{ optional($so->po_date)->format('Y-m-d') }}"
+                                            data-po-date="{{ $so->po_date }}"
                                             data-po-value="{{ $so->total_po_value }}"
                                         >
                                             <i class="bi bi-eye"></i> View
                                         </button>
-
-                                        {{-- Delete button --}}
                                         <button
-                                            type="button"
-                                            class="btn btn-outline-danger btnDeleteCoordinator"
-                                            data-source="salesorder"
-                                            data-id="{{ $so->id }}"
-                                            data-label="{{ $so->po_no ?? $so->quotation_no ?? 'this sales order' }}"
-                                        >
-                                            <i class="bi bi-trash"></i> Delete
-                                        </button>
+                                                                                    type="button"
+                                                                                    class="btn btn-outline-danger btnDeleteCoordinator"
+                                                                                    data-source="salesorder"
+                                                                                    data-id="{{ $so->id }}"
+                                                                                    data-label="{{ $so->po_no ?? $so->quotation_no ?? 'this sales order' }}"
+                                                                                >
+                                                                                    <i class="bi bi-trash"></i> Delete
+                                                                                </button>
+
+
+                                        {{-- Delete etc. can stay as you like --}}
                                     </div>
                                 </td>
                             </tr>
@@ -486,6 +573,8 @@
                         </tbody>
                     </table>
                 </div>
+
+
 
             </div>
         </div>
@@ -528,10 +617,20 @@
 
                                 <div class="mb-2">
                                     <div class="coordinator-label">Salesperson</div>
-                                    <input type="text"
-                                           class="form-control form-control-sm"
-                                           id="coord_salesman"
-                                           name="salesman">
+
+                                    <select name="salesman"
+                                            id="coord_salesman" {{-- keep this id for JS --}}
+                                            class="form-select form-select-sm"
+                                            required>
+                                        <option value="">Select...</option>
+                                        @foreach($salesmen as $sm)
+                                            @php
+                                                $value = strtoupper(trim($sm));           // SOHAIB, TARIQ, ...
+                                                $label = ucwords(strtolower($sm));        // Sohaib, Tariq, ...
+                                            @endphp
+                                            <option value="{{ $value }}">{{ $label }}</option>
+                                        @endforeach
+                                    </select>
                                 </div>
 
                                 <div class="mb-2">
@@ -762,46 +861,46 @@
             };
 
             const salesmanChips = document.querySelectorAll('.coord-chip[data-salesman]');
-            const regionChips   = document.querySelectorAll('.coord-chip[data-region]');
+            const regionChips = document.querySelectorAll('.coord-chip[data-region]');
 
             let filterSalesman = 'all'; // SOHAIB, TARIQ, etc., or all
-            let filterRegion   = 'all'; // Eastern, Central, Western, or all
-            let filterMonth    = '';
-            let filterFrom     = null;
-            let filterTo       = null;
+            let filterRegion = 'all'; // Eastern, Central, Western, or all
+            let filterMonth = '';
+            let filterFrom = null;
+            let filterTo = null;
 
             // ----- Multi-quotation DOM + state -----
-            const multiBlock         = document.getElementById('coord_multi_block');
-            const multiEnabled       = document.getElementById('coord_multi_enabled');
-            const multiContainer     = document.getElementById('coord_multi_container');
-            const multiTotalQvSpan   = document.getElementById('coord_multi_total_qv');
-            const multiSearchInput   = document.getElementById('coord_multi_search');
-            const multiSearchBtn     = document.getElementById('coord_multi_search_btn');
-            const multiSelectedList  = document.getElementById('coord_multi_selected_list');
+            const multiBlock = document.getElementById('coord_multi_block');
+            const multiEnabled = document.getElementById('coord_multi_enabled');
+            const multiContainer = document.getElementById('coord_multi_container');
+            const multiTotalQvSpan = document.getElementById('coord_multi_total_qv');
+            const multiSearchInput = document.getElementById('coord_multi_search');
+            const multiSearchBtn = document.getElementById('coord_multi_search_btn');
+            const multiSelectedList = document.getElementById('coord_multi_selected_list');
 
-            let MULTI_SELECTED_IDS    = new Set(); // extra project ids (main is implicit)
-            let MULTI_QV_BY_ID        = {};        // id -> quotation_value
-            let MAIN_QUOTATION_VALUE  = 0;         // main inquiry price (from modal)
+            let MULTI_SELECTED_IDS = new Set(); // extra project ids (main is implicit)
+            let MULTI_QV_BY_ID = {};        // id -> quotation_value
+            let MAIN_QUOTATION_VALUE = 0;         // main inquiry price (from modal)
 
             // ----- Filter DOM -----
-            const monthSelect     = document.getElementById('coord_month');
-            const fromInput       = document.getElementById('coord_from');
-            const toInput         = document.getElementById('coord_to');
+            const monthSelect = document.getElementById('coord_month');
+            const fromInput = document.getElementById('coord_from');
+            const toInput = document.getElementById('coord_to');
             const btnResetFilters = document.getElementById('coord_reset_filters');
 
-            const elKpiProjects   = document.getElementById('kpiProjectsCount');
-            const elKpiSoCount    = document.getElementById('kpiSalesOrdersCount');
+            const elKpiProjects = document.getElementById('kpiProjectsCount');
+            const elKpiSoCount = document.getElementById('kpiSalesOrdersCount');
             const elKpiSoValueNum = document.getElementById('kpiSalesOrdersValue');
 
-            const wrapProjects    = document.getElementById('wrapProjectsTable');
-            const wrapSalesOrder  = document.getElementById('wrapSalesOrdersTable');
-            const btnProj         = document.getElementById('btnShowProjects');
-            const btnSO           = document.getElementById('btnShowSalesOrders');
+            const wrapProjects = document.getElementById('wrapProjectsTable');
+            const wrapSalesOrder = document.getElementById('wrapSalesOrdersTable');
+            const btnProj = document.getElementById('btnShowProjects');
+            const btnSO = document.getElementById('btnShowSalesOrders');
 
-            const coordModalEl    = document.getElementById('coordinatorModal');
-            const coordModal      = coordModalEl ? new bootstrap.Modal(coordModalEl) : null;
+            const coordModalEl = document.getElementById('coordinatorModal');
+            const coordModal = coordModalEl ? new bootstrap.Modal(coordModalEl) : null;
 
-            const btnSave         = document.getElementById('btnCoordinatorSave');
+            const btnSave = document.getElementById('btnCoordinatorSave');
             const attachmentsListEl = document.getElementById('coord_attachments_list');
 
             // ---------- DataTables ----------
@@ -826,19 +925,19 @@
                 let areaStr, salesmanStr, dateStr;
 
                 if (tableId === 'tblCoordinatorProjects') {
-                    areaStr     = (data[4] || '').trim(); // Area
+                    areaStr = (data[4] || '').trim(); // Area
                     salesmanStr = (data[3] || '').trim(); // Salesman
-                    dateStr     = data[6] || '';          // Quotation Date
+                    dateStr = data[6] || '';          // Quotation Date
                 } else {
-                    areaStr     = (data[6] || '').trim(); // Area
+                    areaStr = (data[6] || '').trim(); // Area
                     salesmanStr = (data[5] || '').trim(); // Salesman
-                    dateStr     = data[8] || '';          // PO Date
+                    dateStr = data[8] || '';          // PO Date
                 }
 
                 // REGION filter
                 if (filterRegion !== 'all') {
                     const cellRegion = (areaStr || '').toUpperCase();
-                    const wanted     = filterRegion.toUpperCase();
+                    const wanted = filterRegion.toUpperCase();
                     if (cellRegion !== wanted) {
                         return false;
                     }
@@ -847,7 +946,7 @@
                 // SALESMAN filter (with aliases)
                 if (filterSalesman !== 'all') {
                     const cellUpper = (salesmanStr || '').toUpperCase();
-                    const aliases   = SALESMAN_ALIASES[filterSalesman] || [filterSalesman];
+                    const aliases = SALESMAN_ALIASES[filterSalesman] || [filterSalesman];
                     if (!aliases.includes(cellUpper)) {
                         return false;
                     }
@@ -876,7 +975,7 @@
 
                 // RANGE filter
                 if (filterFrom && rowDate < filterFrom) return false;
-                if (filterTo   && rowDate > filterTo)   return false;
+                if (filterTo && rowDate > filterTo) return false;
 
                 return true;
             });
@@ -889,7 +988,7 @@
             // ---------- KPI recalculation ----------
             function refreshKpis() {
                 const projCount = dtProjects.rows({filter: 'applied'}).count();
-                const soCount   = dtSalesOrders.rows({filter: 'applied'}).count();
+                const soCount = dtSalesOrders.rows({filter: 'applied'}).count();
 
                 let soTotal = 0;
                 dtSalesOrders
@@ -907,8 +1006,8 @@
                         }
                     });
 
-                if (elKpiProjects)   elKpiProjects.textContent   = fmtSAR(projCount);
-                if (elKpiSoCount)    elKpiSoCount.textContent    = fmtSAR(soCount);
+                if (elKpiProjects) elKpiProjects.textContent = fmtSAR(projCount);
+                if (elKpiSoCount) elKpiSoCount.textContent = fmtSAR(soCount);
                 if (elKpiSoValueNum) elKpiSoValueNum.textContent = fmtSAR(soTotal);
             }
 
@@ -989,7 +1088,7 @@
                     const row = this.data();
 
                     const areaRaw = (row[6] || '').trim(); // Area
-                    const area    = areaRaw || 'Unknown';
+                    const area = areaRaw || 'Unknown';
 
                     let val = row[9]; // PO Value
 
@@ -1090,11 +1189,11 @@
 
                     // dates/month
                     filterMonth = '';
-                    filterFrom  = null;
-                    filterTo    = null;
+                    filterFrom = null;
+                    filterTo = null;
                     if (monthSelect) monthSelect.value = '';
-                    if (fromInput)   fromInput.value   = '';
-                    if (toInput)     toInput.value     = '';
+                    if (fromInput) fromInput.value = '';
+                    if (toInput) toInput.value = '';
 
                     redrawTables();
                 });
@@ -1147,7 +1246,7 @@
                     if (MULTI_SELECTED_IDS.size === 0) {
                         multiSelectedList.textContent = '(none)';
                     } else {
-                        const cbs   = multiContainer
+                        const cbs = multiContainer
                             ? multiContainer.querySelectorAll('.coord-multi-item:checked')
                             : [];
                         const texts = [];
@@ -1168,13 +1267,13 @@
             function setMultiEnabled(enabled) {
                 if (!multiEnabled || !multiSearchInput || !multiSearchBtn) return;
 
-                multiEnabled.checked      = enabled;
+                multiEnabled.checked = enabled;
                 multiSearchInput.disabled = !enabled;
-                multiSearchBtn.disabled   = !enabled;
+                multiSearchBtn.disabled = !enabled;
 
                 if (!enabled) {
                     MULTI_SELECTED_IDS = new Set();
-                    MULTI_QV_BY_ID     = {};
+                    MULTI_QV_BY_ID = {};
                     if (multiContainer) {
                         multiContainer.innerHTML =
                             '<div class="text-muted">Enable multiple quotations and search above.</div>';
@@ -1198,8 +1297,8 @@
                 const delBtn = e.target.closest('.btnDeleteCoordinator');
                 if (delBtn) {
                     const source = delBtn.dataset.source || '';
-                    const id     = delBtn.dataset.id;
-                    const label  = delBtn.dataset.label ||
+                    const id = delBtn.dataset.id;
+                    const label = delBtn.dataset.label ||
                         (source === 'salesorder' ? 'this sales order' : 'this inquiry');
 
                     if (!id) return;
@@ -1255,28 +1354,60 @@
 
                 const source = btn.dataset.source || '';
 
-                document.getElementById('coord_source').value    = source;
+                document.getElementById('coord_source').value = source;
                 document.getElementById('coord_record_id').value = btn.dataset.id || '';
 
-                document.getElementById('coord_project').value          = btn.dataset.project || '';
-                document.getElementById('coord_client').value           = btn.dataset.client || '';
-                document.getElementById('coord_salesman').value         = btn.dataset.salesman || '';
-                document.getElementById('coord_location').value         = btn.dataset.location || '';
-                document.getElementById('coord_area').value             = btn.dataset.area || '';
-                document.getElementById('coord_quotation_no').value     = btn.dataset.quotationNo || '';
-                document.getElementById('coord_quotation_date').value   = btn.dataset.quotationDate || '';
-                document.getElementById('coord_date_received').value    = btn.dataset.dateReceived || '';
-                document.getElementById('coord_products').value         = btn.dataset.products || '';
-                document.getElementById('coord_price').value            = btn.dataset.price || '';
-                document.getElementById('coord_status').value           = btn.dataset.status || '';
+                document.getElementById('coord_project').value = btn.dataset.project || '';
+                document.getElementById('coord_client').value = btn.dataset.client || '';
+                /*
+                sales person
+                */
+                const salesmanSelect = document.getElementById('coord_salesman');
+                if (salesmanSelect) {
+                    const rawSm = (btn.dataset.salesman || '').trim().toUpperCase(); // Sohaib → SOHAIB, Soahib → SOAHIB
+                    let canonical = rawSm;
 
-                document.getElementById('coord_job_no').value       = btn.dataset.jobNo || '';
-                document.getElementById('coord_po_no').value        = btn.dataset.poNo || '';
-                document.getElementById('coord_po_date').value      = btn.dataset.poDate || '';
-                document.getElementById('coord_po_value').value     = btn.dataset.poValue || '';
-                document.getElementById('coord_payment_terms').value= btn.dataset.paymentTerms || '';
-                document.getElementById('coord_remarks').value      = btn.dataset.remarks || '';
-                document.getElementById('coord_oaa').value          = btn.dataset.oaa || '';
+                    if (rawSm) {
+                        // Use the same alias map at the top of the script
+                        for (const [canon, aliases] of Object.entries(SALESMAN_ALIASES)) {
+                            if (aliases.includes(rawSm)) {
+                                canonical = canon;       // e.g. SOAHIB → SOHAIB
+                                break;
+                            }
+                        }
+                    }
+
+                    // If canonical value not in options (old data), add it dynamically
+                    if (canonical) {
+                        const hasOption = Array.from(salesmanSelect.options)
+                            .some(o => o.value === canonical);
+
+                        if (!hasOption) {
+                            const opt = new Option(canonical, canonical, true, true);
+                            salesmanSelect.add(opt);
+                        }
+
+                        salesmanSelect.value = canonical;
+                    } else {
+                        salesmanSelect.value = '';
+                    }
+                }
+                document.getElementById('coord_location').value = btn.dataset.location || '';
+                document.getElementById('coord_area').value = btn.dataset.area || '';
+                document.getElementById('coord_quotation_no').value = btn.dataset.quotationNo || '';
+                document.getElementById('coord_quotation_date').value = btn.dataset.quotationDate || '';
+                document.getElementById('coord_date_received').value = btn.dataset.dateReceived || '';
+                document.getElementById('coord_products').value = btn.dataset.products || '';
+                document.getElementById('coord_price').value = btn.dataset.price || '';
+                document.getElementById('coord_status').value = btn.dataset.status || '';
+
+                document.getElementById('coord_job_no').value = btn.dataset.jobNo || '';
+                document.getElementById('coord_po_no').value = btn.dataset.poNo || '';
+                document.getElementById('coord_po_date').value = btn.dataset.poDate || '';
+                document.getElementById('coord_po_value').value = btn.dataset.poValue || '';
+                document.getElementById('coord_payment_terms').value = btn.dataset.paymentTerms || '';
+                document.getElementById('coord_remarks').value = btn.dataset.remarks || '';
+                document.getElementById('coord_oaa').value = btn.dataset.oaa || '';
 
                 // Multi-quotation section
                 if (multiBlock && multiContainer && multiEnabled) {
@@ -1287,7 +1418,7 @@
                     }
 
                     MULTI_SELECTED_IDS = new Set();
-                    MULTI_QV_BY_ID     = {};
+                    MULTI_QV_BY_ID = {};
                     setMultiEnabled(false); // disables + resets UI
                     recalcMultiTotals();
                 }
@@ -1366,7 +1497,7 @@
             if (btnSave) {
                 btnSave.addEventListener('click', async () => {
                     const formEl = document.getElementById('coordinatorForm');
-                    const fd     = new FormData(formEl);
+                    const fd = new FormData(formEl);
                     fd.append('record_id', document.getElementById('coord_record_id').value);
 
                     // If multi-quotation is enabled, send selected project IDs
@@ -1437,7 +1568,7 @@
 
             // ---------- Excel download buttons ----------
             const btnDownloadExcelMonth = document.getElementById('coord_download_excel_month');
-            const btnDownloadExcelYear  = document.getElementById('coord_download_excel_year');
+            const btnDownloadExcelYear = document.getElementById('coord_download_excel_year');
 
             if (btnDownloadExcelMonth) {
                 btnDownloadExcelMonth.addEventListener('click', () => {
@@ -1455,7 +1586,7 @@
                     }
 
                     if (fromInput && fromInput.value) params.set('from', fromInput.value);
-                    if (toInput   && toInput.value)   params.set('to', toInput.value);
+                    if (toInput && toInput.value) params.set('to', toInput.value);
 
                     const url = "{{ route('coordinator.salesorders.export') }}" + '?' + params.toString();
                     window.location.href = url;
@@ -1472,7 +1603,7 @@
                     }
 
                     if (fromInput && fromInput.value) params.set('from', fromInput.value);
-                    if (toInput   && toInput.value)   params.set('to', toInput.value);
+                    if (toInput && toInput.value) params.set('to', toInput.value);
 
                     const url = "{{ route('coordinator.salesorders.exportYear') }}" + '?' + params.toString();
                     window.location.href = url;
@@ -1514,14 +1645,14 @@
                     const list = document.createElement('div');
 
                     results.forEach(p => {
-                        const row  = document.createElement('div');
+                        const row = document.createElement('div');
                         row.className = 'form-check mb-1';
 
                         const cb = document.createElement('input');
-                        cb.type      = 'checkbox';
+                        cb.type = 'checkbox';
                         cb.className = 'form-check-input coord-multi-item';
-                        cb.value     = p.id;
-                        cb.dataset.qv  = p.quotation_value || 0;
+                        cb.value = p.id;
+                        cb.dataset.qv = p.quotation_value || 0;
                         cb.dataset.qno = p.quotation_no || '';
 
                         // keep ticked if already selected

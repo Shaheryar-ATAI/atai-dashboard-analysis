@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
-
+use Barryvdh\DomPDF\Facade\Pdf;
 class PerformanceController extends Controller
 {
     /* -----------------------------------------------------------
@@ -72,6 +74,103 @@ class PerformanceController extends Controller
         $raw = $this->qual($alias, 'region');               // -> `s`.`region`
 
         return "LOWER(TRIM(CONVERT(COALESCE(NULLIF($norm,''), $raw, 'Not Mentioned') USING utf8mb4))) COLLATE utf8mb4_unicode_ci";
+    }
+    /**
+     * Build monthly pivot rows for area summary (for a given year & kind).
+     * kind = 'inquiries' | 'pos'
+     */
+    private function buildAreaSummaryRows(int $year, string $kind): array
+    {
+        if ($kind === 'pos') {
+            $table   = 'salesorderlog';
+            $dateCol = 'date_rec';
+            $value   = $this->poAmountExpr();      // numeric expression from helper
+            $areaCol = $this->qid('region');       // `region`
+        } else {
+            $table   = 'projects';
+            $dateCol = 'quotation_date';
+            $value   = 'COALESCE(quotation_value,0)';
+            $areaCol = 'area';
+        }
+
+        $rows = DB::table($table)
+            ->selectRaw("COALESCE($areaCol, 'Not Mentioned') AS area")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=1  THEN $value ELSE 0 END) AS jan")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=2  THEN $value ELSE 0 END) AS feb")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=3  THEN $value ELSE 0 END) AS mar")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=4  THEN $value ELSE 0 END) AS apr")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=5  THEN $value ELSE 0 END) AS may")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=6  THEN $value ELSE 0 END) AS jun")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=7  THEN $value ELSE 0 END) AS jul")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=8  THEN $value ELSE 0 END) AS aug")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=9  THEN $value ELSE 0 END) AS sep")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=10 THEN $value ELSE 0 END) AS oct")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=11 THEN $value ELSE 0 END) AS nov")
+            ->selectRaw("SUM(CASE WHEN MONTH($dateCol)=12 THEN $value ELSE 0 END) AS december")
+            ->selectRaw("SUM($value) AS total")
+            ->whereYear($dateCol, $year)
+            ->groupBy('area')
+            ->orderBy('area', 'asc')
+            ->get();
+
+        // Convert to simple PHP array: area => [jan, ..., total]
+        return $rows->mapWithKeys(function ($r) {
+            return [
+                $r->area => [
+                    'jan'      => (float) $r->jan,
+                    'feb'     => (float) $r->feb,
+                    'mar'     => (float) $r->mar,
+                    'apr'     => (float) $r->apr,
+                    'may'     => (float) $r->may,
+                    'jun'     => (float) $r->jun,
+                    'jul'     => (float) $r->jul,
+                    'aug'     => (float) $r->aug,
+                    'sep'     => (float) $r->sep,
+                    'oct'     => (float) $r->oct,
+                    'nov'     => (float) $r->nov,
+                    'december'=> (float) $r->december,
+                    'total'   => (float) $r->total,
+                ],
+            ];
+        })->toArray();
+    }
+
+    /**
+     * Load all data needed for the Area Summary PDF:
+     * - top KPIs
+     * - inquiries by area
+     * - POs by area
+     */
+    private function loadAreaSummaryData(int $year): array
+    {
+        // KPIs (totals)
+        $inquiriesTotal = (float) DB::table('projects')
+            ->whereYear('quotation_date', $year)
+            ->selectRaw('SUM(COALESCE(quotation_value,0)) s')
+            ->value('s');
+
+        $posTotal = (float) DB::table('salesorderlog')
+            ->whereYear('date_rec', $year)
+            ->selectRaw('SUM(' . $this->poAmountExpr() . ') s')
+            ->value('s');
+
+        $gapValue    = $inquiriesTotal - $posTotal;
+        $gapPercent  = $inquiriesTotal > 0
+            ? round(($posTotal / $inquiriesTotal) * 100, 1)
+            : null;
+
+        $kpis = [
+            'inquiries_total' => $inquiriesTotal,
+            'pos_total'       => $posTotal,
+            'gap_value'       => $gapValue,
+            'gap_percent'     => $gapPercent,
+        ];
+
+        // Detailed tables
+        $inquiriesByArea = $this->buildAreaSummaryRows($year, 'inquiries');
+        $posByArea       = $this->buildAreaSummaryRows($year, 'pos');
+
+        return [$kpis, $inquiriesByArea, $posByArea];
     }
 
     /* -----------------------------------------------------------
@@ -455,6 +554,187 @@ class PerformanceController extends Controller
             'sum_pos'       => array_sum($pos),
         ]);
     }
+
+    public function saveAreaChart(Request $request)
+    {
+        $year  = (int) $request->input('year', now()->year);
+        $image = $request->input('image'); // data:image/png;base64,...
+
+        if (!$image || !str_starts_with($image, 'data:image/png;base64,')) {
+            return response()->json(['ok' => false, 'message' => 'Invalid image'], 422);
+        }
+
+        // strip prefix and decode
+        $prefix = 'data:image/png;base64,';
+        $base64 = substr($image, strlen($prefix));
+        $binary = base64_decode($base64);
+
+        if ($binary === false) {
+            return response()->json(['ok' => false, 'message' => 'Decode failed'], 422);
+        }
+
+        $relativePath = "reports/area_chart_{$year}.png";
+
+        Storage::disk('public')->put($relativePath, $binary);
+
+        return response()->json([
+            'ok'   => true,
+            'path' => $relativePath,
+        ]);
+    }
+
+
+
+    public function pdf(Request $request)
+    {
+        $year = (int) ($request->input('year') ?: now()->year);
+
+        /* ============================
+         * 1) TOP KPIs (totals + gap)
+         * ============================ */
+
+        // Total quotations (inquiries) from projects
+        $quotationTotal = (float) DB::table('projects')
+            ->whereYear('quotation_date', $year)
+            ->selectRaw('SUM(COALESCE(quotation_value,0)) AS s')
+            ->value('s');
+
+        // Total POs from salesorderlog (using your money expression)
+        $poTotal = (float) DB::table('salesorderlog')
+            ->whereYear('date_rec', $year)
+            ->selectRaw('SUM(' . $this->poAmountExpr() . ') AS s')
+            ->value('s');
+
+        // Coverage (POs vs quotations) and gap – same logic as dashboard
+        $coveragePercent = $quotationTotal > 0
+            ? round(($poTotal / $quotationTotal) * 100)
+            : 0;
+
+        $gapValue = abs($quotationTotal - $poTotal);
+
+        $kpis = [
+            'inquiries_total' => $quotationTotal,
+            'pos_total'       => $poTotal,
+            'gap_value'       => $gapValue,
+            'gap_percent'     => $coveragePercent,
+        ];
+
+        /* ======================================
+         * 2) MONTHLY BY AREA – INQUIRIES TABLE
+         * ====================================== */
+
+        $inqRows = DB::table('projects')
+            ->selectRaw("COALESCE(area, 'Not Mentioned') AS area")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=1  THEN COALESCE(quotation_value,0) ELSE 0 END) AS jan")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=2  THEN COALESCE(quotation_value,0) ELSE 0 END) AS feb")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=3  THEN COALESCE(quotation_value,0) ELSE 0 END) AS mar")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=4  THEN COALESCE(quotation_value,0) ELSE 0 END) AS apr")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=5  THEN COALESCE(quotation_value,0) ELSE 0 END) AS may")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=6  THEN COALESCE(quotation_value,0) ELSE 0 END) AS jun")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=7  THEN COALESCE(quotation_value,0) ELSE 0 END) AS jul")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=8  THEN COALESCE(quotation_value,0) ELSE 0 END) AS aug")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=9  THEN COALESCE(quotation_value,0) ELSE 0 END) AS sep")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=10 THEN COALESCE(quotation_value,0) ELSE 0 END) AS oct")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=11 THEN COALESCE(quotation_value,0) ELSE 0 END) AS nov")
+            ->selectRaw("SUM(CASE WHEN MONTH(quotation_date)=12 THEN COALESCE(quotation_value,0) ELSE 0 END) AS december")
+            ->selectRaw("SUM(COALESCE(quotation_value,0)) AS total")
+            ->whereYear('quotation_date', $year)
+            ->groupBy('area')
+            ->orderBy('area')
+            ->get();
+
+        $inquiriesByArea = [];
+        foreach ($inqRows as $r) {
+            $inquiriesByArea[$r->area] = [
+                (float) $r->jan,
+                (float) $r->feb,
+                (float) $r->mar,
+                (float) $r->apr,
+                (float) $r->may,
+                (float) $r->jun,
+                (float) $r->jul,
+                (float) $r->aug,
+                (float) $r->sep,
+                (float) $r->oct,
+                (float) $r->nov,
+                (float) $r->december,
+                (float) $r->total,
+            ];
+        }
+
+        /* ==================================
+         * 3) MONTHLY BY AREA – POs TABLE
+         * ================================== */
+
+        $amountExpr = $this->poAmountExpr(); // uses `PO Value` etc
+
+        $poRows = DB::table('salesorderlog')
+            ->selectRaw("COALESCE(region, 'Not Mentioned') AS area")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=1  THEN $amountExpr ELSE 0 END) AS jan")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=2  THEN $amountExpr ELSE 0 END) AS feb")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=3  THEN $amountExpr ELSE 0 END) AS mar")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=4  THEN $amountExpr ELSE 0 END) AS apr")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=5  THEN $amountExpr ELSE 0 END) AS may")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=6  THEN $amountExpr ELSE 0 END) AS jun")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=7  THEN $amountExpr ELSE 0 END) AS jul")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=8  THEN $amountExpr ELSE 0 END) AS aug")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=9  THEN $amountExpr ELSE 0 END) AS sep")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=10 THEN $amountExpr ELSE 0 END) AS oct")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=11 THEN $amountExpr ELSE 0 END) AS nov")
+            ->selectRaw("SUM(CASE WHEN MONTH(date_rec)=12 THEN $amountExpr ELSE 0 END) AS december")
+            ->selectRaw("SUM($amountExpr) AS total")
+            ->whereYear('date_rec', $year)
+            ->groupBy('area')
+            ->orderBy('area')
+            ->get();
+
+        $posByArea = [];
+        foreach ($poRows as $r) {
+            $posByArea[$r->area] = [
+                (float) $r->jan,
+                (float) $r->feb,
+                (float) $r->mar,
+                (float) $r->apr,
+                (float) $r->may,
+                (float) $r->jun,
+                (float) $r->jul,
+                (float) $r->aug,
+                (float) $r->sep,
+                (float) $r->oct,
+                (float) $r->nov,
+                (float) $r->december,
+                (float) $r->total,
+            ];
+        }
+
+        /* ==================================
+         * 4) CHART IMAGE FOR PDF  (FIXED)
+         * ================================== */
+
+        $today = now()->format('d-m-Y');
+
+        $relative   = "reports/area_chart_{$year}.png";
+        $publicPath = public_path("storage/{$relative}");
+
+// DomPDF chroot is public/, so absolute public path works
+        $chartImagePath = file_exists($publicPath) ? $publicPath : null;
+
+        /* ==================================
+         * 5) GENERATE PDF
+         * ================================== */
+
+        $pdf = Pdf::loadView('reports.area-summary-pdf', [
+            'year'            => $year,
+            'today'           => $today,
+            'kpis'            => $kpis,
+            'inquiriesByArea' => $inquiriesByArea,
+            'posByArea'       => $posByArea,
+            'chartImagePath'  => $chartImagePath,
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download("ATAI_Area_Summary_{$year}_{$today}.pdf");
+    }
+
 
 
 }

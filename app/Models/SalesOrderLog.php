@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class SalesOrderLog extends Model
 {
@@ -221,6 +222,50 @@ class SalesOrderLog extends Model
     {
         return $this->hasMany(SalesOrderAttachment::class, 'salesorderlog_id');
     }
+
+
+
+    /**
+     * Coordinator view: group multiple quotations under same PO/Job into one row.
+     */
+    public static function coordinatorGroupedQuery(array $regionsScope)
+    {
+        $normalizedRegions = array_map(
+            fn ($r) => ucfirst(strtolower($r)),
+            $regionsScope
+        );
+
+        return DB::table('salesorderlog as s')
+            ->leftJoin('users as u', 'u.id', '=', 's.created_by_id')
+            ->whereNull('s.deleted_at')
+            ->whereIn('s.project_region', $normalizedRegions)
+            ->selectRaw("
+                MIN(s.id) AS id,
+                s.`PO. No.` AS po_no,
+                GROUP_CONCAT(DISTINCT s.`Quote No.` ORDER BY s.`Quote No.` SEPARATOR ', ') AS quotation_no,
+                s.`Job No.` AS job_no,
+                s.`Project Name` AS project,
+                s.`Client Name` AS client,
+                s.`Sales Source` AS salesman,
+                s.project_region AS area,
+                s.`Products` AS atai_products,
+                MAX(s.date_rec) AS po_date,
+                SUM(s.`PO Value`) AS total_po_value,
+                SUM(s.value_with_vat) AS value_with_vat,
+                u.name AS created_by
+            ")
+            ->groupByRaw("
+                s.`PO. No.`,
+                s.`Job No.`,
+                s.`Project Name`,
+                s.`Client Name`,
+                s.`Sales Source`,
+                s.project_region,
+                s.`Products`,
+                u.name
+            ");
+    }
+
 
 
 

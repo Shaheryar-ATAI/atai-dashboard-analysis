@@ -6,6 +6,7 @@
 @push('head')
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>ATAI — Area Summary</title>
 
     <style>
@@ -162,6 +163,11 @@
                         <button id="btnApplyArea" class="btn btn-sm btn-primary mt-3 mt-md-4">
                             Update
                         </button>
+
+                        {{-- JS-controlled PDF button (no direct form submit) --}}
+                        <button id="btnPdf" type="button" class="btn btn-outline-light btn-sm mt-3 mt-md-4">
+                            Download PDF
+                        </button>
                     </div>
 
                     {{-- KPI cards (right, using global .kpi-card styles) --}}
@@ -183,14 +189,13 @@
                                 </div>
                             </div>
 
-
                             {{-- Gap coverage + gauge --}}
                             <div class="col-12 col-sm-4 col-lg-4">
                                 <div class="kpi-card shadow-sm p-3 text-center h-100 d-flex flex-column">
 
                                     <div class="kpi-label mb-2">Gap Coverage</div>
 
-                                    <!-- FIXED: proper reserved height so gauge does NOT shrink -->
+                                    <!-- Reserved height so gauge does NOT shrink -->
                                     <div class="gauge-wrap flex-grow-0 mx-auto" style="height:120px; width:140px;">
                                         <div id="gapGauge" style="height:100%; width:100%;"></div>
                                     </div>
@@ -203,7 +208,6 @@
                                     </div>
                                 </div>
                             </div>
-
 
                         </div> {{-- inner row --}}
                     </div> {{-- col-md-8 --}}
@@ -238,26 +242,6 @@
                 </div>
             </div>
         </div>
-
-{{--        --}}{{-- =======================--}}
-{{--             MONTH / YTD KPIS--}}
-{{--           ======================= --}}
-{{--        <div class="card card-dark mt-3 mb-4">--}}
-{{--            <div class="card-header d-flex gap-2 align-items-center">--}}
-{{--                <strong>Performance (Month &amp; YTD)</strong>--}}
-{{--                <select id="sel-month" class="form-select form-select-sm ms-2" style="width:120px">--}}
-{{--                    @for($m=1;$m<=12;$m++)--}}
-{{--                        <option value="{{$m}}" {{ $m==date('n')?'selected':'' }}>--}}
-{{--                            {{ DateTime::createFromFormat('!m',$m)->format('M') }}--}}
-{{--                        </option>--}}
-{{--                    @endfor--}}
-{{--                </select>--}}
-{{--                <span class="ms-auto small text-muted">values in SAR</span>--}}
-{{--            </div>--}}
-{{--            <div class="card-body" id="area-kpis">--}}
-{{--                --}}{{-- JS will inject the KPI mini-cards here --}}
-{{--            </div>--}}
-{{--        </div>--}}
 
         {{-- =======================
              INQUIRIES TABLE
@@ -343,6 +327,8 @@
 @endsection
 
 @push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
     <script>
         const fmtSAR = (n) => new Intl.NumberFormat('en-SA', {
             style: 'currency', currency: 'SAR', maximumFractionDigits: 0
@@ -367,7 +353,7 @@
             {data: 'sep', name: 'sep', className: 'num'},
             {data: 'oct', name: 'oct', className: 'num'},
             {data: 'nov', name: 'nov', className: 'num'},
-            {data: 'december', name: 'december', className: 'num'}, // not "dec"
+            {data: 'december', name: 'december', className: 'num'},
             {data: 'total', name: 'total', className: 'num'}
         ];
 
@@ -402,7 +388,6 @@
                         lastPoJson = json;
                     }
 
-                    // Set KPI card value (formatted SAR)
                     if (badgeSel) {
                         $(badgeSel).text(fmtSAR(json.sum_total || 0));
                     }
@@ -412,21 +397,20 @@
                 }
             });
 
-            // per-column filter on Area
             $filterRow.find('th input').on('keyup change', function () {
                 dt.column(0).search(this.value).draw();
             });
 
             return dt;
         }
+
         function renderGapGauge(inqTotal, poTotal) {
             if (typeof Highcharts === 'undefined') return;
 
-            // PO coverage vs quotations (0–100%)
             let coverage = 0;
             if (inqTotal > 0) {
                 coverage = Math.round((poTotal / inqTotal) * 100);
-                if (coverage > 150) coverage = 150; // cap a bit above 100
+                if (coverage > 150) coverage = 150;
             }
 
             const gaugeOptions = {
@@ -451,12 +435,11 @@
                 tooltip: { enabled: false },
                 yAxis: {
                     min: 0,
-                    max: 150, // allow a bit above 100%
+                    max: 150,
                     lineWidth: 0,
                     tickWidth: 0,
                     minorTickInterval: null,
                     labels: { enabled: false },
-                    // red → yellow → green
                     stops: [
                         [0.6, '#ef4444'],
                         [0.8, '#facc15'],
@@ -492,7 +475,6 @@
             }
         }
 
-
         function updateGapBadge() {
             if (!lastInqJson || !lastPoJson) return;
 
@@ -517,6 +499,7 @@
 
         $('#yearSelect').on('change', function () {
             year = this.value;
+            CURRENT_YEAR = parseInt(this.value, 10);
         });
 
         $('#btnApplyArea').on('click', function () {
@@ -559,7 +542,6 @@
             const inqRows = lastInqJson.data || [];
             const poRows  = lastPoJson.data || [];
 
-            // overall totals
             const inqTotal = Number(lastInqJson.sum_total || 0);
             const poTotal  = Number(lastPoJson.sum_total || 0);
 
@@ -603,7 +585,6 @@
                 credits: {enabled: false}
             });
 
-            // by area
             const areasSet = new Set();
             inqRows.forEach(r => areasSet.add(r.area));
             poRows.forEach(r => areasSet.add(r.area));
@@ -735,6 +716,100 @@
         // initial load
         $(function () {
             loadAreaKpis();
+        });
+
+        // ====== CHART IMAGE + PDF EXPORT ======
+        let CURRENT_YEAR      = {{ (int) ($year ?? now()->year) }};
+        const SAVE_CHART_URL  = @json(route('performance.area-chart.save'));
+        const AREA_PDF_URL    = @json(route('area-summary.pdf'));
+        const CSRF_TOKEN      = document.querySelector('meta[name="csrf-token"]').content;
+
+        function saveAreaChartImage() {
+            console.log('✅ saveAreaChartImage() CALLED');
+            console.log('SAVE_CHART_URL =', SAVE_CHART_URL);
+            console.log('CURRENT_YEAR  =', CURRENT_YEAR);
+
+            return new Promise((resolve, reject) => {
+                console.log('Highcharts.charts =', Highcharts.charts);
+
+                const chart = Highcharts.charts.find(
+                    c => c && c.renderTo && c.renderTo.id === 'poVsQuoteArea'
+                );
+
+                if (!chart) {
+                    console.warn('❌ Area chart not found – skipping image save.');
+                    resolve();
+                    return;
+                }
+
+                console.log('✅ Chart FOUND with id:', chart.renderTo.id);
+
+                try {
+                    const svg    = chart.getSVG();
+                    console.log('SVG length:', svg.length);
+
+                    const img    = new Image();
+                    const canvas = document.createElement('canvas');
+                    const ctx    = canvas.getContext('2d');
+
+                    img.onload = function () {
+                        console.log('✅ Image onload fired. Size:', img.width, img.height);
+
+                        canvas.width  = img.width;
+                        canvas.height = img.height;
+
+                        ctx.fillStyle = '#f9fafb';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0);
+
+                        const dataURL = canvas.toDataURL('image/png');
+                        console.log('dataURL head:', dataURL.substring(0, 60));
+
+                        fetch(SAVE_CHART_URL, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': CSRF_TOKEN,
+                            },
+                            body: JSON.stringify({
+                                year: CURRENT_YEAR,
+                                image: dataURL,
+                            }),
+                        })
+                            .then(resp => {
+                                console.log('fetch status:', resp.status);
+                                return resp.text();
+                            })
+                            .then(text => {
+                                console.log('saveAreaChart raw response:', text);
+                                resolve();
+                            })
+                            .catch(err => {
+                                console.error('❌ saveAreaChart fetch error:', err);
+                                resolve();
+                            });
+                    };
+
+                    img.onerror = function (e) {
+                        console.error('❌ Image load error', e);
+                        resolve();
+                    };
+
+                    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+                    console.log('Set img.src, waiting for onload...');
+                } catch (e) {
+                    console.error('❌ Error while exporting chart:', e);
+                    resolve();
+                }
+            });
+        }
+
+        // Download PDF button
+        document.getElementById('btnPdf').addEventListener('click', function () {
+            saveAreaChartImage().then(() => {
+                const url = AREA_PDF_URL + '?year=' + encodeURIComponent(CURRENT_YEAR);
+                window.location = url;
+            });
         });
     </script>
 @endpush

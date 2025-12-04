@@ -270,6 +270,11 @@ Route::middleware('auth')->group(function () {
         [ProjectCoordinatorController::class, 'destroyProject']
     )->name('coordinator.projects.destroy');
 
+//    Route::delete(
+//        '/coordinator/salesorders/{salesorder}',
+//        [ProjectCoordinatorController::class, 'destroySalesOrder']
+//    )->name('coordinator.salesorders.destroy');
+
     Route::delete(
         '/coordinator/salesorders/{salesorder}',
         [ProjectCoordinatorController::class, 'destroySalesOrder']
@@ -361,6 +366,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/performance/area', [PerformanceController::class, 'area'])->name('performance.area');
         Route::get('/performance/area/data', [PerformanceController::class, 'areaData'])->name('performance.area.data');
         Route::get('/performance/area/kpis', [PerformanceController::class, 'areaKpis'])->name('performance.area.kpis');
+        Route::get('/area-summary/pdf', [PerformanceController::class, 'pdf'])
+            ->name('area-summary.pdf')
+            ->middleware(['auth']);
+
+        Route::post(
+            '/performance/area-chart/save',
+            [PerformanceController::class, 'saveAreaChart']
+        )->name('performance.area-chart.save');
 
         // Salesman pages + data
         Route::prefix('performance')->group(function () {

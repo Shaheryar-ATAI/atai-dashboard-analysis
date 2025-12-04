@@ -80,6 +80,29 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="col-md-4">
+                                <div class="card bg-dark text-light coordinator-kpi-card">
+                                    <div class="card-body text-center">
+                                        <div class="text-uppercase small text-secondary mb-1">
+                                            Gap Coverage
+                                        </div>
+
+                                        {{-- Gauge container --}}
+                                        <div id="salesman_gap_gauge" style="height: 140px;"></div>
+
+                                        {{-- Gap text --}}
+                                        <div class="mt-2 small">
+                                            <div id="salesman_gap_text" class="fw-semibold">
+                                                Gap: SAR 0
+                                            </div>
+                                            <div id="salesman_gap_note" class="text-uppercase mt-1"
+                                                 style="letter-spacing: .12em; font-size: .75rem;">
+                                                POs vs Quotations
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -321,5 +344,113 @@
             $('#yearSelect').val(YEAR_INIT);
             loadChart();
         });
+    </script>
+    <script>
+        (function () {
+            const fmtSAR = n => new Intl.NumberFormat('en-SA', {
+                maximumFractionDigits: 0
+            }).format(Number(n || 0));
+
+            // Call your kpis() endpoint
+            fetch("{{ route('performance.salesman.kpis') }}?year={{ $year }}", {
+                headers: { 'Accept': 'application/json' }
+            })
+                .then(r => r.json())
+                .then(data => {
+                    const totalInq = Number(data.sum_inquiries || 0);
+                    const totalPos = Number(data.sum_pos || 0);
+
+                    let coverage = 0;
+                    if (totalInq > 0) {
+                        coverage = (totalPos / totalInq) * 100;
+                    }
+
+                    const gap = totalInq - totalPos;   // +ve → more quoted than POs
+
+                    const gaugeEl = document.getElementById('salesman_gap_gauge');
+                    if (!gaugeEl) return;
+
+                    Highcharts.chart('salesman_gap_gauge', {
+                        chart: {
+                            type: 'solidgauge',
+                            backgroundColor: 'transparent'
+                        },
+                        title: null,
+                        pane: {
+                            center: ['50%', '80%'],
+                            size: '140%',
+                            startAngle: -90,
+                            endAngle: 90,
+                            background: {
+                                innerRadius: '60%',
+                                outerRadius: '100%',
+                                shape: 'arc',
+                                borderWidth: 0,
+                                backgroundColor: '#1f2937'
+                            }
+                        },
+                        tooltip: { enabled: false },
+                        yAxis: {
+                            min: 0,
+                            max: 100,
+                            lineWidth: 0,
+                            tickWidth: 0,
+                            tickAmount: 0,
+                            labels: { enabled: false },
+                            stops: [
+                                [0.25, '#ef4444'], // red
+                                [0.6,  '#facc15'], // amber
+                                [1.0,  '#22c55e']  // green
+                            ]
+                        },
+                        plotOptions: {
+                            solidgauge: {
+                                dataLabels: {
+                                    useHTML: true,
+                                    borderWidth: 0,
+                                    padding: 0,
+                                    y: -20,
+                                    style: { color: '#e5e7eb' },
+                                    format:
+                                        '<div style="text-align:center">' +
+                                        '<div style="font-size:22px;font-weight:600">{y:.0f}%</div>' +
+                                        '<div style="font-size:11px;">POs vs Quotations</div>' +
+                                        '</div>'
+                                }
+                            }
+                        },
+                        credits: { enabled: false },
+                        series: [{
+                            name: 'Coverage',
+                            data: [coverage]
+                        }]
+                    });
+
+                    // Text under gauge
+                    const gapText = document.getElementById('salesman_gap_text');
+                    const gapNote = document.getElementById('salesman_gap_note');
+
+                    const gapAbs = Math.abs(gap);
+                    const label = 'Gap: SAR ' + fmtSAR(gapAbs);
+
+                    if (gapText) {
+                        gapText.textContent = label;
+                        gapText.style.color = gap >= 0 ? '#22c55e' : '#f97316';
+                    }
+
+                    if (gapNote) {
+                        if (gap > 0) {
+                            gapNote.textContent = 'MORE QUOTED THAN POS';
+                        } else if (gap < 0) {
+                            gapNote.textContent = 'MORE POS THAN QUOTED';
+                        } else {
+                            gapNote.textContent = 'POs MATCH QUOTATIONS';
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('Salesman KPI gauge error:', err);
+                });
+        })();
     </script>
 @endpush

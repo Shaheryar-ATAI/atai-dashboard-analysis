@@ -8,57 +8,58 @@ use Yajra\DataTables\Facades\DataTables;
 
 class SalesmanPerformanceController extends Controller
 {
+    /**
+     * Canonical salesman name  =>  list of accepted aliases (uppercased).
+     */
     private array $salesmanAliasMap = [
-        // Sohaib
-        'sohaib'        => 'SOHAIB',
-        'soahib'        => 'SOHAIB',
-
-        // Tariq
-        'tariq'         => 'TARIQ',
-        'tareq'         => 'TARIQ',
-
-        // Abdo
-        'abdo'          => 'ABDO',
-        'abdo yousef'   => 'ABDO',
-        'abdoyousef'    => 'ABDO',
-
-        // Mohammed / Merhi
-        'mohammed'      => 'MOHAMMED',
-        'mohamad'       => 'MOHAMMED',
-        'm. merhi'      => 'MOHAMMED',
-        'm.abu merhi'   => 'MOHAMMED',
-        'm abu merhi'   => 'MOHAMMED',
-        'merhi'         => 'MOHAMMED',
-        'm.merhi'       => 'MOHAMMED',
-        'm. abu merhi'  => 'MOHAMMED',
-
-        // Group everything internal as “ATAI”
-        'atai'          => 'ATAI',
-        'waseem'        => 'ATAI',
-        'faisal'        => 'ATAI',
-        'export'        => 'ATAI',
-        'admin'         => 'ATAI',
-        'client'        => 'ATAI',
+        'SOHAIB' => ['SOHAIB', 'SOAHIB'],
+        'TARIQ'  => ['TARIQ', 'TAREQ'],
+        'JAMAL'  => ['JAMAL'],
+        'ABDO'   => ['ABDO','ABDO YOUSEF'],
+        'AHMED'  => ['AHMED'],
+        'ABU MERHI'   => ['M.ABU MERHI','M.MERHI','MERHI','MOHAMMED','ABU MERHI','M. ABU MERHI'],
+        'ATAI'  => ['AHMED','CLIENT','EXPORT','WASEEM','FAISAL','MAEN'],
     ];
 
-
+    /**
+     * Normalize any salesman string into a canonical display label.
+     * - Null/empty → "NOT MENTIONED"
+     * - Match alias → canonical key (SOHAIB, TARIQ, ...)
+     * - Else → uppercase trimmed original.
+     */
     private function normalizeSalesman(?string $name): string
     {
-        if (! $name) {
+        if (!$name) {
             return 'NOT MENTIONED';
         }
 
-        // trim + collapse spaces + lowercase
-        $key = strtolower(trim($name));
-        $key = preg_replace('/\s+/', ' ', $key);
+        // Trim + collapse spaces, then uppercase.
+        $normalized = preg_replace('/\s+/', ' ', trim($name));
+        $upper      = strtoupper($normalized);
 
-        // if in alias map, return canonical value, else just uppercase original
-        return $this->salesmanAliasMap[$key] ?? strtoupper(trim($name));
+        foreach ($this->salesmanAliasMap as $canonical => $aliases) {
+            if (in_array($upper, $aliases, true)) {
+                return $canonical;
+            }
+        }
+
+        // Not in alias map → just use the cleaned uppercase name
+        return $upper;
     }
 
     private array $monthAliases = [
-        1 => 'jan', 2 => 'feb', 3 => 'mar', 4 => 'apr', 5 => 'may', 6 => 'jun',
-        7 => 'jul', 8 => 'aug', 9 => 'sep', 10 => 'oct', 11 => 'nov', 12 => 'december'
+        1  => 'jan',
+        2  => 'feb',
+        3  => 'mar',
+        4  => 'apr',
+        5  => 'may',
+        6  => 'jun',
+        7  => 'jul',
+        8  => 'aug',
+        9  => 'sep',
+        10 => 'oct',
+        11 => 'nov',
+        12 => 'december',
     ];
 
     private function monthlySums(string $dateCol, string $valExpr): string
@@ -68,7 +69,7 @@ class SalesmanPerformanceController extends Controller
             $parts[] = "SUM(CASE WHEN MONTH($dateCol)=$m THEN $valExpr ELSE 0 END) AS $a";
         }
         $parts[] = "SUM($valExpr) AS total";
-        return implode(",", $parts);
+        return implode(',', $parts);
     }
 
     private function norm(string $expr): string
@@ -91,14 +92,15 @@ class SalesmanPerformanceController extends Controller
 
     public function index(Request $r)
     {
-        $year = (int) ($r->query('year') ?? now()->year);
+        $year = (int)($r->query('year') ?? now()->year);
+
         return view('performance.salesman', ['year' => $year]);
     }
 
     public function data(Request $r)
     {
         $kind = $r->query('kind', 'inq');
-        $year = (int) $r->query('year', now()->year);
+        $year = (int)$r->query('year', now()->year);
 
         if ($kind === 'po') {
             // ---------- Sales Order Log ----------
@@ -112,7 +114,7 @@ class SalesmanPerformanceController extends Controller
                 ->whereYear('s.date_rec', $year)
                 ->groupByRaw($labelExpr);
 
-            $sum = (float) DB::table('salesorderlog as s')
+            $sum = (float)DB::table('salesorderlog as s')
                 ->whereYear('s.date_rec', $year)
                 ->selectRaw("SUM($amount) AS s")
                 ->value('s');
@@ -127,7 +129,7 @@ class SalesmanPerformanceController extends Controller
                 ->whereYear('p.quotation_date', $year)
                 ->groupByRaw($labelExpr);
 
-            $sum = (float) DB::table('projects as p')
+            $sum = (float)DB::table('projects as p')
                 ->whereYear('p.quotation_date', $year)
                 ->selectRaw("SUM($val) AS s")
                 ->value('s');
@@ -146,7 +148,7 @@ class SalesmanPerformanceController extends Controller
 
             if (!isset($agg[$alias])) {
                 // initialise row for this alias
-                $agg[$alias] = (object) array_merge(
+                $agg[$alias] = (object)array_merge(
                     ['salesman' => $alias],
                     array_fill_keys($months, 0.0),
                     ['total' => 0.0]
@@ -155,9 +157,9 @@ class SalesmanPerformanceController extends Controller
 
             // accumulate month values + total
             foreach ($months as $m) {
-                $agg[$alias]->$m += (float) $row->$m;
+                $agg[$alias]->$m += (float)$row->$m;
             }
-            $agg[$alias]->total += (float) $row->total;
+            $agg[$alias]->total += (float)$row->total;
         }
 
         // convert to collection for Yajra
@@ -172,10 +174,9 @@ class SalesmanPerformanceController extends Controller
             ->make(true);
     }
 
-
     public function kpis(Request $r)
     {
-        $year = (int) $r->query('year', now()->year);
+        $year = (int)$r->query('year', now()->year);
 
         // disable strict grouping
         DB::statement("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
@@ -207,12 +208,12 @@ class SalesmanPerformanceController extends Controller
 
         foreach ($inq as $row) {
             $label = $this->normalizeSalesman($row->label);
-            $inqAgg[$label] = ($inqAgg[$label] ?? 0) + (float) $row->total;
+            $inqAgg[$label] = ($inqAgg[$label] ?? 0) + (float)$row->total;
         }
 
         foreach ($po as $row) {
             $label = $this->normalizeSalesman($row->label);
-            $poAgg[$label] = ($poAgg[$label] ?? 0) + (float) $row->total;
+            $poAgg[$label] = ($poAgg[$label] ?? 0) + (float)$row->total;
         }
 
         // Build final categories and series in the same order

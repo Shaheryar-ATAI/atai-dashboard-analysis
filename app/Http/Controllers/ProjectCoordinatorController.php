@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\Coordinator\SalesOrdersMonthExport;
 use App\Exports\Coordinator\SalesOrdersYearExport;
-
+use Carbon\Carbon;
 class ProjectCoordinatorController extends Controller
 {
     private function coordinatorSalesmenScope($user): array
@@ -54,40 +54,112 @@ class ProjectCoordinatorController extends Controller
         return ['eastern', 'central', 'western'];
     }
 
+    /*
+     *  old index fucntion
+     *
+     * */
+//    public function index(Request $request)
+//    {
+//        $user = $request->user();
+//        $userRegion = strtolower($user->region ?? '');
+//        $regionsScope = $this->coordinatorRegionScope($user);
+//        $salesmenScope = $this->coordinatorSalesmenScope($user);
+//
+//        // Projects (filtered by region + salesman)
+//        $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
+//        $projects = (clone $projectsQuery)
+//            ->orderByDesc('quotation_date')
+//            ->get();
+//
+//        // Sales Orders (same logic)
+//        $salesOrdersQuery = SalesOrderLog::coordinatorBaseQuery($regionsScope);
+//        $salesOrders = (clone $salesOrdersQuery)
+//            ->orderByDesc('date_rec')
+//            ->get();
+//
+//        // KPIs
+//        $kpiProjectsCount = Project::kpiProjectsCountForCoordinator($regionsScope);
+//
+//        $salesKpis = SalesOrderLog::kpisForCoordinator($regionsScope);
+//        $kpiSalesOrdersCount = $salesKpis['count'];
+//        $kpiSalesOrdersValue = $salesKpis['value'];
+//
+//        // CHART DATA (Quotation vs PO by region)
+//        $projectByRegion = Project::quotationTotalsByRegion($regionsScope);
+//        $poByRegion = SalesOrderLog::poTotalsByRegion($regionsScope);
+//
+//        $regions = ['eastern', 'central', 'western'];
+//        $chartCategories = [];
+//        $chartProjects = [];
+//        $chartPOs = [];
+//
+//        foreach ($regions as $r) {
+//            if (!in_array($r, $regionsScope)) {
+//                continue;
+//            }
+//
+//            $chartCategories[] = ucfirst($r);
+//            $chartProjects[] = (float)($projectByRegion[$r] ?? 0);
+//            $chartPOs[] = (float)($poByRegion[$r] ?? 0);
+//        }
+//
+//        return view('coordinator.index', [
+//            'userRegion' => $userRegion,
+//            'regionsScope' => $regionsScope,
+//            'salesmenScope' => $salesmenScope,
+//            'kpiProjectsCount' => $kpiProjectsCount,
+//            'kpiSalesOrdersCount' => $kpiSalesOrdersCount,
+//            'kpiSalesOrdersValue' => $kpiSalesOrdersValue,
+//            'projects' => $projects,
+//            'salesOrders' => $salesOrders,
+//            'chartCategories' => $chartCategories,
+//            'chartProjects' => $chartProjects,
+//            'chartPOs' => $chartPOs,
+//        ]);
+//    }
+
+
+
+    /*
+         *  new  index fucntion
+         *  for combine sales order log  groupoing them
+         * */
+
+
     public function index(Request $request)
     {
-        $user = $request->user();
-        $userRegion = strtolower($user->region ?? '');
+        $user         = $request->user();
+        $userRegion   = strtolower($user->region ?? '');
         $regionsScope = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->coordinatorSalesmenScope($user);
 
-        // Projects (filtered by region + salesman)
+        // Projects (unchanged)
         $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
         $projects = (clone $projectsQuery)
             ->orderByDesc('quotation_date')
             ->get();
 
-        // Sales Orders (same logic)
-        $salesOrdersQuery = SalesOrderLog::coordinatorBaseQuery($regionsScope);
-        $salesOrders = (clone $salesOrdersQuery)
-            ->orderByDesc('date_rec')
+        // 🔹 NEW: grouped Sales Orders (one row per PO/Job set)
+        $salesOrders = SalesOrderLog::coordinatorGroupedQuery($regionsScope)
+            ->orderByDesc('po_date')
             ->get();
 
-        // KPIs
+        // KPIs – you can keep your existing methods, or
+        // recompute from grouped data if you prefer
         $kpiProjectsCount = Project::kpiProjectsCountForCoordinator($regionsScope);
 
-        $salesKpis = SalesOrderLog::kpisForCoordinator($regionsScope);
-        $kpiSalesOrdersCount = $salesKpis['count'];
-        $kpiSalesOrdersValue = $salesKpis['value'];
+        $kpiSalesOrdersCount = $salesOrders->count();
+        $kpiSalesOrdersValue = (float) $salesOrders->sum('total_po_value');
 
-        // CHART DATA (Quotation vs PO by region)
+        // CHART DATA – can still use your existing helpers if you want,
+        // or derive from grouped rows – up to you
         $projectByRegion = Project::quotationTotalsByRegion($regionsScope);
-        $poByRegion = SalesOrderLog::poTotalsByRegion($regionsScope);
+        $poByRegion      = SalesOrderLog::poTotalsByRegion($regionsScope);
 
-        $regions = ['eastern', 'central', 'western'];
-        $chartCategories = [];
-        $chartProjects = [];
-        $chartPOs = [];
+        $regions          = ['eastern', 'central', 'western'];
+        $chartCategories  = [];
+        $chartProjects    = [];
+        $chartPOs         = [];
 
         foreach ($regions as $r) {
             if (!in_array($r, $regionsScope)) {
@@ -95,60 +167,63 @@ class ProjectCoordinatorController extends Controller
             }
 
             $chartCategories[] = ucfirst($r);
-            $chartProjects[] = (float)($projectByRegion[$r] ?? 0);
-            $chartPOs[] = (float)($poByRegion[$r] ?? 0);
+            $chartProjects[]   = (float)($projectByRegion[$r] ?? 0);
+            $chartPOs[]        = (float)($poByRegion[$r] ?? 0);
         }
 
         return view('coordinator.index', [
-            'userRegion' => $userRegion,
-            'regionsScope' => $regionsScope,
-            'salesmenScope' => $salesmenScope,
-            'kpiProjectsCount' => $kpiProjectsCount,
-            'kpiSalesOrdersCount' => $kpiSalesOrdersCount,
-            'kpiSalesOrdersValue' => $kpiSalesOrdersValue,
-            'projects' => $projects,
-            'salesOrders' => $salesOrders,
-            'chartCategories' => $chartCategories,
-            'chartProjects' => $chartProjects,
-            'chartPOs' => $chartPOs,
+            'userRegion'           => $userRegion,
+            'regionsScope'         => $regionsScope,
+            'salesmenScope'        => $salesmenScope,
+            'kpiProjectsCount'     => $kpiProjectsCount,
+            'kpiSalesOrdersCount'  => $kpiSalesOrdersCount,
+            'kpiSalesOrdersValue'  => $kpiSalesOrdersValue,
+            'projects'             => $projects,
+            'salesOrders'          => $salesOrders,
+            'chartCategories'      => $chartCategories,
+            'chartProjects'        => $chartProjects,
+            'chartPOs'             => $chartPOs,
         ]);
     }
+
 
     public function storePo(Request $request)
     {
         $user = Auth::user();
 
         $data = $request->validate([
-            'source' => ['required', 'in:project,salesorder'],
-            'record_id' => ['required', 'integer'],
+            'source'        => ['required', 'in:project,salesorder'],
+            'record_id'     => ['required', 'integer'],
 
             // LEFT-SIDE (inquiry) fields – editable when source = salesorder
-            'project' => ['nullable', 'string', 'max:255'],
-            'client' => ['nullable', 'string', 'max:255'],
-            'salesman' => ['nullable', 'string', 'max:255'],
-            'location' => ['nullable', 'string', 'max:255'],
-            'area' => ['nullable', 'string', 'max:255'],
-            'quotation_no' => ['nullable', 'string', 'max:255'],
+            'project'        => ['nullable', 'string', 'max:255'],
+            'client'         => ['nullable', 'string', 'max:255'],
+            'salesman'       => ['nullable', 'string', 'max:255'],
+            'location'       => ['nullable', 'string', 'max:255'],
+            'area'           => ['nullable', 'string', 'max:255'],
+            'quotation_no'   => ['nullable', 'string', 'max:255'],
             'quotation_date' => ['nullable', 'date'],
-            'date_received' => ['nullable', 'date'],
-            'atai_products' => ['nullable', 'string', 'max:255'],
-            'quotation_value' => ['nullable', 'numeric', 'min:0'],
+            'date_received'  => ['nullable', 'date'],
+            'atai_products'  => ['nullable', 'string', 'max:255'],
+            'quotation_value'=> ['nullable', 'numeric', 'min:0'],
 
             // RIGHT-SIDE (PO) fields
-            'job_no' => ['nullable', 'string', 'max:255'],
-            'po_no' => ['required', 'string', 'max:255'],
-            'po_date' => ['required', 'date'],
-            'po_value' => ['required', 'numeric', 'min:0'],
+            'job_no'        => ['nullable', 'string', 'max:255'],
+            'po_no'         => ['required', 'string', 'max:255'],
+            'po_date'       => ['required', 'date'],
+            'po_value'      => ['required', 'numeric', 'min:0'],
             'payment_terms' => ['nullable', 'string', 'max:255'],
-            'remarks' => ['nullable', 'string'],
+            'remarks'       => ['nullable', 'string'],
             'attachments.*' => ['file', 'max:51200'],
-            'oaa' => ['nullable', 'string', 'max:50'],
+            'oaa'           => ['nullable', 'string', 'max:50'],
         ]);
 
         try {
             return DB::transaction(function () use ($data, $request, $user) {
 
-                // ---------------- UPDATE EXISTING SALES ORDER ----------------
+                /* ============================
+                 *  UPDATE EXISTING SALES ORDER
+                 * ============================ */
                 if ($data['source'] === 'salesorder') {
                     /** @var \App\Models\SalesOrderLog $so */
                     $so = SalesOrderLog::findOrFail($data['record_id']);
@@ -156,48 +231,50 @@ class ProjectCoordinatorController extends Controller
                     $regionsScope = $this->coordinatorRegionScope($user);
                     if (!in_array(strtolower($so->area ?? ''), $regionsScope, true)) {
                         return response()->json([
-                            'ok' => false,
+                            'ok'      => false,
                             'message' => 'You are not allowed to update this sales order.',
                         ], 403);
                     }
 
+                    // Always treat date_rec as PO Date (fix for 0005-12-03 bug)
+                    $poDate         = \Carbon\Carbon::parse($data['po_date'])->format('Y-m-d');
                     $poValueWithVat = round($data['po_value'] * 1.15, 2);
-// Use edited values, falling back to existing if needed
-                    $client = $data['client'] ?? $so->client;
-                    $projectName = $data['project'] ?? $so->project;
-                    $salesSource = $data['salesman'] ?? $so->salesman;
-                    $location = $data['location'] ?? $so->location;
-                    $area = $data['area'] ?? $so->area;
-                    $quoteNo = $data['quotation_no'] ?? $so->quotation_no;
-                    $dateReceived = $data['date_received'] ?? optional($so->date_rec)->format('Y-m-d');
-                    $products = $data['atai_products'] ?? $so->atai_products;
+
+                    // Use edited values, falling back to existing if needed
+                    $client      = $data['client']        ?? $so->client;
+                    $projectName = $data['project']       ?? $so->project;
+                    $salesSource = $data['salesman']      ?? $so->salesman;
+                    $location    = $data['location']      ?? $so->location;
+                    $area        = $data['area']          ?? $so->area;
+                    $quoteNo     = $data['quotation_no']  ?? $so->quotation_no;
+                    $products    = $data['atai_products'] ?? $so->atai_products;
                     // $quotationVal  = $data['quotation_value'] ?? $so->po_value;
 
                     DB::update("
-    UPDATE `salesorderlog`
-    SET
-        `Client Name`      = ?,
-        `Project Name`     = ?,
-        `Sales Source`     = ?,
-        `Location`         = ?,
-        `project_region`   = ?,
-        `region`           = ?,
-        `Products`         = ?,
-        `Products_raw`     = ?,
-        `Quote No.`        = ?,
-        `date_rec`         = ?,
-        `PO. No.`          = ?,
-        `PO Value`         = ?,
-        `value_with_vat`   = ?,
-        `Payment Terms`    = ?,
-        `Status`           = ?,
-        `Job No.`          = ?,
-        `Factory Loc`      = ?,
-        `Remarks`          = ?,
-        created_by_id      = ?,
-        `updated_at`       = NOW()
-    WHERE `id` = ?
-", [
+                    UPDATE `salesorderlog`
+                    SET
+                        `Client Name`      = ?,
+                        `Project Name`     = ?,
+                        `Sales Source`     = ?,
+                        `Location`         = ?,
+                        `project_region`   = ?,
+                        `region`           = ?,
+                        `Products`         = ?,
+                        `Products_raw`     = ?,
+                        `Quote No.`        = ?,
+                        `date_rec`         = ?,   -- now always PO date
+                        `PO. No.`          = ?,
+                        `PO Value`         = ?,
+                        `value_with_vat`   = ?,
+                        `Payment Terms`    = ?,
+                        `Status`           = ?,
+                        `Job No.`          = ?,
+                        `Factory Loc`      = ?,
+                        `Remarks`          = ?,
+                        created_by_id      = ?,
+                        `updated_at`       = NOW()
+                    WHERE `id` = ?
+                ", [
                         $client,
                         $projectName,
                         $salesSource,
@@ -207,14 +284,14 @@ class ProjectCoordinatorController extends Controller
                         $products,
                         $products,
                         $quoteNo,
-                        $dateReceived ?: $data['po_date'], // fallback
+                        $poDate,                  // 👈 fixed here
                         $data['po_no'],
                         $data['po_value'],
                         $poValueWithVat,
                         $data['payment_terms'] ?? null,
                         $data['oaa'] ?? null,
                         $data['job_no'] ?? null,
-                        $area,                   // Factory Loc
+                        $area,                    // Factory Loc
                         $data['remarks'] ?? null,
                         $user->id,
                         $so->id,
@@ -236,57 +313,60 @@ class ProjectCoordinatorController extends Controller
 
                             SalesOrderAttachment::create([
                                 'salesorderlog_id' => $so->id,
-                                'disk' => 'public',
-                                'path' => $path,
-                                'original_name' => $file->getClientOriginalName(),
-                                'size_bytes' => $file->getSize(),
-                                'mime_type' => $file->getClientMimeType(),
-                                'uploaded_by' => $user->id,
+                                'disk'             => 'public',
+                                'path'             => $path,
+                                'original_name'    => $file->getClientOriginalName(),
+                                'size_bytes'       => $file->getSize(),
+                                'mime_type'        => $file->getClientMimeType(),
+                                'uploaded_by'      => $user->id,
                             ]);
                         }
                     }
 
                     return response()->json([
-                        'ok' => true,
+                        'ok'      => true,
                         'message' => 'PO updated and documents uploaded.',
                     ]);
                 }
 
-                // ---------------- CREATE NEW PO (FROM PROJECT) ----------------
-                // ---------- CREATE NEW PO (from Projects tab, single OR multiple) ----------
+                /* ============================
+                 *  CREATE NEW PO (FROM PROJECT)
+                 *  Single OR multiple quotations
+                 * ============================ */
+
                 $mainProject = Project::findOrFail($data['record_id']);
 
-// Extra project IDs chosen in modal
-                $extraIds = $request->input('extra_project_ids', []);
+                // Extra project IDs chosen in modal
+                $extraIds   = $request->input('extra_project_ids', []);
                 $projectIds = array_unique(
                     array_filter(
-                        array_merge([$mainProject->id], (array)$extraIds),
-                        fn($id) => !empty($id)
+                        array_merge([$mainProject->id], (array) $extraIds),
+                        fn ($id) => !empty($id)
                     )
                 );
 
-// Load all selected projects
+                // Load all selected projects
                 $projects = Project::query()
                     ->whereIn('id', $projectIds)
                     ->get();
 
                 if ($projects->isEmpty()) {
                     return response()->json([
-                        'ok' => false,
+                        'ok'      => false,
                         'message' => 'No projects found to attach this PO to.',
                     ], 422);
                 }
 
-// Check none already have PO
-                if ($projects->contains(fn(Project $p) => !is_null($p->status_current))) {
+                // Check none already have PO
+                if ($projects->contains(fn (Project $p) => !is_null($p->status_current))) {
                     return response()->json([
-                        'ok' => false,
+                        'ok'      => false,
                         'message' => 'One or more selected quotations already have a PO. Please check Sales Order Log.',
                     ], 422);
                 }
 
-// Total quotation value of selected projects
-                $totalQuoted = (float)$projects->sum('quotation_value');
+                // Total quotation value of selected projects
+                $totalQuoted = (float) $projects->sum('quotation_value');
                 if ($totalQuoted <= 0) {
                     // Fallback: equal split
                     $totalQuoted = 0;
@@ -294,7 +374,7 @@ class ProjectCoordinatorController extends Controller
 
                 $attachments = [];
                 if ($request->hasFile('attachments')) {
-                    $files = $request->file('attachments');
+                    $files       = $request->file('attachments');
                     $attachments = is_array($files) ? $files : [$files];
                 }
 
@@ -302,36 +382,36 @@ class ProjectCoordinatorController extends Controller
 
                     // share ratio
                     if ($totalQuoted > 0) {
-                        $ratio = max(0, (float)$project->quotation_value) / $totalQuoted;
+                        $ratio = max(0, (float) $project->quotation_value) / $totalQuoted;
                     } else {
                         $ratio = 1 / max(1, $projects->count());
                     }
 
-                    $poValue = round($data['po_value'] * $ratio, 2);
+                    $poValue        = round($data['po_value'] * $ratio, 2);
                     $poValueWithVat = round($poValue * 1.15, 2);
 
                     DB::insert("
-        INSERT INTO `salesorderlog`
-        (
-            `Client Name`, `region`, `project_region`, `Location`, `date_rec`,
-            `PO. No.`, `Products`, `Products_raw`, `Quote No.`, `Ref.No.`, `Cur`,
-            `PO Value`, `value_with_vat`, `Payment Terms`,
-            `Project Name`, `Project Location`,
-            `Status`, `Job No.`, `Factory Loc`, `Sales Source`,
-            `Remarks`, `created_by_id`, `created_at`
-        )
-        VALUES (?,?,?,?,?,
-                ?,?,?,?,?,
-                ?,?,?,?,
-                ?,?,
-                ?,?,?,?,
-                ?,?,NOW())
-    ", [
+                    INSERT INTO `salesorderlog`
+                    (
+                        `Client Name`, `region`, `project_region`, `Location`, `date_rec`,
+                        `PO. No.`, `Products`, `Products_raw`, `Quote No.`, `Ref.No.`, `Cur`,
+                        `PO Value`, `value_with_vat`, `Payment Terms`,
+                        `Project Name`, `Project Location`,
+                        `Status`, `Job No.`, `Factory Loc`, `Sales Source`,
+                        `Remarks`, `created_by_id`, `created_at`
+                    )
+                    VALUES (?,?,?,?,?,
+                            ?,?,?,?,?,
+                            ?,?,?,?,
+                            ?,?,
+                            ?,?,?,?,
+                            ?,?,NOW())
+                ", [
                         $project->client_name,
                         $project->area,
                         $project->area,
                         $project->project_location,
-                        $data['po_date'],
+                        $data['po_date'], // date_rec (for new rows we keep as po_date)
                         $data['po_no'],
                         $project->atai_products,
                         $project->atai_products,
@@ -354,9 +434,9 @@ class ProjectCoordinatorController extends Controller
                     $soId = DB::getPdo()->lastInsertId();
 
                     // Mark project as PO-RECEIVED
-                    $project->status = 'PO-RECEIVED';
-                    $project->status_current = 'PO-RECEIVED';
-                    $project->coordinator_updated_by_id = $user->id;
+                    $project->status                     = 'PO-RECEIVED';
+                    $project->status_current             = 'PO-RECEIVED';
+                    $project->coordinator_updated_by_id  = $user->id;
                     $project->save();
 
                     // Attach documents to each SO
@@ -369,18 +449,18 @@ class ProjectCoordinatorController extends Controller
 
                         SalesOrderAttachment::create([
                             'salesorderlog_id' => $soId,
-                            'disk' => 'public',
-                            'path' => $path,
-                            'original_name' => $file->getClientOriginalName(),
-                            'size_bytes' => $file->getSize(),
-                            'mime_type' => $file->getClientMimeType(),
-                            'uploaded_by' => $user->id,
+                            'disk'             => 'public',
+                            'path'             => $path,
+                            'original_name'    => $file->getClientOriginalName(),
+                            'size_bytes'       => $file->getSize(),
+                            'mime_type'        => $file->getClientMimeType(),
+                            'uploaded_by'      => $user->id,
                         ]);
                     }
                 }
 
                 return response()->json([
-                    'ok' => true,
+                    'ok'      => true,
                     'message' => 'PO saved for selected quotations, projects updated to PO-RECEIVED, and files uploaded.',
                 ]);
             });
@@ -388,11 +468,12 @@ class ProjectCoordinatorController extends Controller
             report($e);
 
             return response()->json([
-                'ok' => false,
+                'ok'      => false,
                 'message' => 'Error while saving PO: ' . $e->getMessage(),
             ], 500);
         }
     }
+
 
     /**
      * Return a single sales order + attachments (for View button)
@@ -604,26 +685,65 @@ class ProjectCoordinatorController extends Controller
         ]);
     }
 
+//    public function destroySalesOrder(Request $request, SalesOrderLog $salesorder)
+//    {
+//        $user = $request->user();
+//        $regionsScope = $this->coordinatorRegionScope($user);
+//
+//        if (!in_array(strtolower($salesorder->area ?? ''), $regionsScope, true)) {
+//            return response()->json([
+//                'ok' => false,
+//                'message' => 'You are not allowed to delete this sales order (region mismatch).',
+//            ], 403);
+//        }
+//
+//        $salesorder->delete(); // soft delete
+//
+//        return response()->json([
+//            'ok' => true,
+//            'message' => 'Sales order deleted successfully (soft delete).',
+//        ]);
+//    }
+
     public function destroySalesOrder(Request $request, SalesOrderLog $salesorder)
     {
-        $user = $request->user();
+        $user         = $request->user();
         $regionsScope = $this->coordinatorRegionScope($user);
 
+        // Region permission check using the row we received
         if (!in_array(strtolower($salesorder->area ?? ''), $regionsScope, true)) {
             return response()->json([
-                'ok' => false,
+                'ok'      => false,
                 'message' => 'You are not allowed to delete this sales order (region mismatch).',
             ], 403);
         }
 
-        $salesorder->delete(); // soft delete
+        // Get PO No. and Job No. from this record
+        $poNo  = $salesorder->{'PO. No.'};       // column has dot + space
+        $jobNo = $salesorder->{'Job No.'} ?? null;
+
+        if (!$poNo) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'PO number not found for this record.',
+            ], 422);
+        }
+
+        // Soft-delete ALL rows for the same PO (and Job, if present)
+        $affected = DB::table('salesorderlog')
+            ->where('PO. No.', $poNo)
+            ->when($jobNo, fn ($q) => $q->where('Job No.', $jobNo))
+            ->update([
+                'deleted_at' => now(),       // standard SoftDeletes column
+                // 'deleted_by_id' => $user->id ?? null, // uncomment if you have this column
+            ]);
 
         return response()->json([
-            'ok' => true,
-            'message' => 'Sales order deleted successfully (soft delete).',
+            'ok'      => true,
+            'message' => "Sales order(s) for PO {$poNo} deleted successfully (soft delete).",
+            'count'   => $affected,
         ]);
     }
-
     /**
      * Return list of related quotations with the same base project code.
      * Used by coordinator modal when ticking "Multiple quotations".
