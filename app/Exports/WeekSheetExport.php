@@ -14,6 +14,7 @@ use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
 class WeekSheetExport implements
     FromCollection,
@@ -32,11 +33,19 @@ class WeekSheetExport implements
     // logged-in estimator (Jaafar, Aamir, …)
     protected ?string $estimatorName;
 
-    public function __construct(Collection $rows, string $title, ?string $estimatorName = null)
-    {
+    // optional salesman filter (Sohaib / Tariq / All)
+    protected ?string $salesmanName;
+
+    public function __construct(
+        Collection $rows,
+        string $title,
+        ?string $estimatorName = null,
+        ?string $salesmanName = null
+    ) {
         $this->rows          = $rows;
         $this->title         = $title;
         $this->estimatorName = $estimatorName;
+        $this->salesmanName  = $salesmanName;
     }
 
     /* -----------------------------------------------------------------
@@ -60,7 +69,7 @@ class WeekSheetExport implements
             'Received Date',           // G (date_rec)
             'Quotation Date',          // H (quotation_date)
             'Product',                 // I (atai_products)
-            'Weekly Net Value (SAR)',  // J (quotation_value)
+            'Quotation Value (SAR)',   // J (quotation_value)
             'Project Type',            // K
             'Technical Submittal',     // L
             'Technical Base',          // M
@@ -140,8 +149,6 @@ class WeekSheetExport implements
                 $sheet = $event->sheet->getDelegate();
 
                 // ---- 1. Push headings + data down by 5 rows ----
-                // WithHeadings writes headings at row 1 by default.
-                // Insert 5 rows so headings go to row 6.
                 $sheet->insertNewRowBefore(1, 5);
 
                 $rowsCount = max($this->rows->count(), 1);
@@ -154,34 +161,34 @@ class WeekSheetExport implements
                 // ---- 2. Dynamic texts from data ----
                 $first      = $this->rows->first();
                 $regionRaw  = $first->area ?? '';
-                $regionText = $regionRaw ? strtoupper($regionRaw).' REGION' : '';
-                $salesman   = $first->salesman ?? $first->salesperson ?? '';
+                $regionText = $regionRaw ? strtoupper($regionRaw) . ' REGION' : '';
+
+                // prefer the filter value if provided, else take from first row
+                $salesman   = $this->salesmanName
+                    ?: ($first->salesman ?? $first->salesperson ?? '');
+
                 $estimator  = $this->estimatorName ?? '';
-                $weekLabel  = 'Week: '.$this->title;
+                $weekLabel  = 'Week: ' . $this->title;
 
                 // ---- 3. Company header (rows 1–4) ----
-                // Row 1: Company name
                 $sheet->mergeCells('A1:Q1');
                 $sheet->setCellValue('A1', 'ARABIAN THERMAL AIRE INDUSTRIES CO. LTD.');
 
-                // Row 2: Monthly & Weekly Report
                 $sheet->mergeCells('A2:Q2');
                 $sheet->setCellValue('A2', ' WEEKLY REPORT');
 
-                // Row 3: Region
                 $sheet->mergeCells('A3:Q3');
                 $sheet->setCellValue('A3', $regionText);
 
-                // Row 4: Section title
                 $sheet->mergeCells('A4:Q4');
                 $sheet->setCellValue('A4', 'Project & Quotation Details');
 
                 // Row 5: Salesman | Estimator | Week
                 $sheet->mergeCells('A5:F5');
-                $sheet->setCellValue('A5', 'Salesman: '.$salesman);
+                $sheet->setCellValue('A5', 'Salesman: ' . ($salesman ?: 'All'));
 
                 $sheet->mergeCells('G5:L5');
-                $sheet->setCellValue('G5', 'Estimator: '.$estimator);
+                $sheet->setCellValue('G5', 'Estimator: ' . $estimator);
 
                 $sheet->mergeCells('M5:Q5');
                 $sheet->setCellValue('M5', $weekLabel);
@@ -199,7 +206,6 @@ class WeekSheetExport implements
                 $sheet->getStyle('A1:Q1')->getFont()->setBold(true)->setSize(16);
                 $sheet->getStyle('A2:Q4')->getFont()->setBold(true);
 
-                // Row 5 slightly smaller but bold
                 $sheet->getStyle('A5:Q5')->getFont()->setBold(true);
                 $sheet->getStyle('A5:Q5')->getAlignment()
                     ->setHorizontal(Alignment::HORIZONTAL_CENTER)
@@ -213,7 +219,7 @@ class WeekSheetExport implements
 
                 $sheet->getStyle("A{$headerRow}:Q{$headerRow}")->getFill()
                     ->setFillType(Fill::FILL_SOLID)
-                    ->getStartColor()->setRGB('F4B183'); // light orange, like your template
+                    ->getStartColor()->setRGB('F4B183'); // light orange
 
                 // ---- 5. Borders for table + total row ----
                 $sheet->getStyle("A{$headerRow}:Q{$totalRow}")
@@ -224,10 +230,27 @@ class WeekSheetExport implements
                 $sheet->setCellValue("A{$totalRow}", 'TOTAL WEEKLY VALUE');
                 $sheet->mergeCells("A{$totalRow}:I{$totalRow}");
 
-                // Sum Weekly Net Value column (J)
+                // SUM of quotation values (J column)
                 $sheet->setCellValue("J{$totalRow}", "=SUM(J{$dataStart}:J{$dataEnd})");
 
                 $sheet->getStyle("A{$totalRow}:Q{$totalRow}")->getFont()->setBold(true);
+
+                // ---- 6b. Number format for Quotation Value (with commas) ----
+                if ($dataEnd >= $dataStart) {
+                    $sheet->getStyle("J{$dataStart}:J{$totalRow}")
+                        ->getNumberFormat()
+                        ->setFormatCode('#,##0');   // 2,036,815 style (no decimals)
+                }
+
+                // ---- 7. WRAP TEXT for email + address & auto row height ----
+                if ($dataEnd >= $dataStart) {
+                    $sheet->getStyle("P{$dataStart}:Q{$dataEnd}")
+                        ->getAlignment()
+                        ->setWrapText(true)
+                        ->setVertical(Alignment::VERTICAL_TOP);
+                }
+
+                $sheet->getDefaultRowDimension()->setRowHeight(-1);
             },
         ];
     }
