@@ -43,15 +43,10 @@
             color: #6b7280;
         }
 
-        /* Make sure modal is always above everything */
-
-
         .toast, .toast-container {
             z-index: 1067;
         }
 
-
-        /* Just in case an iframe is leaking clicks */
         .submittal-preview iframe {
             pointer-events: auto;
         }
@@ -82,7 +77,6 @@
             border: 1px solid #555 !important;
         }
 
-        /* Fix floating "searching..." */
         .select2-container .select2-selection--single {
             height: 38px !important;
             padding: 5px 10px;
@@ -91,28 +85,49 @@
             color: #fff !important;
         }
 
-        /* Make sure confirm dialog is always above any custom backdrops */
-        /* Make the confirm dialog look solid & bright */
+        /* Confirm dialog look */
         #confirmActionModal .modal-content {
-            background-color: #f8fafc !important; /* light solid background */
+            background-color: #f8fafc !important;
             color: #111 !important;
-            opacity: 1 !important; /* remove any fade/opacity from theme */
+            opacity: 1 !important;
             filter: none !important;
         }
 
-        /* Slightly darker outside area, so the dialog pops more */
         .modal-backdrop,
         .modal-backdrop.show {
             background-color: rgba(0, 0, 0, 0.55) !important;
             z-index: 1080 !important;
-            pointer-events: none; /* keep: don’t block clicks on modal */
+            pointer-events: none;
         }
 
+        /* === NEW: Horizontal scroll for estimator tables === */
+        .estimator-scroll-x {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: .5rem;
+        }
+
+        .estimator-scroll-x table.dataTable {
+            min-width: 1400px; /* enough width so all columns show fully */
+        }
+
+        /* Prevent column wrapping so header/body stay aligned */
+        table.dataTable thead th,
+        table.dataTable tbody td {
+            white-space: nowrap;
+        }
+
+        /* === NEW: Make Add Inquiry modal body scroll inside viewport === */
+        #modalAddInquiry .modal-dialog-scrollable .modal-body {
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
     </style>
 @endpush
+
 @section('content')
 
-    <main class="container-fluid py-4">
+    <main class="container-fluid py-4 estimator-inquiries-page">
 
         <div class="col-12">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2" id="projFilters">
@@ -124,15 +139,13 @@
                 </select>
 
                 <span id="projRegionWrap">
-                <select id="projRegion" class="form-select form-select-sm" style="width:auto">
-                    <option value="">All Region</option>
-                    <option value="Eastern">Eastern</option>
-                    <option value="Central">Central</option>
-                    <option value="Western">Western</option>
-                </select>
-
-
-            </span>
+                    <select id="projRegion" class="form-select form-select-sm" style="width:auto">
+                        <option value="">All Region</option>
+                        <option value="Eastern">Eastern</option>
+                        <option value="Central">Central</option>
+                        <option value="Western">Western</option>
+                    </select>
+                </span>
 
                 <div class="d-flex gap-2 align-items-center">
                     <select id="monthSelect" class="form-select form-select-sm" style="width:auto">
@@ -147,13 +160,18 @@
                     <input type="date" id="dateTo" class="form-control form-control-sm" style="width:auto"
                            placeholder="To">
 
-                    <span id="salesmanWrap" class="d-none">
-                    <input type="text" id="salesmanInput" class="form-control form-control-sm" style="width:14rem"
-                           placeholder="Salesman (GM/Admin)">
-                </span>
+                    <span id="salesmanWrap" >
+                        <select id="salesmanInput" class="form-select form-select-sm" style="width:auto">
+                            <option value="">All Salesmen</option>
+                            @foreach($salesmen as $sm)
+                                <option value="{{ $sm->name }}">{{ $sm->name }}</option>
+                            @endforeach
+                        </select>
+                    </span>
 
                     <button class="btn btn-sm btn-primary" id="projApply">Update</button>
                 </div>
+
                 <button class="btn btn-sm btn-info" id="btnExportMonthly">
                     <i class="bi bi-file-earmark-excel"></i>
                     Export Monthly
@@ -166,7 +184,6 @@
                     + Inquiry
                 </button>
             </div>
-
 
             {{-- KPI cards (compact) --}}
             <div class="row g-3 mb-4 text-center justify-content-center">
@@ -187,17 +204,14 @@
             <div class="d-flex justify-content-end gap-2 my-3 flex-wrap">
                 <div id="familyChips" class="btn-group" role="group" aria-label="Product family">
                     <button type="button" class="btn btn-sm btn-outline-primary active" data-family="">All</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="ductwork">Ductwork
-                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="ductwork">Ductwork</button>
                     <button type="button" class="btn btn-sm btn-outline-primary" data-family="dampers">Dampers</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="sound">Sound Attenuators
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="accessories">Accessories
-                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="sound">Sound Attenuators</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-family="accessories">Accessories</button>
                 </div>
             </div>
 
-            {{-- ===== TABS (Bidding / In-Hand / Lost / PO received / No PO) ===== --}}
+            {{-- ===== TABS (All / Bidding / In-Hand) ===== --}}
             <ul class="nav nav-tabs" role="tablist">
                 <li class="nav-item">
                     <button class="nav-link active"
@@ -227,10 +241,9 @@
                     </button>
                 </li>
             </ul>
+
             <div class="tab-content border-start border-end border-bottom p-3 rounded-bottom">
                 {{-- ---------- All TAB ---------- --}}
-
-
                 <div class="tab-pane fade show active" id="all" role="tabpanel" tabindex="0">
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                         <div class="input-group w-auto">
@@ -240,7 +253,8 @@
                         </div>
                     </div>
 
-                    <div class="table-responsive">
+                    {{-- NEW: add estimator-scroll-x --}}
+                    <div class="table-responsive estimator-scroll-x">
                         <table class="table table-striped w-100" id="tblAll">
                             <thead>
                             <tr>
@@ -251,17 +265,20 @@
                                 <th>Location</th>
                                 <th>Area</th>
                                 <th>Quotation No</th>
+                                <th>Rev</th>
                                 <th>ATAI Products</th>
                                 <th>Price</th>
                                 <th>Status</th>
                                 <th>Quotation Date</th>
                                 <th>Received Date</th>
+                                <th>Inserted At</th>
                                 <th>Action</th>
                             </tr>
                             </thead>
                         </table>
                     </div>
                 </div>
+
                 {{-- ---------- BIDDING TAB ---------- --}}
                 <div class="tab-pane fade" id="bidding" role="tabpanel" tabindex="0">
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
@@ -272,30 +289,31 @@
                         </div>
                     </div>
 
-                    <div class="table-responsive">
+                    {{-- NEW: add estimator-scroll-x --}}
+                    <div class="table-responsive estimator-scroll-x">
                         <table class="table table-striped w-100" id="tblBidding">
                             <thead>
                             <tr>
                                 <th>#</th>
                                 <th>Project</th>
-
                                 <th>Client</th>
                                 <th>Sales Man</th>
                                 <th>Location</th>
                                 <th>Area</th>
                                 <th>Quotation No</th>
+                                <th>Rev</th>
                                 <th>ATAI Products</th>
                                 <th>Price</th>
                                 <th>Status</th>
                                 <th>Quotation Date</th>
                                 <th>Recieved Date</th>
+                                <th>Inserted At</th>
                                 <th>Action</th>
                             </tr>
                             </thead>
                         </table>
                     </div>
                 </div>
-
 
                 {{-- ---------- IN-HAND TAB ---------- --}}
                 <div class="tab-pane fade" id="inhand" role="tabpanel" tabindex="0">
@@ -307,7 +325,8 @@
                         </div>
                     </div>
 
-                    <div class="table-responsive">
+                    {{-- NEW: add estimator-scroll-x --}}
+                    <div class="table-responsive estimator-scroll-x">
                         <table class="table table-striped w-100" id="tblInhand">
                             <thead>
                             <tr>
@@ -318,13 +337,14 @@
                                 <th>Location</th>
                                 <th>Area</th>
                                 <th>Quotation No</th>
+                                <th>Rev</th>
                                 <th>ATAI Products</th>
                                 <th>Price</th>
                                 <th>Status</th>
                                 <th>Quotation Date</th>
                                 <th>Recieved Date</th>
+                                <th>Inserted At</th>
                                 <th>Action</th>
-
                             </tr>
                             </thead>
                         </table>
@@ -334,13 +354,9 @@
             </div>
         </div>
 
-
-        {{-- ---------- New Inquiry 1ord ---------- --}}
-
-
+        {{-- ---------- Add / Edit Inquiry Modal ---------- --}}
         <div class="modal fade modal-atai" id="modalAddInquiry" data-bs-backdrop="false" tabindex="-1"
              aria-hidden="true">
-
             <div class="modal-dialog modal-lg modal-dialog-scrollable">
                 <div class="modal-content bg-dark text-light">
                     <div class="modal-header">
@@ -390,6 +406,7 @@
                                         <option value="Western">Western</option>
                                     </select>
                                 </div>
+
                                 <div class="col-md-6">
                                     <label class="form-label">Technical Base</label>
                                     <select name="technical_base" class="form-select form-select-sm">
@@ -401,7 +418,6 @@
                                     </select>
                                 </div>
 
-
                                 <div class="col-md-6">
                                     <label class="form-label">Technical Submittal</label>
                                     <select id="technical_submittal" name="technical_submittal"
@@ -411,17 +427,42 @@
                                         <option value="no">No</option>
                                     </select>
                                 </div>
+
                                 <div class="col-md-6">
                                     <label class="form-label">Location</label>
-                                    <select id="locationSelect" name="location" class="form-select form-select-sm">
-                                        <option value="">Select area first</option>
-                                    </select>
+                                    <div class="input-group input-group-sm">
+                                        <select id="locationSelect" class="form-select">
+                                            <option value="">Select area first</option>
+                                        </select>
+
+                                        <input type="text"
+                                               id="locationInput"
+                                               name="location"
+                                               class="form-control"
+                                               placeholder="Type or paste location"
+                                               disabled>
+                                    </div>
+                                    <div class="form-text">
+                                        Select from list or type/paste a location after choosing Area.
+                                    </div>
                                 </div>
 
                                 <div class="col-md-6">
                                     <label class="form-label">Quotation No</label>
                                     <input type="text" name="quotation_no" class="form-control form-control-sm"
                                            required>
+                                </div>
+
+                                {{-- NEW: Revision selector --}}
+                                <div class="col-md-3">
+                                    <label class="form-label">Revision</label>
+                                    <select name="revision_no" class="form-select form-select-sm">
+                                        <option value="0">Original</option>
+                                        <option value="1">Rev 1</option>
+                                        <option value="2">Rev 2</option>
+                                        <option value="3">Rev 3</option>
+                                        <option value="4">Rev 4</option>
+                                    </select>
                                 </div>
 
                                 <div class="col-md-3">
@@ -441,13 +482,13 @@
                                     <select name="atai_products" class="form-select form-select-sm" required>
                                         <option value="">Select Product</option>
                                         <option value="Ductwork">Ductwork</option>
+                                        <option value="Ductwork and Accessories">Ductwork and Accessories</option>
                                         <option value="Dampers">Dampers</option>
                                         <option value="Louvers">Louvers</option>
                                         <option value="Sound Attenuators">Sound Attenuators</option>
                                         <option value="Accessories">Accessories</option>
                                     </select>
                                 </div>
-
 
                                 <div class="col-md-3">
                                     <label class="form-label">Price (SAR)</label>
@@ -463,7 +504,6 @@
                                     </select>
                                 </div>
                             </div>
-
 
                             <div class="col-md-6">
                                 <label class="form-label">Contact Person</label>
@@ -485,7 +525,6 @@
                                 <input type="text" name="company_address" class="form-control form-control-sm">
                             </div>
 
-
                         </div>
 
                         <div class="modal-footer">
@@ -501,9 +540,6 @@
             </div>
         </div>
     </main>
-
-
-
 
     {{-- Toast (generic success) --}}
     <div class="position-fixed bottom-0 end-0 p-3" style="z-index:1080">
@@ -535,9 +571,6 @@
         </div>
     </div>
 @endsection
-{{-- Scripts --}}
-
-
 
 @push('scripts')
     <script>
@@ -582,8 +615,6 @@
         const SHOW_URL = '{{ route('estimator.inquiries.show', ['inquiry' => '__ID__']) }}';
         const UPDATE_URL = '{{ route('estimator.inquiries.update', ['inquiry' => '__ID__']) }}';
         const DELETE_URL = '{{ route('estimator.inquiries.destroy', ['inquiry' => '__ID__']) }}';
-        // Track which tab is currently active (default = bidding)
-        // let CURRENT_TAB_KEY = 'bidding';
 
         function resetTabTotals() {
             TAB_SUMS = {all: 0, bidding: 0, inhand: 0};
@@ -643,6 +674,7 @@
 
             if (!area || !AREA_LOCATIONS[area]) {
                 $loc.append('<option value="">Select area first</option>');
+                $('#locationInput').val('').prop('disabled', true);
                 return;
             }
 
@@ -650,14 +682,24 @@
             AREA_LOCATIONS[area].forEach(function (city) {
                 $loc.append($('<option>', {value: city, text: city}));
             });
+
+            $('#locationInput').prop('disabled', false);
         }
 
+        // when Area changes → repopulate locations + enable/disable input
         $('#areaSelect').on('change', function () {
-            populateLocations($(this).val());
+            const area = $(this).val();
+            populateLocations(area);
+        });
+
+        // when user picks a location from dropdown, copy into text input
+        $('#locationSelect').on('change', function () {
+            const val = $(this).val() || '';
+            $('#locationInput').val(val);
         });
 
         /* =============================================================================
-         *  ADD INQUIRY MODAL (Estimator)
+         *  ADD / EDIT INQUIRY MODAL (Estimator)
          * ============================================================================= */
         $(function () {
 
@@ -669,7 +711,9 @@
 
                 $('#projectSelect').val(null).trigger('change');
                 $('#clientSelect').val(null).trigger('change');
+
                 $('#locationSelect').empty().append('<option value="">Select area first</option>');
+                $('#locationInput').val('').prop('disabled', true);
 
                 $('#modalAddInquiry .modal-title').text('Add New Inquiry');
                 $('#modalAddInquiry').modal('show');
@@ -809,6 +853,9 @@
                     $('input[name="contact_email"]').val(d.contact_email || '');
                     $('input[name="company_address"]').val(d.company_address || '');
 
+                    // NEW: revision
+                    $('select[name="revision_no"]').val(d.revision_no ?? 0).trigger('change');
+
                     // Selects (normal)
                     $('select[name="salesman"]').val(d.salesman).trigger('change');
                     $('select[name="area"]').val(d.area).trigger('change');
@@ -817,15 +864,22 @@
                     $('select[name="atai_products"]').val(d.atai_products).trigger('change');
                     $('select[name="status"]').val(d.status).trigger('change');
 
-                    // For area → locations, repopulate then select location
+                    // For area → locations, repopulate then set location input
                     populateLocations(d.area);
-                    $('#locationSelect').val(d.location || '').trigger('change');
 
+                    $('#locationInput').val(d.location || '');
 
-                    // Select2 (project & client) --------------------
+                    if (d.location && AREA_LOCATIONS[d.area] && AREA_LOCATIONS[d.area].includes(d.location)) {
+                        $('#locationSelect').val(d.location);
+                    } else {
+                        $('#locationSelect').val('');
+                    }
+
+                    $('#locationInput').prop('disabled', !d.area);
+
+                    // Select2 (project & client)
                     const projectText = d.project || '';
                     if (projectText) {
-                        // clear old options and set current one
                         const projOpt = new Option(projectText, projectText, true, true);
                         $('#projectSelect').html('').append(projOpt).trigger('change');
                     } else {
@@ -850,7 +904,7 @@
         });
 
         /* =============================================================================
-         *  DATA TABLES (Bidding + In-Hand only)
+         *  DATA TABLES (All / Bidding / In-Hand)
          * ============================================================================= */
 
         const projectColumns = [
@@ -861,6 +915,31 @@
             {data: 'location', name: 'location'},
             {data: 'area_badge', name: 'area', orderable: true, searchable: false},
             {data: 'quotation_no', name: 'quotation_no'},
+
+            // NEW: Revision column
+            {
+                data: 'revision_no',
+                name: 'revision_no',
+                orderable: true,
+                searchable: false,
+                className: 'text-center',
+                render: function (data, type, row) {
+                    const raw = (data !== undefined && data !== null) ? data : row.revision_no;
+                    const n = parseInt(raw ?? 0, 10);
+                    const safe = isNaN(n) ? 0 : n;
+
+                    if (type === 'sort' || type === 'type' || type === 'filter') {
+                        return safe;
+                    }
+
+                    if (!safe) {
+                        return '<span class="badge bg-secondary-subtle text-secondary">Orig</span>';
+                    }
+
+                    return `<span class="badge bg-info-subtle text-info">R${safe}</span>`;
+                }
+            },
+
             {data: 'atai_products', name: 'atai_products'},
             {
                 data: 'quotation_value_fmt',
@@ -877,8 +956,7 @@
             },
             {data: 'quotation_date', name: 'quotation_date'},
             {data: 'date_rec', name: 'date_rec'},
-
-            // 👇 NEW ACTIONS COLUMN
+            {data: 'created_at_fmt', name: 'created_at'},
             {
                 data: 'actions',
                 name: 'actions',
@@ -914,7 +992,10 @@
             return $table.DataTable({
                 processing: true,
                 serverSide: true,
-                order: [[9, 'desc']],  // sort by status/progress or change as needed
+                order: [[9, 'desc']],
+                scrollX: true,          // NEW: enable horizontal scrolling
+                scrollCollapse: true,   // NEW: don't force extra height
+                autoWidth: false,       // NEW: use our CSS widths
                 ajax: {
                     url: DT_URL,
                     headers: {'X-Requested-With': 'XMLHttpRequest'},
@@ -940,7 +1021,7 @@
                         if (area) d.area = area;
 
                         const sTxt = document.getElementById('salesmanInput')?.value?.trim();
-                        if (sTxt && CAN_VIEW_ALL) d.salesman = sTxt;
+                        if (sTxt) d.salesman = sTxt;
                     },
                     dataSrc: (json) => {
                         const totalCount = Number(
@@ -996,6 +1077,7 @@
                 CURRENT_TAB_KEY = key;
                 updateHeaderBadges(CURRENT_TAB_KEY);
 
+                // NEW: readjust columns after tab change (important for scrollX)
                 setTimeout(() => {
                     dtAll?.columns.adjust();
                     dtBid?.columns.adjust();
@@ -1007,6 +1089,10 @@
         /* Normalization helpers for detail modals (Bidding / In-Hand) */
         function normalizeRow(row) {
             const qVal = row.quotationValue ?? row.quotation_value ?? row.price ?? 0;
+            const revRaw = row.revision_no ?? row.revisionNo ?? 0;
+            const revNum = Number(revRaw ?? 0);
+            const safeRev = isNaN(revNum) ? 0 : revNum;
+
             return {
                 ...row,
                 id: row.id,
@@ -1024,12 +1110,15 @@
                 status: String(row.status_display ?? row.status ?? '').toLowerCase(),
                 checklist: row.checklist ?? {},
                 comments: row.comments ?? '',
+                revision_no: safeRev,
+                revisionLabel: safeRev === 0 ? 'Original' : `R${safeRev}`,
             };
         }
 
         function fillDetails(dlId, p) {
             const dl = document.getElementById(dlId);
             if (!dl) return;
+
             const rows = [
                 ['Project', p.name],
                 ['Client', p.client],
@@ -1037,6 +1126,7 @@
                 ['Location', p.location],
                 ['Area', p.area || '—'],
                 ['Quotation No', p.quotationNo || '—'],
+                ...(p.revisionLabel ? [['Revision', p.revisionLabel]] : []),
                 ...(p.quotationDate ? [['Quotation Date', p.quotationDate]] : []),
                 ...(p.dateRec ? [['Date Received', p.dateRec]] : []),
                 ['ATAI Products', p.ataiProducts || '—'],
@@ -1044,6 +1134,7 @@
                 ['Price', fmtSAR(Number(p.quotationValue || 0))],
                 ['Status', String(p.status || '').toUpperCase()],
             ];
+
             dl.innerHTML = rows.map(([label, val]) =>
                 `<dt class="col-5 text-muted">${label}</dt><dd class="col-7">${val ?? '—'}</dd>`).join('');
         }
@@ -1051,7 +1142,6 @@
         function normalizeStatusToKind(s) {
             const t = String(s || '').toLowerCase().trim();
             if (/^in[\s-]?hand$/.test(t) || ['accepted', 'won', 'order', 'order in hand', 'ih'].includes(t)) return 'inhand';
-            // default estimator view is bidding vs in-hand only
             return 'bidding';
         }
 
@@ -1086,9 +1176,9 @@
                 let notesWrap = document.getElementById('biddingNotesBody');
                 notesWrap.innerHTML = (p.notes || []).map(n =>
                     `<div class="border-start ps-2">
-                   <div class="text-muted">${(n.created_at || '').replace('T', ' ').replace('Z', '')}</div>
-                   <div>${n.note}</div>
-                 </div>`).join('') || '<div class="text-muted">No notes yet.</div>';
+                       <div class="text-muted">${(n.created_at || '').replace('T', ' ').replace('Z', '')}</div>
+                       <div>${n.note}</div>
+                     </div>`).join('') || '<div class="text-muted">No notes yet.</div>';
                 new bootstrap.Modal(document.getElementById('biddingModal')).show();
                 return;
             }
@@ -1112,44 +1202,21 @@
                 let notesWrap = document.getElementById('inhandNotesBody');
                 notesWrap.innerHTML = (p.notes || []).map(n =>
                     `<div class="border-start ps-2">
-                   <div class="text-muted">${(n.created_at || '').replace('T', ' ').replace('Z', '')}</div>
-                   <div>${n.note}</div>
-                 </div>`).join('') || '<div class="text-muted">No notes yet.</div>';
+                       <div class="text-muted">${(n.created_at || '').replace('T', ' ').replace('Z', '')}</div>
+                       <div>${n.note}</div>
+                     </div>`).join('') || '<div class="text-muted">No notes yet.</div>';
                 new bootstrap.Modal(document.getElementById('inhandModal')).show();
                 return;
             }
         }
 
-        /* View button handler (actions column) */
-        // $(document).on('click', '[data-action="view"]', async function (e) {
-        //     e.preventDefault();
-        //     const $tr = $(this).closest('tr');
-        //     const tryGetRow = (dt) => (dt ? dt.row($tr).data() : null);
-        //     let row =
-        //         tryGetRow($('#tblBidding').DataTable()) ||
-        //         tryGetRow($('#tblInhand').DataTable());
-        //
-        //     if (!row || !row.id) return;
-        //
-        //     let detail = null;
-        //     try {
-        //         const res = await fetch(`/projects/${row.id}`, {
-        //             credentials: 'same-origin',
-        //             headers: {'X-Requested-With': 'XMLHttpRequest'}
-        //         });
-        //         if (res.ok) detail = await res.json();
-        //     } catch (err) {
-        //         console.warn('Detail fetch failed', err);
-        //     }
-        //     if (detail) row = hydrateRowWithDetail(row, detail);
-        //     openProjectModalFromData(row);
-        // });
-
-        /* Global search */
+        /* Global search per tab */
         let dtAll, dtBid, dtIn;
+
         document.getElementById('searchBidding')?.addEventListener('input', e => {
             dtBid && dtBid.search(e.target.value).draw();
         });
+
         document.getElementById('searchInhand')?.addEventListener('input', e => {
             if (dtIn) {
                 dtIn.search(e.target.value);
@@ -1171,8 +1238,23 @@
 
         /* Apply filters */
         document.getElementById('projApply')?.addEventListener('click', () => {
-            PROJ_YEAR = document.getElementById('projYear')?.value || '';
+            const yearEl = document.getElementById('projYear');
+            const monthEl = document.getElementById('monthSelect');
+            const fromEl = document.getElementById('dateFrom');
+            const toEl = document.getElementById('dateTo');
+
+            const month = monthEl?.value || '';
+            const dFrom = fromEl?.value || '';
+            const dTo = toEl?.value || '';
+
+            if (!month && !dFrom && !dTo) {
+                alert('Please select a month or a date range (From / To).');
+                return;
+            }
+
+            PROJ_YEAR = yearEl?.value || '';
             PROJ_REGION = CAN_VIEW_ALL ? (document.getElementById('projRegion')?.value || '') : '';
+
             resetTabTotals();
             dtAll?.ajax.reload(null, false);
             dtBid?.ajax.reload(null, false);
@@ -1199,14 +1281,12 @@
                 document.getElementById('salesmanWrap')?.classList.remove('d-none');
             }
 
-            // preselect 2025 in the UI on first load
             const yearSel = document.getElementById('projYear');
             if (yearSel && !yearSel.value) {
                 const opt = [...yearSel.options].find(o => o.value === '2025');
                 if (opt) yearSel.value = '2025';
             }
 
-            // init only the two estimator tables
             dtAll = initProjectsTable('#tblAll', 'all');
             dtBid = initProjectsTable('#tblBidding', 'bidding');
             dtIn = initProjectsTable('#tblInhand', 'inhand');
@@ -1239,11 +1319,12 @@
                 clientReference: d.clientReference ?? row.clientReference,
                 projectType: d.projectType ?? row.projectType,
                 salesperson: d.salesperson ?? row.salesperson,
+                revision_no: d.revision_no ?? row.revision_no ?? 0,
             };
         }
 
         /* =============================================================================
-         *  Network helpers (same as before)
+         *  Network helpers
          * ============================================================================= */
         async function postProjectUpdate(pid, payload) {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -1317,7 +1398,7 @@
         normalizeDateInput('input[name="quotation_date"], input[name="date_received"]');
 
         /* =============================================================================
-         *  EXPORT BUTTONS (reused as-is)
+         *  EXPORT BUTTONS
          * ============================================================================= */
         function buildExportParams() {
             const year = document.getElementById('projYear')?.value || '';
@@ -1343,9 +1424,16 @@
         document.getElementById('btnExportExcel')?.addEventListener('click', () => {
             const year = document.getElementById('projYear')?.value || '';
             const month = document.getElementById('monthSelect')?.value || '';
+            const dateFrom = document.getElementById('dateFrom')?.value || '';
+            const dateTo = document.getElementById('dateTo')?.value || '';
 
-            if (!year || !month) {
-                alert('Please select  Month for Weekly export.');
+            if (!month && !dateFrom && !dateTo) {
+                alert('Please select a Month or a From/To date range for Weekly export.');
+                return;
+            }
+
+            if (month && !year) {
+                alert('Please select a Year when exporting by Month.');
                 return;
             }
 
@@ -1366,7 +1454,6 @@
             window.location.href = '{{ route('estimation.reports.export.monthly') }}' + (qs ? ('?' + qs) : '');
         });
 
-
         let PENDING_DELETE_ID = null;
         const confirmModalEl = document.getElementById('confirmActionModal');
         const confirmModal = confirmModalEl ? new bootstrap.Modal(confirmModalEl) : null;
@@ -1386,7 +1473,6 @@
             btn.classList.remove('btn-primary', 'btn-warning');
             btn.classList.add('btn-danger');
 
-            // 🔹 make sure no old backdrops are hanging around
             cleanupBackdrops();
 
             confirmModal.show();
@@ -1412,7 +1498,7 @@
                 .then(r => r.json())
                 .then(resp => {
                     confirmModal.hide();
-                    cleanupBackdrops();  // 🔹 add this
+                    cleanupBackdrops();
 
                     PENDING_DELETE_ID = null;
 
@@ -1432,13 +1518,11 @@
                     alert('Unexpected error while deleting.');
                 });
         });
+
         document.addEventListener('hidden.bs.modal', (e) => {
-            // Only hard-cleanup when the confirm dialog closes
             if (e.target && e.target.id === 'confirmActionModal') {
                 cleanupBackdrops();
             }
         });
     </script>
 @endpush
-
-
