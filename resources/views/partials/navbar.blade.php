@@ -147,9 +147,9 @@
             {{-- Right Section --}}
             <div class="navbar-right d-flex align-items-center">
                 <div class="navbar-text me-3">
-                    Logged in as <strong>{{ $u->name ?? '' }}</strong>
-                    @if(!empty($u->region))
-                         <small>{{ ucfirst($u->region) }}</small>
+                    Logged in as <strong>{{ trim($u->name) }}</strong>
+                    @if($u->region)
+                        <small>{{ strtoupper($u->region) }}</small>
                     @endif
                 </div>
                 <form method="POST" action="{{ route('logout') }}" class="m-0">@csrf

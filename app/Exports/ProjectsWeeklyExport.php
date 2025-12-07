@@ -12,14 +12,19 @@ class ProjectsWeeklyExport implements WithMultipleSheets
     protected array $groups;
 
     protected ?string $estimatorName;
+    protected ?string $salesmanName;
 
     /**
      * @param array<string, Project[]> $groups
      */
-    public function __construct(array $groups, ?string $estimatorName = null)
-    {
+    public function __construct(
+        array $groups,
+        ?string $estimatorName = null,
+        ?string $salesmanName = null
+    ) {
         $this->groups        = [];
         $this->estimatorName = $estimatorName;
+        $this->salesmanName  = $salesmanName;
 
         // Normalize to Collections
         foreach ($groups as $label => $rows) {
@@ -34,7 +39,13 @@ class ProjectsWeeklyExport implements WithMultipleSheets
         $sheets = [];
 
         foreach ($this->groups as $label => $rows) {
-            $sheets[] = new WeekSheetExport($rows, $label, $this->estimatorName);
+            // 🔹 pass salesman name to each weekly sheet
+            $sheets[] = new WeekSheetExport(
+                $rows,
+                $label,
+                $this->estimatorName,
+                $this->salesmanName
+            );
         }
 
         return $sheets;

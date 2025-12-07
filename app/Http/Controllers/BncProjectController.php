@@ -55,23 +55,80 @@ class BncProjectController extends Controller
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        // Base Eloquent query with LEFT JOIN to inquiries (projects)
+        $USD_TO_SAR = 3.75;
+
         $query = BncProject::query()
             ->leftJoin('projects as inquiries', function ($join) {
-                // force both sides to same collation and drop LOWER()
+                // 1) City must match (case-insensitive, same collation)
                 $join->on(
-                    DB::raw('inquiries.project_name COLLATE utf8mb4_unicode_ci'),
+                    DB::raw('LOWER(TRIM(inquiries.project_location)) COLLATE utf8mb4_unicode_ci'),
                     '=',
-                    DB::raw('bnc_projects.project_name COLLATE utf8mb4_unicode_ci')
-                );
+                    DB::raw('LOWER(TRIM(bnc_projects.city)) COLLATE utf8mb4_unicode_ci')
+                )
+                    // 2) Intelligent name match:
+                    //    take last part of BNC name after "-" (if any)
+                    //    and check that inquiries.project_name contains it.
+                    ->whereRaw("
+                        LOWER(inquiries.project_name COLLATE utf8mb4_unicode_ci)
+                        LIKE CONCAT(
+                            '%',
+                            LOWER(
+                                TRIM(
+                                    CASE
+                                        WHEN LOCATE('-', bnc_projects.project_name) > 0
+                                            THEN SUBSTRING_INDEX(bnc_projects.project_name, '-', -1)
+                                        ELSE bnc_projects.project_name
+                                    END
+                                )
+                            ),
+                            '%'
+                        )
+                    ");
             })
             ->select([
-                'bnc_projects.*',
-                'inquiries.quotation_no as inquiry_quotation_no',
-                'inquiries.quotation_value as inquiry_quotation_value',
+                // base BNC fields you are actually showing in the table
+                'bnc_projects.id',
+                'bnc_projects.reference_no',
+                'bnc_projects.project_name',
+                'bnc_projects.city',
+                'bnc_projects.region',
+                'bnc_projects.stage',
+                'bnc_projects.value_usd',
+                'bnc_projects.approached',
+                'bnc_projects.lead_qualified',
+                'bnc_projects.penetration_percent',
+                'bnc_projects.expected_close_date',
+
+                // aggregated inquiries info
+                DB::raw("
+                    GROUP_CONCAT(
+                        DISTINCT CONCAT(
+                            inquiries.quotation_no, '||',
+                            COALESCE(inquiries.quotation_value, 0)
+                        )
+                        SEPARATOR '##'
+                    ) AS inquiry_quotes_concat
+                "),
+                DB::raw("
+                    SUM(COALESCE(inquiries.quotation_value, 0))
+                    AS inquiry_quotation_total_value
+                "),
+            ])
+            ->groupBy([
+                'bnc_projects.id',
+                'bnc_projects.reference_no',
+                'bnc_projects.project_name',
+                'bnc_projects.city',
+                'bnc_projects.region',
+                'bnc_projects.stage',
+                'bnc_projects.value_usd',
+                'bnc_projects.approached',
+                'bnc_projects.lead_qualified',
+                'bnc_projects.penetration_percent',
+                'bnc_projects.expected_close_date',
             ]);
 
-        // ---------- Region scoping (same logic as index) ----------
+        /* ---------- Region scoping (same logic as index) ---------- */
         if ($user->hasAnyRole(['admin', 'gm'])) {
             if ($region = $request->string('region')->trim()->value()) {
                 $query->where('bnc_projects.region', $region);
@@ -94,7 +151,7 @@ class BncProjectController extends Controller
             }
         }
 
-        // ---------- Filters from request ----------
+        /* ---------- Filters from request ---------- */
         if ($stage = $request->string('stage')->trim()->value()) {
             $query->where('bnc_projects.stage', $stage);
         }
@@ -117,62 +174,123 @@ class BncProjectController extends Controller
             });
         }
 
-        $USD_TO_SAR = 3.75;
-
         // ---------- DataTables response ----------
         return DataTables::of($query)
-            ->addIndexColumn() // DT_RowIndex
+            ->addIndexColumn()
 
             // Value (USD) nicely formatted
-            ->editColumn('value_usd', function (BncProject $p) {
-                return number_format($p->value_usd ?? 0, 0);
+            ->editColumn('value_usd', function ($row) {
+                return number_format($row->value_usd ?? 0, 0);
             })
 
-            // NEW: Value (SAR) using fixed FX rate
-            ->addColumn('value_sar', function (BncProject $p) use ($USD_TO_SAR) {
-                $sar = ($p->value_usd ?? 0) * $USD_TO_SAR;
+            // Value (SAR) using fixed FX rate
+            ->addColumn('value_sar', function ($row) use ($USD_TO_SAR) {
+                $sar = ($row->value_usd ?? 0) * $USD_TO_SAR;
                 return number_format($sar, 0);
             })
 
             // Approached badge
-            ->editColumn('approached', function (BncProject $p) {
-                if ($p->approached) {
+            ->editColumn('approached', function ($row) {
+                if ($row->approached) {
                     return '<span class="badge bg-success">Yes</span>';
                 }
                 return '<span class="badge bg-secondary">No</span>';
             })
 
             // Expected close date simple format
-            ->editColumn('expected_close_date', function (BncProject $p) {
-                return $p->expected_close_date
-                    ? $p->expected_close_date->format('Y-m-d')
-                    : '';
+            ->editColumn('expected_close_date', function ($row) {
+                if (empty($row->expected_close_date)) {
+                    return '';
+                }
+                return \Illuminate\Support\Carbon::parse($row->expected_close_date)->format('Y-m-d');
             })
 
-            // NEW: Quoted? column
-            ->addColumn('quoted_status', function (BncProject $p) {
-                if (!empty($p->inquiry_quotation_no)) {
-                    return 'Quoted (' . e($p->inquiry_quotation_no) . ')';
+            // Quoted? column – compact button + count
+            ->addColumn('quoted_status', function ($row) {
+                $concat  = (string) ($row->inquiry_quotes_concat ?? '');
+                $entries = array_filter(explode('##', $concat));
+                $count   = 0;
+
+                foreach ($entries as $entry) {
+                    [$qNo, $val] = array_pad(explode('||', $entry), 2, 0);
+                    $qNo = trim($qNo);
+                    if ($qNo === '') {
+                        continue;
+                    }
+                    $count++;
                 }
-                return 'Not Quoted';
+
+                if ($count === 0) {
+                    return '<span class="text-muted small">Not quoted</span>';
+                }
+
+                $label = $count === 1 ? '1 quote' : $count . ' quotes';
+
+                return '<button type="button" class="btn btn-sm btn-outline-light bnc-quotes-toggle" data-count="'
+                    . e($count)
+                    . '">'
+                    . e($label)
+                    . ' <i class="bi bi-chevron-down small"></i></button>';
             })
 
-            // NEW: Quoted value (SAR) column
-            ->addColumn('quoted_value_sar', function (BncProject $p) {
-                if (!empty($p->inquiry_quotation_no) && $p->inquiry_quotation_value) {
-                    return number_format($p->inquiry_quotation_value, 0);
+            // Total quoted value (sum of all inquiries)
+            ->addColumn('quoted_value_sar', function ($row) {
+                $total = (float) ($row->inquiry_quotation_total_value ?? 0);
+                if ($total <= 0) {
+                    return '';
                 }
-                return '';
+                return number_format($total, 0);
+            })
+
+            // Hidden detail HTML for child row
+            ->addColumn('quotes_detail_html', function ($row) {
+                $concat  = (string) ($row->inquiry_quotes_concat ?? '');
+                $entries = array_filter(explode('##', $concat));
+
+                if (empty($entries)) {
+                    return '<div class="px-3 py-2 text-muted small">No quotations linked yet.</div>';
+                }
+
+                $lines = [];
+                foreach ($entries as $entry) {
+                    [$qNo, $val] = array_pad(explode('||', $entry), 2, 0);
+                    $qNo = trim($qNo);
+                    if ($qNo === '') {
+                        continue;
+                    }
+                    $lines[] = [
+                        'no'   => $qNo,
+                        'val'  => (float) $val,
+                    ];
+                }
+
+                if (empty($lines)) {
+                    return '<div class="px-3 py-2 text-muted small">No quotations linked yet.</div>';
+                }
+
+                $html = '<div class="px-3 py-2">';
+                $html .= '<div class="small fw-semibold mb-2">Linked Quotations</div>';
+                $html .= '<table class="table table-sm table-dark table-striped mb-0">';
+                $html .= '<thead><tr><th>Quotation No.</th><th class="text-end">Quotation Value (SAR)</th></tr></thead><tbody>';
+
+                foreach ($lines as $line) {
+                    $html .= '<tr><td>' . e($line['no']) . '</td><td class="text-end">'
+                        . number_format($line['val'], 0) . '</td></tr>';
+                }
+
+                $html .= '</tbody></table></div>';
+
+                return $html;
             })
 
             // Actions col
-            ->addColumn('actions', function (BncProject $p) {
+            ->addColumn('actions', function ($row) {
                 return '<button type="button" class="btn btn-sm btn-outline-light btn-bnc-view" data-id="'
-                    . e($p->id)
+                    . e($row->id)
                     . '">View</button>';
             })
 
-            ->rawColumns(['approached', 'actions'])
+            ->rawColumns(['approached', 'quoted_status', 'quotes_detail_html', 'actions'])
             ->make(true);
     }
 

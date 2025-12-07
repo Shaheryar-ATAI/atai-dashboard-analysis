@@ -1,4 +1,3 @@
-{{-- resources/views/bnc/index.blade.php --}}
 @extends('layouts.app')
 
 @section('title', 'BNC Projects')
@@ -184,9 +183,10 @@
                         <th>Region</th>
                         <th>Stage</th>
                         <th>Value (USD)</th>
-                        <th>Value (SAR)</th>          {{-- NEW --}}
-                        <th>Quoted?</th>               {{-- NEW --}}
-                        <th>Quoted Value (SAR)</th>    {{-- NEW --}}
+                        <th>Value (SAR)</th>
+                        <th>Quotes</th>                {{-- compact button --}}
+                        <th>Quoted Value (SAR)</th>
+                        <th class="quotes-detail">Quotes Detail</th> {{-- hidden column for child row --}}
                         <th>Approached</th>
                         <th>Lead</th>
                         <th>Penetration %</th>
@@ -386,11 +386,8 @@
             const formatDate = (val) => {
                 if (!val) return '';
                 const s = String(val);
-                const datePart = s.split('T')[0]; // YYYY-MM-DD from ISO
-
-                // if BNC sends some weird epoch/placeholder you want to hide:
+                const datePart = s.split('T')[0];
                 if (datePart === '1970-01-01' || datePart === '1969-12-31') return '';
-
                 return datePart;
             };
 
@@ -399,7 +396,7 @@
                 processing: true,
                 serverSide: true,
                 pageLength: 25,
-                order: [[5, 'desc']], // Value (USD) column
+                order: [[5, 'desc']], // Value (USD)
                 ajax: {
                     url: @json(route('bnc.datatable')),
                     data: function (d) {
@@ -411,20 +408,28 @@
                     }
                 },
                 columns: [
-                    { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false },
-                    { data: 'project_name', name: 'project_name' },
-                    { data: 'city', name: 'city' },
-                    { data: 'region', name: 'region' },
-                    { data: 'stage', name: 'stage' },
-                    { data: 'value_usd', name: 'value_usd', className: 'text-end' },
-                    { data: 'value_sar', name: 'value_sar', className: 'text-end', orderable: false, searchable: false },
-                    { data: 'quoted_status', name: 'quoted_status', orderable: false, searchable: false },
-                    { data: 'quoted_value_sar', name: 'quoted_value_sar', className: 'text-end', orderable: false, searchable: false },
-                    { data: 'approached', name: 'approached', orderable: false, searchable: false },
-                    { data: 'lead_qualified', name: 'lead_qualified' },
+                    { data: 'DT_RowIndex',         name: 'DT_RowIndex', orderable: false, searchable: false },
+                    { data: 'project_name',        name: 'project_name' },
+                    { data: 'city',                name: 'city' },
+                    { data: 'region',              name: 'region' },
+                    { data: 'stage',               name: 'stage' },
+                    { data: 'value_usd',           name: 'value_usd',           className: 'text-end' },
+                    { data: 'value_sar',           name: 'value_sar',           className: 'text-end', orderable: false, searchable: false },
+                    { data: 'quoted_status',       name: 'quoted_status',       orderable: false, searchable: false },
+                    { data: 'quoted_value_sar',    name: 'quoted_value_sar',    className: 'text-end', orderable: false, searchable: false },
+                    { data: 'quotes_detail_html',  name: 'quotes_detail_html' }, // hidden via columnDefs
+                    { data: 'approached',          name: 'approached',          orderable: false, searchable: false },
+                    { data: 'lead_qualified',      name: 'lead_qualified' },
                     { data: 'penetration_percent', name: 'penetration_percent', className: 'text-center' },
                     { data: 'expected_close_date', name: 'expected_close_date' },
-                    { data: 'actions', name: 'actions', orderable: false, searchable: false, className: 'text-end' },
+                    { data: 'actions',             name: 'actions',             orderable: false, searchable: false, className: 'text-end' },
+                ],
+                columnDefs: [
+                    {
+                        targets: 'quotes-detail',
+                        visible: false,
+                        searchable: false
+                    }
                 ]
             });
 
@@ -436,6 +441,26 @@
             document.getElementById('bncResetFilters').addEventListener('click', function () {
                 document.getElementById('bncFilters').reset();
                 table.ajax.reload();
+            });
+
+            // --- Quotes child row toggle ---
+            $('#tblBncProjects tbody').on('click', '.bnc-quotes-toggle', function () {
+                const tr  = $(this).closest('tr');
+                const row = table.row(tr);
+                const $btn = $(this);
+                const $icon = $btn.find('i.bi');
+
+                if (row.child.isShown()) {
+                    row.child.hide();
+                    tr.removeClass('shown');
+                    $icon.removeClass('bi-chevron-up').addClass('bi-chevron-down');
+                } else {
+                    const data = row.data();
+                    const html = data.quotes_detail_html || '<div class="px-3 py-2 text-muted small">No quotations linked yet.</div>';
+                    row.child(html).show();
+                    tr.addClass('shown');
+                    $icon.removeClass('bi-chevron-down').addClass('bi-chevron-up');
+                }
             });
 
             // View button -> JSON -> modal
@@ -472,7 +497,6 @@
                     <dt class="col-sm-4">Award Date</dt><dd class="col-sm-8">${formatDate(p.award_date)}</dd>
                 `;
 
-                // helper: convert "a; b; c" into bullet-style lines
                 const bullets = (txt) => {
                     if (!txt) return '';
                     return String(txt)
@@ -483,7 +507,6 @@
                         .join('\n');
                 };
 
-                // --- Overview Info (TAB 1 style) ---
                 const overview = `
 Reference Number: ${safe(p.reference_no)}
 Project Sector: ${safe(p.project_sector || p.project_sector_label)}
@@ -497,7 +520,6 @@ GPS: ${safe(p.gps || '')}
 
                 document.getElementById('bnc_overview_block').textContent = overview;
 
-                // --- Parties block (TAB 2 style) ---
                 const parties = [
                     'Consultant(s):',
                     bullets(p.consultant),
@@ -511,11 +533,10 @@ GPS: ${safe(p.gps || '')}
 
                 document.getElementById('bnc_parties_block').textContent = parties.trim();
 
-                // --- Latest News (TAB 3 style) ---
                 document.getElementById('bnc_latest_block').textContent =
                     p.latest_news ? String(p.latest_news) : 'No recent news available.';
 
-                // --- Checkpoints (right side) ---
+                // Checkpoints
                 document.getElementById('bnc_project_id').value = p.id;
                 document.getElementById('bnc_approached_input').value = p.approached ? '1' : '0';
                 document.getElementById('bnc_lead_qualified_input').value = p.lead_qualified ?? 'Unknown';

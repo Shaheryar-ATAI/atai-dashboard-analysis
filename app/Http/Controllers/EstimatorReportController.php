@@ -31,65 +31,131 @@ class EstimatorReportController extends Controller
      * - Estimator can see *all* salesmen in their region
      * - GM/Admin can see all regions
      */
+//    protected function estimatorBaseQuery(Request $request): Builder
+//    {
+//        /** @var \App\Models\User $user */
+//        $user = $request->user();
+//
+//        $q = Project::query()
+//            ->whereNull('deleted_at');
+//
+//        // 🔐 Normal estimator: only their own inquiries (same as DataTable)
+//        if (!$user->hasRole('Admin') && !$user->hasRole('GM')) {
+//
+//            // Match region if user has one
+//            if ($user->region) {
+//                $q->where('area', strtoupper($user->region));
+//            }
+//
+//            // Match estimator_name exactly like DataTable
+//            $nameKey = strtoupper(trim($user->name));
+//            $q->whereRaw("UPPER(TRIM(estimator_name)) = ?", [$nameKey]);
+//        }
+//
+//        // 🧲 Product family filter (optional)
+//        if ($family = $request->input('family')) {
+//            if ($family !== 'all') {
+//                $q->where('atai_products', 'LIKE', "%{$family}%");
+//            }
+//        }
+//
+//        // 📅 Optional from/to date filters (same 'effective date' as listing/export)
+//        $dateExpr = DB::raw("COALESCE(DATE(quotation_date), DATE(date_rec))");
+//
+//// support both date_from/date_to and legacy from/to
+//        $from = $request->input('date_from') ?? $request->input('from');
+//        $to = $request->input('date_to') ?? $request->input('to');
+//
+//        if ($from) {
+//            $q->whereDate($dateExpr, '>=', $from);
+//        }
+//        if ($to) {
+//            $q->whereDate($dateExpr, '<=', $to);
+//        }
+//        return $q;
+//    }
     protected function estimatorBaseQuery(Request $request): Builder
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
 
+        // Start from ALL non-deleted projects
         $q = Project::query()
             ->whereNull('deleted_at');
 
-        // 🔐 Normal estimator: only their own inquiries (same as DataTable)
+        // 🔐 Normal estimator: only their own inquiries (by estimator_name)
         if (!$user->hasRole('Admin') && !$user->hasRole('GM')) {
-
-            // Match region if user has one
-            if ($user->region) {
-                $q->where('area', strtoupper($user->region));
-            }
-
-            // Match estimator_name exactly like DataTable
             $nameKey = strtoupper(trim($user->name));
-            $q->whereRaw("UPPER(TRIM(estimator_name)) = ?", [$nameKey]);
+            $q->whereRaw('UPPER(TRIM(estimator_name)) = ?', [$nameKey]);
         }
 
-        // 🧲 Product family filter (optional)
+        // 🔹 Region filter (from top dropdown)
+        if ($area = $request->input('area')) {
+            $q->where('area', $area);
+        }
+
+        // 🔹 Salesman filter (case-insensitive, uses `salesperson` column only)
+        if ($salesman = $request->input('salesman')) {
+            $salesmanKey = strtoupper(trim($salesman));
+            if ($salesmanKey !== '') {
+                $q->whereRaw('UPPER(TRIM(salesperson)) = ?', [$salesmanKey]);
+            }
+        }
+
+        // 🧲 Product family filter (optional, same as UI)
         if ($family = $request->input('family')) {
             if ($family !== 'all') {
                 $q->where('atai_products', 'LIKE', "%{$family}%");
             }
         }
 
-        // 📅 Optional from/to date filters (same field as listing: date_rec)
-        if ($from = $request->input('from')) {
-            $q->whereDate('date_rec', '>=', $from);
-        }
-        if ($to = $request->input('to')) {
-            $q->whereDate('date_rec', '<=', $to);
-        }
+        // ❌ No date filters here – exportMonthly/exportWeekly add them.
 
         return $q;
     }
 
+
     public function exportMonthly(Request $request)
     {
-        $year = (int)$request->input('year');
-        $month = (int)$request->input('month');
+        $year  = (int) $request->input('year');
+        $month = (int) $request->input('month');
 
         if (!$year || !$month) {
             return back()->with('error', 'Please select year and month for monthly export.');
         }
 
-        // 👇 SAME date field for listing & export
-        $dateExpr = DB::raw("COALESCE(DATE(quotation_date), DATE(date_rec))");
+        // 📅 SAME effective date as listing: COALESCE(quotation_date, date_rec)
+        $dateExprSql = "COALESCE(DATE(quotation_date), DATE(date_rec))";
 
-        $rows = $this->estimatorBaseQuery($request)
-            ->whereYear($dateExpr, $year)
-            ->whereMonth($dateExpr, $month)
-            ->orderBy($dateExpr)
-            ->get();
+        // Start from estimator-scoped base query (estimator, area, salesman, family)
+        $q = $this->estimatorBaseQuery($request)
+            ->whereRaw("YEAR($dateExprSql) = ?", [$year])
+            ->whereRaw("MONTH($dateExprSql) = ?", [$month])
+            ->orderByRaw("$dateExprSql ASC");
 
+        $rows = $q->get();
+
+        if ($rows->isEmpty()) {
+            return back()->with('error', 'No inquiries found for the selected filters.');
+        }
+
+        // 🔹 Month label
         $monthName = Carbon::createFromDate($year, $month, 1)->format('F Y');
-        $fileName = 'ATAI-Projects-Monthly-' . $monthName . '.xlsx';
+
+        // 🔹 Salesman part for filename
+        $salesmanFilter = trim((string) $request->input('salesman', ''));
+        $salesmanPart   = $salesmanFilter !== '' ? $salesmanFilter : 'All Salesmen';
+
+        // Make salesman safe for filename
+        $safeSalesman = preg_replace('/[\/\\\\:*?"<>|]+/', '-', $salesmanPart);
+
+        // 📁 Final filename: ATAI-Projects-Monthly - Ahmed Amin - December 2025.xlsx
+        $fileName = sprintf(
+            'ATAI-Projects-Monthly - %s - %s.xlsx',
+            $safeSalesman,
+            $monthName
+        );
+
         $estimatorName = optional(Auth::user())->name;
 
         return Excel::download(
@@ -98,53 +164,90 @@ class EstimatorReportController extends Controller
         );
     }
 
+
     public function exportWeekly(Request $request)
     {
-        $year  = (int)$request->input('year');
-        $month = (int)$request->input('month');
+        $year     = (int) $request->input('year');
+        $month    = (int) $request->input('month');
+        $dateFrom = $request->input('date_from');
+        $dateTo   = $request->input('date_to');
 
-        if (!$year || !$month) {
-            return back()->with('error', 'Please select year and month for weekly export.');
+        if (!$month && !$dateFrom && !$dateTo) {
+            return back()->with('error', 'Please select a month or a date range for weekly export.');
         }
 
-        $dateExpr = DB::raw("COALESCE(DATE(quotation_date), DATE(date_rec))");
+        $dateExprSql = "COALESCE(DATE(quotation_date), DATE(date_rec))";
 
-        $rows = $this->estimatorBaseQuery($request)
-            ->whereYear($dateExpr, $year)
-            ->whereMonth($dateExpr, $month)
-            ->orderBy($dateExpr)
-            ->get();
+        // salesman filter (for filename)
+        $salesmanFilter = trim((string) $request->input('salesman', ''));
 
-        // 🔴 NEW: if there is no data, DO NOT call Excel at all
+        // Base filtered query
+        $q = $this->estimatorBaseQuery($request);
+
+        if ($dateFrom || $dateTo) {
+            if ($dateFrom) {
+                $q->whereRaw("$dateExprSql >= ?", [$dateFrom]);
+            }
+            if ($dateTo) {
+                $q->whereRaw("$dateExprSql <= ?", [$dateTo]);
+            }
+        } else {
+            if (!$year || !$month) {
+                return back()->with('error', 'Please select year and month for weekly export.');
+            }
+
+            $q->whereRaw("YEAR($dateExprSql) = ?", [$year])
+                ->whereRaw("MONTH($dateExprSql) = ?", [$month]);
+        }
+
+        $rows = $q->orderByRaw("$dateExprSql ASC")->get();
+
         if ($rows->isEmpty()) {
-            return back()->with('error', 'No inquiries found for the selected month and year.');
+            return back()->with('error', 'No inquiries found for the selected filters.');
         }
 
-        // ---- group rows into weeks (Sun–Thu) ----
+        // ---- Group rows into weeks ----
         $groups = [];
         foreach ($rows as $p) {
-            /** @var \App\Models\Project $p */
             $date = $p->quotation_date ?? $p->date_rec;
             if (!$date) {
                 $key = 'No Date';
             } else {
-                $c      = Carbon::parse($date);
-                $start  = $c->copy()->startOfWeek(Carbon::SUNDAY);
-                $end    = $start->copy()->addDays(4); // Thursday
-                $key    = $start->format('d-m-Y') . ' to ' . $end->format('d-m-Y');
+                $c     = Carbon::parse($date);
+                $start = $c->copy()->startOfWeek(Carbon::SUNDAY);
+                $end   = $start->copy()->addDays(4); // Thursday
+
+                // The week label used inside sheet
+                $key = $start->format('d-m-Y') . ' to ' . $end->format('d-m-Y');
             }
             $groups[$key][] = $p;
         }
         ksort($groups);
 
-        $fileName      = 'ATAI-Projects-Weekly-' . now()->format('Ymd_His') . '.xlsx';
+        // Extract the FIRST week key for filename
+        $firstWeekKey = array_key_first($groups);   // e.g. "30-11-2025 to 04-12-2025"
+
+        // Convert for filename compatibility
+        $safeWeekKey = str_replace([' ', '/'], ['', '-'], $firstWeekKey);
+        // becomes "30-11-2025to04-12-2025"
+
+        // Add salesman if selected
+        $fileSalesman = $salesmanFilter ? preg_replace('/[^A-Za-z0-9]+/', '_', $salesmanFilter) : 'All';
+
+        // FINAL FILENAME
+        $fileName = "ATAI-Projects-Weekly-{$fileSalesman}-{$safeWeekKey}.xlsx";
+
         $estimatorName = optional(Auth::user())->name;
 
         return Excel::download(
-            new ProjectsWeeklyExport($groups, $estimatorName),
+            new ProjectsWeeklyExport($groups, $estimatorName, $salesmanFilter),
             $fileName
         );
     }
+
+
+
+
 
 
 
@@ -187,6 +290,7 @@ class EstimatorReportController extends Controller
             'area' => 'required|in:Eastern,Central,Western',
             'quotation_no' => 'required|string|max:255|unique:projects,quotation_no',
             'quotation_date' => 'required|date',
+            'revision_no' => 'nullable|integer|min:0|max:9',
             'date_received' => 'required|date',
             'atai_products' => 'required|string|max:255',
             'price' => 'required|numeric|min:0',
@@ -207,6 +311,7 @@ class EstimatorReportController extends Controller
             'salesman' => $data['salesman'],
             'salesperson' => $data['salesman'],
             'quotation_no' => $data['quotation_no'],
+            'revision_no'        => $data['revision_no'] ?? 0,
             'quotation_date' => $data['quotation_date'],
             'date_rec' => $data['date_received'],
             'atai_products' => $data['atai_products'],
@@ -277,22 +382,41 @@ class EstimatorReportController extends Controller
     public function data(Request $req)
     {
         /** @var \App\Models\User $user */
-        $user = $req->user();
-        $draw = (int)$req->input('draw', 1);
-        $start = (int)$req->input('start', 0);
-        $length = (int)$req->input('length', 10);
+        $user   = $req->user();
+        $draw   = (int) $req->input('draw', 1);
+        $start  = (int) $req->input('start', 0);
+        $length = (int) $req->input('length', 10);
 
-        // Logged-in estimator name
-        $estimator = strtoupper(trim($user->name));
-
-        // Build base query: ONLY records created by this estimator (and not soft-deleted)
+        // Base query: all non–soft-deleted inquiries
         $q = Project::query()
-            ->whereRaw("UPPER(TRIM(estimator_name)) = ?", [$estimator])
-            ->whereNull('deleted_at'); // <-- IMPORTANT for soft delete
+            ->whereNull('deleted_at');
+
+        // Normal estimator: only their own inquiries (by estimator_name)
+        if (!$user->hasRole('Admin') && !$user->hasRole('GM')) {
+            $estimator = strtoupper(trim($user->name));
+            $q->whereRaw("UPPER(TRIM(estimator_name)) = ?", [$estimator]);
+        }
+
+
+        // 🔹 Salesman filter (case-insensitive, uses `salesperson` column only)
+        if ($salesman = $req->input('salesman')) {
+            $salesmanKey = strtoupper(trim($salesman));
+            if ($salesmanKey !== '') {
+                $q->whereRaw('UPPER(TRIM(salesperson)) = ?', [$salesmanKey]);
+            }
+        }
+        // 🔹 Region filter (from top dropdown)
+//        if ($area = $req->input('area')) {
+//            $q->where('area', $area);
+//        }
+
 
         // ----- Status tab (Bidding / In-Hand) -----
         $statusNorm = (string)$req->input('status_norm', '');
         $statusNormLc = strtolower($statusNorm);
+
+
+
 
         if ($statusNormLc === 'bidding') {
             $q->whereRaw("UPPER(TRIM(project_type)) = 'BIDDING'");
@@ -301,19 +425,30 @@ class EstimatorReportController extends Controller
         }
 
         // ----- Optional Filters (year, month, family) -----
-        $year = $req->integer('year');
+        $year  = $req->integer('year');
         $month = $req->integer('month');
 
-        $dateExpr = DB::raw("COALESCE(DATE(quotation_date), DATE(date_rec))");
+        $dateExpr  = DB::raw("COALESCE(DATE(quotation_date), DATE(date_rec))");
+        $dateFrom  = $req->input('date_from');
+        $dateTo    = $req->input('date_to');
 
-        if ($year) {
-            $q->whereYear($dateExpr, $year);
+        if ($dateFrom || $dateTo) {
+            // 🔁 If a date range is provided, ignore year/month and use the range only
+            if ($dateFrom) {
+                $q->whereDate($dateExpr, '>=', $dateFrom);
+            }
+            if ($dateTo) {
+                $q->whereDate($dateExpr, '<=', $dateTo);
+            }
+        } else {
+            // 🔁 No range → fall back to year / month filters
+            if ($year) {
+                $q->whereYear($dateExpr, $year);
+            }
+            if ($month) {
+                $q->whereMonth($dateExpr, $month);
+            }
         }
-
-        if ($month) {
-            $q->whereMonth($dateExpr, $month);
-        }
-
         if ($family = $req->input('family')) {
             if ($family !== 'all') {
                 $q->where('atai_products', 'like', '%' . $family . '%');
@@ -341,19 +476,21 @@ class EstimatorReportController extends Controller
         $orderDir = data_get($req->input('order'), '0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
 
         $columns = [
-            0 => 'id',
-            1 => 'project_name',
-            2 => 'client_name',
-            3 => 'salesperson',
-            4 => 'project_location',
-            5 => 'area',
-            6 => 'quotation_no',
-            7 => 'atai_products',
-            8 => 'quotation_value',
-            9 => 'project_type',
-            10 => 'quotation_date',
-            11 => 'date_rec',
-            12 => 'id', // actions column (we’ll sort by id if user clicks)
+            0  => 'id',
+            1  => 'project_name',
+            2  => 'client_name',
+            3  => 'salesperson',
+            4  => 'project_location',
+            5  => 'area',
+            6  => 'quotation_no',
+            7  => 'revision_no',      // 👈 NEW position
+            8  => 'atai_products',
+            9  => 'quotation_value',
+            10 => 'project_type',
+            11 => 'quotation_date',
+            12 => 'date_rec',
+            13 => 'created_at',
+            14 => 'id',               // actions
         ];
 
         $orderCol = $columns[$orderColIndex] ?? 'id';
@@ -400,19 +537,21 @@ class EstimatorReportController extends Controller
             </div>';
 
             return [
-                'id' => $p->id,
-                'name' => $p->project_name,
-                'client' => $p->client_name,
-                'salesperson' => $p->salesperson ?? $p->salesman,
-                'location' => $p->project_location,
-                'area_badge' => $areaBadge($p->area),
-                'quotation_no' => $p->quotation_no,
-                'quotation_date' => optional($p->quotation_date)->format('Y-m-d'),
-                'date_rec' => optional($p->date_rec)->format('Y-m-d'),
-                'atai_products' => $p->atai_products,
+                'id'                  => $p->id,
+                'name'                => $p->project_name,
+                'client'              => $p->client_name,
+                'salesperson'         => $p->salesperson ?? $p->salesman,
+                'location'            => $p->project_location,
+                'area_badge'          => $areaBadge($p->area),
+                'quotation_no'        => $p->quotation_no,
+                'revision_no'         => (int) ($p->revision_no ?? 0),   // 👈 NEW
+                'quotation_date'      => optional($p->quotation_date)->format('Y-m-d'),
+                'date_rec'            => optional($p->date_rec)->format('Y-m-d'),
+                'atai_products'       => $p->atai_products,
                 'quotation_value_fmt' => $fmtSar($p->quotation_value),
-                'status_badge' => $statusBadge($status),
-                'actions' => $actionsHtml,   // 👈 NEW COLUMN
+                'status_badge'        => $statusBadge($status),
+                'created_at_fmt'      => optional($p->created_at)->format('Y-m-d H:i'),
+                'actions'             => $actionsHtml,
             ];
         });
 
@@ -445,6 +584,7 @@ class EstimatorReportController extends Controller
                 'technical_submittal' => $technical,
                 'location' => $inquiry->project_location,
                 'quotation_no' => $inquiry->quotation_no,
+                'revision_no'       => (int) ($inquiry->revision_no ?? 0),
                 'quotation_date' => optional($inquiry->quotation_date)->format('Y-m-d'),
                 'date_received' => optional($inquiry->date_rec)->format('Y-m-d'),
                 'atai_products' => $inquiry->atai_products,
@@ -470,6 +610,7 @@ class EstimatorReportController extends Controller
             'technical_submittal' => ['nullable', 'string', 'max:10'],
             'location' => ['nullable', 'string', 'max:255'],
             'quotation_no' => ['required', 'string', 'max:255'],
+            'revision_no' => ['nullable', 'integer', 'min:0', 'max:9'],
             'quotation_date' => ['required', 'date'],
             'date_received' => ['required', 'date'],
             'atai_products' => ['required', 'string', 'max:100'],
@@ -491,6 +632,7 @@ class EstimatorReportController extends Controller
             'technical_submittal' => $data['technical_submittal'] ?? null,
             'project_location' => $data['location'] ?? null,
             'quotation_no' => $data['quotation_no'],
+            'revision_no'        => $data['revision_no'] ?? 0,
             'quotation_date' => $data['quotation_date'],
             'date_rec' => $data['date_received'],
             'atai_products' => $data['atai_products'],

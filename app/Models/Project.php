@@ -17,6 +17,7 @@ class Project extends Model
         'project_location',
         'area',
         'quotation_no',
+        'revision_no',
         'atai_products',
         'value_with_vat',
         'quotation_value',
