@@ -763,3 +763,20 @@ select option {
         overflow-y: auto;
     }
 }
+.atai-logout-btn {
+    background: rgba(255, 0, 0, 0.18);
+    color: #ff6b6b !important;
+    border: 1px solid rgba(255, 0, 0, 0.4);
+    backdrop-filter: blur(6px);
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: 0.25s;
+}
+
+.atai-logout-btn:hover {
+    background: rgba(255, 0, 0, 0.32);
+    color: white !important;
+    border-color: rgba(255, 0, 0, 0.7);
+    transform: scale(1.03);
+}

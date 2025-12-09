@@ -32,10 +32,14 @@ class BncProjectController extends Controller
 
         // --- KPIs for header cards ---
         $kpiQuery = clone $baseQuery;
-
+        $totalUsd = (clone $kpiQuery)->sum('value_usd');
+        $totalSar=(clone $kpiQuery)->sum('value_usd')*3.75;
+        $totalValueUsd = self::compactUsd($totalUsd);
+        $totalValueSar=self::compactSar($totalSar);
         $kpis = [
             'total_projects'   => (clone $kpiQuery)->count(),
-            'total_value'      => (clone $kpiQuery)->sum('value_usd'),
+            'total_value'      => $totalValueUsd,
+            'total_value_Sar'      =>$totalValueSar,
             'approached'       => (clone $kpiQuery)->where('approached', true)->count(),
             'qualified'        => (clone $kpiQuery)->whereIn('lead_qualified', ['Hot', 'Warm'])->count(),
             'expected_close30' => (clone $kpiQuery)
@@ -57,36 +61,28 @@ class BncProjectController extends Controller
 
         $USD_TO_SAR = 3.75;
 
+        /* ----------------------------------------------------------------------
+         * MAIN QUERY (collation safe)
+         * ---------------------------------------------------------------------- */
         $query = BncProject::query()
             ->leftJoin('projects as inquiries', function ($join) {
-                // 1) City must match (case-insensitive, same collation)
+                // City match with SAME collation on both sides
                 $join->on(
-                    DB::raw('LOWER(TRIM(inquiries.project_location)) COLLATE utf8mb4_unicode_ci'),
+                    DB::raw("LOWER(TRIM(inquiries.project_location)) COLLATE utf8mb4_unicode_ci"),
                     '=',
-                    DB::raw('LOWER(TRIM(bnc_projects.city)) COLLATE utf8mb4_unicode_ci')
+                    DB::raw("LOWER(TRIM(bnc_projects.city)) COLLATE utf8mb4_unicode_ci")
                 )
-                    // 2) Intelligent name match:
-                    //    take last part of BNC name after "-" (if any)
-                    //    and check that inquiries.project_name contains it.
+                    // Project name: inquiry contains FULL BNC project name
                     ->whereRaw("
-                        LOWER(inquiries.project_name COLLATE utf8mb4_unicode_ci)
-                        LIKE CONCAT(
-                            '%',
-                            LOWER(
-                                TRIM(
-                                    CASE
-                                        WHEN LOCATE('-', bnc_projects.project_name) > 0
-                                            THEN SUBSTRING_INDEX(bnc_projects.project_name, '-', -1)
-                                        ELSE bnc_projects.project_name
-                                    END
-                                )
-                            ),
-                            '%'
-                        )
-                    ");
+                LOWER(TRIM(inquiries.project_name)) COLLATE utf8mb4_unicode_ci
+                LIKE CONCAT(
+                    '%',
+                    LOWER(TRIM(bnc_projects.project_name)) COLLATE utf8mb4_unicode_ci,
+                    '%'
+                )
+            ");
             })
             ->select([
-                // base BNC fields you are actually showing in the table
                 'bnc_projects.id',
                 'bnc_projects.reference_no',
                 'bnc_projects.project_name',
@@ -99,20 +95,19 @@ class BncProjectController extends Controller
                 'bnc_projects.penetration_percent',
                 'bnc_projects.expected_close_date',
 
-                // aggregated inquiries info
                 DB::raw("
-                    GROUP_CONCAT(
-                        DISTINCT CONCAT(
-                            inquiries.quotation_no, '||',
-                            COALESCE(inquiries.quotation_value, 0)
-                        )
-                        SEPARATOR '##'
-                    ) AS inquiry_quotes_concat
-                "),
+                GROUP_CONCAT(
+                    DISTINCT CONCAT(
+                        inquiries.quotation_no, '||',
+                        COALESCE(inquiries.quotation_value, 0)
+                    )
+                    SEPARATOR '##'
+                ) AS inquiry_quotes_concat
+            "),
                 DB::raw("
-                    SUM(COALESCE(inquiries.quotation_value, 0))
-                    AS inquiry_quotation_total_value
-                "),
+                SUM(COALESCE(inquiries.quotation_value, 0))
+                AS inquiry_quotation_total_value
+            "),
             ])
             ->groupBy([
                 'bnc_projects.id',
@@ -128,7 +123,9 @@ class BncProjectController extends Controller
                 'bnc_projects.expected_close_date',
             ]);
 
-        /* ---------- Region scoping (same logic as index) ---------- */
+        /* ----------------------------------------------------------------------
+         * REGION SCOPING
+         * ---------------------------------------------------------------------- */
         if ($user->hasAnyRole(['admin', 'gm'])) {
             if ($region = $request->string('region')->trim()->value()) {
                 $query->where('bnc_projects.region', $region);
@@ -151,7 +148,9 @@ class BncProjectController extends Controller
             }
         }
 
-        /* ---------- Filters from request ---------- */
+        /* ----------------------------------------------------------------------
+         * FILTERS
+         * ---------------------------------------------------------------------- */
         if ($stage = $request->string('stage')->trim()->value()) {
             $query->where('bnc_projects.stage', $stage);
         }
@@ -174,38 +173,114 @@ class BncProjectController extends Controller
             });
         }
 
-        // ---------- DataTables response ----------
+        /* ----------------------------------------------------------------------
+         * DATATABLE RESPONSE
+         * ---------------------------------------------------------------------- */
         return DataTables::of($query)
             ->addIndexColumn()
 
-            // Value (USD) nicely formatted
+            /* ---------- RAW NUMERIC HELPERS (for sorting) ---------- */
+            ->addColumn('value_sar_raw', function ($row) use ($USD_TO_SAR) {
+                return (float) ($row->value_usd ?? 0) * $USD_TO_SAR;
+            })
+            ->addColumn('quoted_value_sar_raw', function ($row) {
+                return (float) ($row->inquiry_quotation_total_value ?? 0);
+            })
+
+            /* ---------- DISPLAY: VALUE (USD) compact ---------- */
             ->editColumn('value_usd', function ($row) {
-                return number_format($row->value_usd ?? 0, 0);
+                $val = (float) ($row->value_usd ?? 0);
+                return $val > 0 ? self::compactUsd($val) : '—';
             })
 
-            // Value (SAR) using fixed FX rate
+            /* ---------- DISPLAY: VALUE (SAR) compact ---------- */
             ->addColumn('value_sar', function ($row) use ($USD_TO_SAR) {
-                $sar = ($row->value_usd ?? 0) * $USD_TO_SAR;
-                return number_format($sar, 0);
+                $sar = (float) ($row->value_usd ?? 0) * $USD_TO_SAR;
+                return $sar > 0 ? self::compactSar($sar) : '—';
             })
 
-            // Approached badge
-            ->editColumn('approached', function ($row) {
-                if ($row->approached) {
-                    return '<span class="badge bg-success">Yes</span>';
+            /* ---------- DISPLAY: QUOTED VALUE (SAR) compact ---------- */
+            ->addColumn('quoted_value_sar', function ($row) {
+                $total = (float) ($row->inquiry_quotation_total_value ?? 0);
+                return $total > 0
+                    ? self::compactSar($total)
+                    : '<span class="text-muted">—</span>';
+            })
+
+            /* ---------- COVERAGE % (QUOTED / BNC VALUE) ---------- */
+            ->addColumn('coverage_pct', function ($row) use ($USD_TO_SAR) {
+                $bncSar = (float) ($row->value_usd ?? 0) * $USD_TO_SAR;
+                $quoted = (float) ($row->inquiry_quotation_total_value ?? 0);
+
+                if ($bncSar <= 0 || $quoted <= 0) {
+                    return '<span class="badge bg-secondary">0%</span>';
                 }
-                return '<span class="badge bg-secondary">No</span>';
+
+                $pct = (int) round(($quoted / $bncSar) * 100);
+
+                $class = 'bg-success';
+                if ($pct < 30) {
+                    $class = 'bg-danger';
+                } elseif ($pct < 70) {
+                    $class = 'bg-warning text-dark';
+                }
+
+                return '<span class="badge ' . $class . '">' . $pct . '%</span>';
             })
 
-            // Expected close date simple format
+            /* ---------- APPROACHED BADGE ---------- */
+            ->editColumn('approached', function ($row) {
+                return $row->approached
+                    ? '<span class="badge bg-success">Yes</span>'
+                    : '<span class="badge bg-secondary">No</span>';
+            })
+
+            /* ---------- LEAD QUALIFIED BADGE ---------- */
+            ->editColumn('lead_qualified', function ($row) {
+                $lead      = $row->lead_qualified ?: 'Unknown';
+                $leadUpper = strtoupper($lead);
+
+                $class = 'bg-secondary';
+                if ($leadUpper === 'HOT') {
+                    $class = 'bg-danger';
+                } elseif ($leadUpper === 'WARM') {
+                    $class = 'bg-warning text-dark';
+                } elseif ($leadUpper === 'COLD') {
+                    $class = 'bg-info';
+                }
+
+                return '<span class="badge ' . $class . '">' . e($lead) . '</span>';
+            })
+
+            /* ---------- PENETRATION % BADGE ---------- */
+            ->editColumn('penetration_percent', function ($row) {
+                $val = (int) ($row->penetration_percent ?? 0);
+
+                if ($val <= 0) {
+                    return '<span class="badge bg-secondary">0%</span>';
+                }
+
+                $class = 'bg-success';
+                if ($val < 30) {
+                    $class = 'bg-danger';
+                } elseif ($val < 70) {
+                    $class = 'bg-warning text-dark';
+                }
+
+                return '<span class="badge ' . $class . '">' . $val . '%</span>';
+            })
+
+            /* ---------- EXPECTED CLOSE DATE ---------- */
             ->editColumn('expected_close_date', function ($row) {
                 if (empty($row->expected_close_date)) {
-                    return '';
+                    return '<span class="text-muted">—</span>';
                 }
-                return \Illuminate\Support\Carbon::parse($row->expected_close_date)->format('Y-m-d');
+
+                $d = \Illuminate\Support\Carbon::parse($row->expected_close_date);
+                return $d->format('d-M-Y');
             })
 
-            // Quoted? column – compact button + count
+            /* ---------- QUOTES BUTTON ---------- */
             ->addColumn('quoted_status', function ($row) {
                 $concat  = (string) ($row->inquiry_quotes_concat ?? '');
                 $entries = array_filter(explode('##', $concat));
@@ -213,11 +288,9 @@ class BncProjectController extends Controller
 
                 foreach ($entries as $entry) {
                     [$qNo, $val] = array_pad(explode('||', $entry), 2, 0);
-                    $qNo = trim($qNo);
-                    if ($qNo === '') {
-                        continue;
+                    if (trim($qNo) !== '') {
+                        $count++;
                     }
-                    $count++;
                 }
 
                 if ($count === 0) {
@@ -233,16 +306,7 @@ class BncProjectController extends Controller
                     . ' <i class="bi bi-chevron-down small"></i></button>';
             })
 
-            // Total quoted value (sum of all inquiries)
-            ->addColumn('quoted_value_sar', function ($row) {
-                $total = (float) ($row->inquiry_quotation_total_value ?? 0);
-                if ($total <= 0) {
-                    return '';
-                }
-                return number_format($total, 0);
-            })
-
-            // Hidden detail HTML for child row
+            /* ---------- QUOTES DETAIL HTML ---------- */
             ->addColumn('quotes_detail_html', function ($row) {
                 $concat  = (string) ($row->inquiry_quotes_concat ?? '');
                 $entries = array_filter(explode('##', $concat));
@@ -254,14 +318,12 @@ class BncProjectController extends Controller
                 $lines = [];
                 foreach ($entries as $entry) {
                     [$qNo, $val] = array_pad(explode('||', $entry), 2, 0);
-                    $qNo = trim($qNo);
-                    if ($qNo === '') {
-                        continue;
+                    if (trim($qNo) !== '') {
+                        $lines[] = [
+                            'no'  => trim($qNo),
+                            'val' => (float) $val,
+                        ];
                     }
-                    $lines[] = [
-                        'no'   => $qNo,
-                        'val'  => (float) $val,
-                    ];
                 }
 
                 if (empty($lines)) {
@@ -283,17 +345,54 @@ class BncProjectController extends Controller
                 return $html;
             })
 
-            // Actions col
+            /* ---------- ACTIONS ---------- */
             ->addColumn('actions', function ($row) {
                 return '<button type="button" class="btn btn-sm btn-outline-light btn-bnc-view" data-id="'
                     . e($row->id)
                     . '">View</button>';
             })
 
-            ->rawColumns(['approached', 'quoted_status', 'quotes_detail_html', 'actions'])
+            ->rawColumns([
+                'approached',
+                'lead_qualified',
+                'penetration_percent',
+                'quoted_status',
+                'quoted_value_sar',
+                'coverage_pct',
+                'expected_close_date',
+                'quotes_detail_html',
+                'actions',
+            ])
             ->make(true);
     }
 
+    protected static function compactUsd(float $value): string
+    {
+        if ($value >= 1_000_000_000) {
+            return number_format($value / 1_000_000_000, 2) . ' B';
+        }
+        if ($value >= 1_000_000) {
+            return number_format($value / 1_000_000, 2) . ' M';
+        }
+        if ($value >= 1_000) {
+            return number_format($value / 1_000, 1) . ' K';
+        }
+        return number_format($value, 0);
+    }
+
+    protected static function compactSar(float $value): string
+    {
+        if ($value >= 1_000_000_000) {
+            return number_format($value / 1_000_000_000, 2) . ' B';
+        }
+        if ($value >= 1_000_000) {
+            return number_format($value / 1_000_000, 2) . ' M';
+        }
+        if ($value >= 1_000) {
+            return number_format($value / 1_000, 1) . ' K';
+        }
+        return number_format($value, 0);
+    }
     // GET /bnc/{id}
     public function show(BncProject $bncProject)
     {

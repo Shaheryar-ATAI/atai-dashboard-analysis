@@ -149,29 +149,11 @@
                         </div>
                     </div>
                     @php
-                        $salesmenRaw = $salesmenScope ?? [];
+                        // Options coming directly from controller
+                        $salesmen = $salesmenFilterOptions ?? [];
 
-                        // Canonical → all spellings that should be treated as the same person
-                        $salesmanAliasMap = [
-                            'SOHAIB' => ['SOHAIB', 'SOAHIB'],
-                            'TARIQ'  => ['TARIQ', 'TAREQ'],
-                            'JAMAL'  => ['JAMAL'],
-                            'ABDO'   => ['ABDO'],
-                            'AHMED'  => ['AHMED'],
-                        ];
-
-                        // Build a unique list of canonical names that actually exist in scope
-                        $salesmen = [];
-                        foreach ($salesmenRaw as $s) {
-                            $upper = strtoupper($s);
-                            foreach ($salesmanAliasMap as $canonical => $aliases) {
-                                if (in_array($upper, $aliases, true)) {
-                                    $salesmen[$canonical] = $canonical;
-                                    break;
-                                }
-                            }
-                        }
-                        $salesmen = array_values($salesmen);
+                        // Just in case, enforce uppercase canonical codes
+                        $salesmen = array_map('strtoupper', $salesmen);
                     @endphp
 
                     <div>
@@ -494,38 +476,38 @@
                            class="table table-sm table-striped table-hover align-middle w-100">
                         <thead>
                         <tr>
-                            <th>PO No</th>
-                            <th>Quotation No(s)</th>
-                            <th>Job No</th>
-                            <th>Project</th>
-                            <th>Client</th>
-                            <th>Salesman</th>
-                            <th>Area</th>
-                            <th>ATAI Products</th>
-                            <th>PO Date</th>
-                            <th>PO Value (SAR)</th>
-                            <th>Value with VAT (SAR)</th>
-                            <th>Created By</th>
-                            <th style="width: 1%;">Action</th>
+                            <th>Client</th>                  {{-- 0 --}}
+                            <th>PO No</th>                   {{-- 1 --}}
+                            <th>PO Value (SAR)</th>          {{-- 2 --}}
+                            <th>Quotation No(s)</th>         {{-- 3 --}}
+                            <th>Project</th>                 {{-- 4 --}}
+                            <th>Job No</th>                  {{-- 5 --}}
+                            <th>PO Date</th>                 {{-- 6 (Date Rec) --}}
+                            <th>Salesman</th>                {{-- 7 --}}
+                            <th>Area</th>                    {{-- 8 --}}
+                            <th>ATAI Products</th>           {{-- 9 --}}
+                            <th>Value with VAT (SAR)</th>    {{-- 10 --}}
+
+                            <th style="width: 1%;">Action</th> {{-- 12 --}}
                         </tr>
                         </thead>
                         <tbody>
                         @foreach($salesOrders as $so)
                             <tr>
-                                <td>{{ $so->po_no ?? '-' }}</td>
-                                <td>{{ $so->quotation_no ?? '-' }}</td> {{-- comma-separated list --}}
-                                <td>{{ $so->job_no ?? '-' }}</td>
-                                <td>{{ $so->project ?? '-' }}</td>
-                                <td>{{ $so->client ?? '-' }}</td>
-                                <td>{{ $so->salesman ?? '-' }}</td>
-                                <td>{{ $so->area ?? '-' }}</td>
-                                <td>{{ $so->atai_products ?? '-' }}</td>
-                                <td>{{ \Illuminate\Support\Carbon::parse($so->po_date)->format('Y-m-d') }}</td>
-                                <td>{{ number_format($so->total_po_value ?? 0, 0) }}</td>
-                                <td>{{ number_format($so->value_with_vat ?? 0, 0) }}</td>
-                                <td>{{ $so->created_by ?? '-' }}</td>
+                                <td>{{ $so->client ?? '-' }}</td>                           {{-- 0 --}}
+                                <td>{{ $so->po_no ?? '-' }}</td>                            {{-- 1 --}}
+                                <td>{{ number_format($so->total_po_value ?? 0, 0) }}</td>   {{-- 2 --}}
+                                <td>{{ $so->quotation_no ?? '-' }}</td>                     {{-- 3 --}}
+                                <td>{{ $so->project ?? '-' }}</td>                          {{-- 4 --}}
+                                <td>{{ $so->job_no ?? '-' }}</td>                           {{-- 5 --}}
+                                <td>{{ \Illuminate\Support\Carbon::parse($so->po_date)->format('Y-m-d') }}</td> {{-- 6 --}}
+                                <td>{{ $so->salesman ?? '-' }}</td>                         {{-- 7 --}}
+                                <td>{{ $so->area ?? '-' }}</td>                             {{-- 8 --}}
+                                <td>{{ $so->atai_products ?? '-' }}</td>                    {{-- 9 --}}
+                                <td>{{ number_format($so->value_with_vat ?? 0, 0) }}</td>   {{-- 10 --}}
 
-                                <td class="table-actions">
+
+                                <td class="table-actions">                                   {{-- 12 --}}
                                     <div class="btn-group btn-group-sm" role="group">
                                         {{-- View button --}}
                                         <button
@@ -536,7 +518,7 @@
                                             data-project="{{ $so->project }}"
                                             data-client="{{ $so->client }}"
                                             data-salesman="{{ $so->salesman }}"
-                                            data-location="" {{-- optional, if you want to add --}}
+                                            data-location="" {{-- optional --}}
                                             data-area="{{ $so->area }}"
                                             data-quotation-no="{{ $so->quotation_no }}" {{-- combined list --}}
                                             data-quotation-date="{{ $so->po_date }}"
@@ -554,18 +536,17 @@
                                         >
                                             <i class="bi bi-eye"></i> View
                                         </button>
+
+                                        {{-- Delete --}}
                                         <button
-                                                                                    type="button"
-                                                                                    class="btn btn-outline-danger btnDeleteCoordinator"
-                                                                                    data-source="salesorder"
-                                                                                    data-id="{{ $so->id }}"
-                                                                                    data-label="{{ $so->po_no ?? $so->quotation_no ?? 'this sales order' }}"
-                                                                                >
-                                                                                    <i class="bi bi-trash"></i> Delete
-                                                                                </button>
-
-
-                                        {{-- Delete etc. can stay as you like --}}
+                                            type="button"
+                                            class="btn btn-outline-danger btnDeleteCoordinator"
+                                            data-source="salesorder"
+                                            data-id="{{ $so->id }}"
+                                            data-label="{{ $so->po_no ?? $so->quotation_no ?? 'this sales order' }}"
+                                        >
+                                            <i class="bi bi-trash"></i> Delete
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -573,6 +554,7 @@
                         </tbody>
                     </table>
                 </div>
+
 
 
 
@@ -847,8 +829,10 @@
             const fmtSAR = value => {
                 if (value === null || value === undefined) return '0';
                 return new Intl.NumberFormat('en-SA', {
+                    style: 'currency',
+                    currency: 'SAR',
                     maximumFractionDigits: 0
-                }).format(value);
+                }).format(Number(value || 0));
             };
 
             // ----- Salesman alias map -----
@@ -861,57 +845,57 @@
             };
 
             const salesmanChips = document.querySelectorAll('.coord-chip[data-salesman]');
-            const regionChips = document.querySelectorAll('.coord-chip[data-region]');
+            const regionChips   = document.querySelectorAll('.coord-chip[data-region]');
 
-            let filterSalesman = 'all'; // SOHAIB, TARIQ, etc., or all
-            let filterRegion = 'all'; // Eastern, Central, Western, or all
-            let filterMonth = '';
-            let filterFrom = null;
-            let filterTo = null;
+            let filterSalesman = 'all';  // SOHAIB, TARIQ, etc., or all
+            let filterRegion   = 'all';  // Eastern, Central, Western, or all
+            let filterMonth    = '';
+            let filterFrom     = null;
+            let filterTo       = null;
 
             // ----- Multi-quotation DOM + state -----
-            const multiBlock = document.getElementById('coord_multi_block');
-            const multiEnabled = document.getElementById('coord_multi_enabled');
-            const multiContainer = document.getElementById('coord_multi_container');
-            const multiTotalQvSpan = document.getElementById('coord_multi_total_qv');
-            const multiSearchInput = document.getElementById('coord_multi_search');
-            const multiSearchBtn = document.getElementById('coord_multi_search_btn');
+            const multiBlock        = document.getElementById('coord_multi_block');
+            const multiEnabled      = document.getElementById('coord_multi_enabled');
+            const multiContainer    = document.getElementById('coord_multi_container');
+            const multiTotalQvSpan  = document.getElementById('coord_multi_total_qv');
+            const multiSearchInput  = document.getElementById('coord_multi_search');
+            const multiSearchBtn    = document.getElementById('coord_multi_search_btn');
             const multiSelectedList = document.getElementById('coord_multi_selected_list');
 
-            let MULTI_SELECTED_IDS = new Set(); // extra project ids (main is implicit)
-            let MULTI_QV_BY_ID = {};        // id -> quotation_value
-            let MAIN_QUOTATION_VALUE = 0;         // main inquiry price (from modal)
+            let MULTI_SELECTED_IDS = new Set();   // extra project ids
+            let MULTI_QV_BY_ID     = {};          // id -> quotation_value
+            let MAIN_QUOTATION_VALUE = 0;
 
             // ----- Filter DOM -----
-            const monthSelect = document.getElementById('coord_month');
-            const fromInput = document.getElementById('coord_from');
-            const toInput = document.getElementById('coord_to');
-            const btnResetFilters = document.getElementById('coord_reset_filters');
+            const monthSelect      = document.getElementById('coord_month');
+            const fromInput        = document.getElementById('coord_from');
+            const toInput          = document.getElementById('coord_to');
+            const btnResetFilters  = document.getElementById('coord_reset_filters');
 
-            const elKpiProjects = document.getElementById('kpiProjectsCount');
-            const elKpiSoCount = document.getElementById('kpiSalesOrdersCount');
-            const elKpiSoValueNum = document.getElementById('kpiSalesOrdersValue');
+            const elKpiProjects    = document.getElementById('kpiProjectsCount');
+            const elKpiSoCount     = document.getElementById('kpiSalesOrdersCount');
+            const elKpiSoValueNum  = document.getElementById('kpiSalesOrdersValue');
 
-            const wrapProjects = document.getElementById('wrapProjectsTable');
-            const wrapSalesOrder = document.getElementById('wrapSalesOrdersTable');
-            const btnProj = document.getElementById('btnShowProjects');
-            const btnSO = document.getElementById('btnShowSalesOrders');
+            const wrapProjects     = document.getElementById('wrapProjectsTable');
+            const wrapSalesOrder   = document.getElementById('wrapSalesOrdersTable');
+            const btnProj          = document.getElementById('btnShowProjects');
+            const btnSO            = document.getElementById('btnShowSalesOrders');
 
-            const coordModalEl = document.getElementById('coordinatorModal');
-            const coordModal = coordModalEl ? new bootstrap.Modal(coordModalEl) : null;
+            const coordModalEl     = document.getElementById('coordinatorModal');
+            const coordModal       = coordModalEl ? new bootstrap.Modal(coordModalEl) : null;
 
-            const btnSave = document.getElementById('btnCoordinatorSave');
+            const btnSave          = document.getElementById('btnCoordinatorSave');
             const attachmentsListEl = document.getElementById('coord_attachments_list');
 
             // ---------- DataTables ----------
             const dtProjects = new DataTable('#tblCoordinatorProjects', {
                 pageLength: 25,
-                order: [[6, 'desc']]
+                order: [[6, 'desc']] // quotation_date
             });
 
             const dtSalesOrders = new DataTable('#tblCoordinatorSalesOrders', {
                 pageLength: 25,
-                order: [[8, 'desc']]
+                order: [[6, 'desc']] // PO Date (index 6)
             });
 
             // ---------- Custom global filter for BOTH tables ----------
@@ -925,19 +909,24 @@
                 let areaStr, salesmanStr, dateStr;
 
                 if (tableId === 'tblCoordinatorProjects') {
-                    areaStr = (data[4] || '').trim(); // Area
-                    salesmanStr = (data[3] || '').trim(); // Salesman
-                    dateStr = data[6] || '';          // Quotation Date
+                    // Projects table
+                    // 0 Quotation No, 1 Project, 2 Client, 3 Salesman, 4 Area, 5 Products, 6 Quotation Date, 7 Status
+                    areaStr     = (data[4] || '').trim();
+                    salesmanStr = (data[3] || '').trim();
+                    dateStr     = data[6] || '';        // Quotation Date
                 } else {
-                    areaStr = (data[6] || '').trim(); // Area
-                    salesmanStr = (data[5] || '').trim(); // Salesman
-                    dateStr = data[8] || '';          // PO Date
+                    // Sales Orders table
+                    // 0 Client, 1 PO No, 2 PO Value, 3 Quotation No(s), 4 Project,
+                    // 5 Job No, 6 PO Date, 7 Salesman, 8 Area, 9 Products, 10 Value with VAT
+                    areaStr     = (data[8] || '').trim(); // Area
+                    salesmanStr = (data[7] || '').trim(); // Salesman
+                    dateStr     = data[6] || '';          // PO Date
                 }
 
                 // REGION filter
                 if (filterRegion !== 'all') {
                     const cellRegion = (areaStr || '').toUpperCase();
-                    const wanted = filterRegion.toUpperCase();
+                    const wanted     = filterRegion.toUpperCase();
                     if (cellRegion !== wanted) {
                         return false;
                     }
@@ -946,13 +935,13 @@
                 // SALESMAN filter (with aliases)
                 if (filterSalesman !== 'all') {
                     const cellUpper = (salesmanStr || '').toUpperCase();
-                    const aliases = SALESMAN_ALIASES[filterSalesman] || [filterSalesman];
+                    const aliases   = SALESMAN_ALIASES[filterSalesman] || [filterSalesman];
                     if (!aliases.includes(cellUpper)) {
                         return false;
                     }
                 }
 
-                // If no date, but date filters are applied → drop row
+                // DATE filter
                 if (!dateStr || dateStr === '-') {
                     if (filterMonth || filterFrom || filterTo) {
                         return false;
@@ -962,10 +951,9 @@
 
                 const rowDate = new Date(dateStr); // expecting YYYY-MM-DD
                 if (isNaN(rowDate.getTime())) {
-                    return true; // fail open if parse fails
+                    return true; // fail open
                 }
 
-                // MONTH filter
                 if (filterMonth) {
                     const m = rowDate.getMonth() + 1;
                     if (m !== parseInt(filterMonth, 10)) {
@@ -973,7 +961,6 @@
                     }
                 }
 
-                // RANGE filter
                 if (filterFrom && rowDate < filterFrom) return false;
                 if (filterTo && rowDate > filterTo) return false;
 
@@ -985,14 +972,14 @@
                 dtSalesOrders.draw();
             }
 
-            // ---------- KPI recalculation ----------
+            // ---------- KPI recalculation (using CORRECT columns) ----------
             function refreshKpis() {
-                const projCount = dtProjects.rows({filter: 'applied'}).count();
-                const soCount = dtSalesOrders.rows({filter: 'applied'}).count();
+                const projCount = dtProjects.rows({ filter: 'applied' }).count();
+                const soCount   = dtSalesOrders.rows({ filter: 'applied' }).count();
 
                 let soTotal = 0;
                 dtSalesOrders
-                    .column(9, {filter: 'applied'}) // PO Value column
+                    .column(2, { filter: 'applied' }) // PO Value (SAR) is column 2
                     .data()
                     .each(function (value) {
                         let num = 0;
@@ -1006,91 +993,87 @@
                         }
                     });
 
-                if (elKpiProjects) elKpiProjects.textContent = fmtSAR(projCount);
-                if (elKpiSoCount) elKpiSoCount.textContent = fmtSAR(soCount);
-                if (elKpiSoValueNum) elKpiSoValueNum.textContent = fmtSAR(soTotal);
+                if (elKpiProjects)   elKpiProjects.textContent   = projCount.toLocaleString('en-SA');
+                if (elKpiSoCount)    elKpiSoCount.textContent    = soCount.toLocaleString('en-SA');
+                if (elKpiSoValueNum) elKpiSoValueNum.textContent = soTotal.toLocaleString('en-SA');
             }
 
-            // ---------- Highcharts ----------
+            // ---------- Highcharts (PO VALUE vs REGION) ----------
             let regionChart = Highcharts.chart('coordinatorRegionStacked', {
                 chart: {
                     type: 'column',
                     backgroundColor: '#0f172a'
                 },
                 title: {
-                    text: 'Quotation vs PO Value by Region',
-                    style: {color: '#e5e7eb'}
+                    text: 'PO Value by Region',
+                    style: { color: '#e5e7eb' }
                 },
                 xAxis: {
-                    categories: @json($chartCategories),
+                    categories: ['Eastern', 'Central', 'Western'],
                     crosshair: true,
-                    labels: {style: {color: '#cbd5e1'}}
+                    labels: { style: { color: '#cbd5e1' } }
                 },
                 yAxis: {
                     min: 0,
                     title: {
                         text: 'Value (SAR)',
-                        style: {color: '#cbd5e1'}
+                        style: { color: '#cbd5e1' }
                     },
-                    stackLabels: {
-                        enabled: true,
-                        formatter: function () {
-                            return 'SAR ' + fmtSAR(this.total);
-                        },
-                        style: {
-                            color: '#e5e7eb',
-                            textOutline: 'none',
-                            fontWeight: '600'
-                        }
-                    },
-                    labels: {style: {color: '#cbd5e1'}},
+                    labels: { style: { color: '#cbd5e1' } },
                     gridLineColor: '#1e293b'
                 },
                 legend: {
-                    itemStyle: {color: '#e5e7eb'}
+                    itemStyle: { color: '#e5e7eb' }
                 },
                 tooltip: {
                     shared: true,
                     backgroundColor: '#1e293b',
                     borderColor: '#475569',
-                    style: {color: 'white'},
+                    style: { color: 'white' },
                     formatter: function () {
-                        let s = '<b>' + this.x + '</b><br/>';
-                        this.points.forEach(p => {
-                            s += p.series.name + ': SAR ' + fmtSAR(p.y) + '<br/>';
-                        });
-                        s += '<span style="font-weight:600">Total: SAR ' +
-                            fmtSAR(this.points.reduce((t, p) => t + p.y, 0)) + '</span>';
-                        return s;
+                        let total = 0;
+                        this.points.forEach(p => total += p.y);
+                        return (
+                            '<b>' + this.x + '</b><br/>' +
+                            this.points.map(p =>
+                                p.series.name + ': ' + fmtSAR(p.y)
+                            ).join('<br/>') +
+                            '<br/><span style="font-weight:600">Total: ' + fmtSAR(total) + '</span>'
+                        );
                     }
                 },
                 plotOptions: {
                     column: {
-                        stacking: 'normal',
                         borderWidth: 0
                     }
                 },
                 series: [
                     {
                         name: 'PO Value',
-                        data: @json($chartPOs)
+                        data: [0, 0, 0] // will be replaced by refreshChartFromTable()
                     }
                 ]
             });
 
-            // Rebuild chart from filtered Sales Orders table
+            // Rebuild chart from filtered Sales Orders table (REGION vs PO VALUE)
             function refreshChartFromTable() {
                 if (!regionChart) return;
 
-                const sums = {};
+                // Initialize with 0 for each region
+                const sums = {
+                    'Eastern': 0,
+                    'Central': 0,
+                    'Western': 0,
+                };
 
-                dtSalesOrders.rows({filter: 'applied'}).every(function () {
+                dtSalesOrders.rows({ filter: 'applied' }).every(function () {
                     const row = this.data();
 
-                    const areaRaw = (row[6] || '').trim(); // Area
-                    const area = areaRaw || 'Unknown';
+                    // Area index 8, PO Value index 2
+                    const areaRaw = (row[8] || '').trim();
+                    const areaKey = areaRaw || 'Unknown';
 
-                    let val = row[9]; // PO Value
+                    let val = row[2]; // PO Value (SAR)
 
                     if (typeof val === 'string') {
                         val = parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
@@ -1099,19 +1082,13 @@
                         val = 0;
                     }
 
-                    if (!sums[area]) {
-                        sums[area] = 0;
+                    if (areaKey in sums) {
+                        sums[areaKey] += val;
                     }
-                    sums[area] += val;
                 });
 
-                let cats = Object.keys(sums);
-                let data = cats.map(region => sums[region]);
-
-                if (cats.length === 0) {
-                    cats = ['No Data'];
-                    data = [0];
-                }
+                const cats = ['Eastern', 'Central', 'Western'];
+                const data = cats.map(r => sums[r] || 0);
 
                 regionChart.xAxis[0].setCategories(cats, false);
                 regionChart.series[0].setData(data, true);
@@ -1189,11 +1166,11 @@
 
                     // dates/month
                     filterMonth = '';
-                    filterFrom = null;
-                    filterTo = null;
+                    filterFrom  = null;
+                    filterTo    = null;
                     if (monthSelect) monthSelect.value = '';
-                    if (fromInput) fromInput.value = '';
-                    if (toInput) toInput.value = '';
+                    if (fromInput)   fromInput.value   = '';
+                    if (toInput)     toInput.value     = '';
 
                     redrawTables();
                 });
@@ -1228,8 +1205,7 @@
                 });
             }
 
-            // ---------- Multi-quotation helpers ----------
-
+            // ----- Multi-quotation helpers -----
             function recalcMultiTotals() {
                 const priceInput = document.getElementById('coord_price');
                 MAIN_QUOTATION_VALUE = parseFloat(priceInput?.value || '0') || 0;
@@ -1241,7 +1217,6 @@
                     extraTotal += qv;
                 });
 
-                // Selected labels
                 if (multiSelectedList) {
                     if (MULTI_SELECTED_IDS.size === 0) {
                         multiSelectedList.textContent = '(none)';
@@ -1260,20 +1235,22 @@
 
                 const totalQv = MAIN_QUOTATION_VALUE + extraTotal;
                 if (multiTotalQvSpan) {
-                    multiTotalQvSpan.textContent = fmtSAR(totalQv);
+                    multiTotalQvSpan.textContent = new Intl.NumberFormat('en-SA', {
+                        maximumFractionDigits: 0
+                    }).format(totalQv);
                 }
             }
 
             function setMultiEnabled(enabled) {
                 if (!multiEnabled || !multiSearchInput || !multiSearchBtn) return;
 
-                multiEnabled.checked = enabled;
+                multiEnabled.checked     = enabled;
                 multiSearchInput.disabled = !enabled;
-                multiSearchBtn.disabled = !enabled;
+                multiSearchBtn.disabled   = !enabled;
 
                 if (!enabled) {
                     MULTI_SELECTED_IDS = new Set();
-                    MULTI_QV_BY_ID = {};
+                    MULTI_QV_BY_ID     = {};
                     if (multiContainer) {
                         multiContainer.innerHTML =
                             '<div class="text-muted">Enable multiple quotations and search above.</div>';
@@ -1297,8 +1274,8 @@
                 const delBtn = e.target.closest('.btnDeleteCoordinator');
                 if (delBtn) {
                     const source = delBtn.dataset.source || '';
-                    const id = delBtn.dataset.id;
-                    const label = delBtn.dataset.label ||
+                    const id     = delBtn.dataset.id;
+                    const label  = delBtn.dataset.label ||
                         (source === 'salesorder' ? 'this sales order' : 'this inquiry');
 
                     if (!id) return;
@@ -1354,30 +1331,27 @@
 
                 const source = btn.dataset.source || '';
 
-                document.getElementById('coord_source').value = source;
-                document.getElementById('coord_record_id').value = btn.dataset.id || '';
+                document.getElementById('coord_source').value     = source;
+                document.getElementById('coord_record_id').value  = btn.dataset.id || '';
 
-                document.getElementById('coord_project').value = btn.dataset.project || '';
-                document.getElementById('coord_client').value = btn.dataset.client || '';
-                /*
-                sales person
-                */
+                document.getElementById('coord_project').value       = btn.dataset.project || '';
+                document.getElementById('coord_client').value        = btn.dataset.client || '';
+
+                // Salesperson select with alias map
                 const salesmanSelect = document.getElementById('coord_salesman');
                 if (salesmanSelect) {
-                    const rawSm = (btn.dataset.salesman || '').trim().toUpperCase(); // Sohaib → SOHAIB, Soahib → SOAHIB
+                    const rawSm = (btn.dataset.salesman || '').trim().toUpperCase();
                     let canonical = rawSm;
 
                     if (rawSm) {
-                        // Use the same alias map at the top of the script
                         for (const [canon, aliases] of Object.entries(SALESMAN_ALIASES)) {
                             if (aliases.includes(rawSm)) {
-                                canonical = canon;       // e.g. SOAHIB → SOHAIB
+                                canonical = canon;
                                 break;
                             }
                         }
                     }
 
-                    // If canonical value not in options (old data), add it dynamically
                     if (canonical) {
                         const hasOption = Array.from(salesmanSelect.options)
                             .some(o => o.value === canonical);
@@ -1392,22 +1366,23 @@
                         salesmanSelect.value = '';
                     }
                 }
-                document.getElementById('coord_location').value = btn.dataset.location || '';
-                document.getElementById('coord_area').value = btn.dataset.area || '';
-                document.getElementById('coord_quotation_no').value = btn.dataset.quotationNo || '';
-                document.getElementById('coord_quotation_date').value = btn.dataset.quotationDate || '';
-                document.getElementById('coord_date_received').value = btn.dataset.dateReceived || '';
-                document.getElementById('coord_products').value = btn.dataset.products || '';
-                document.getElementById('coord_price').value = btn.dataset.price || '';
-                document.getElementById('coord_status').value = btn.dataset.status || '';
 
-                document.getElementById('coord_job_no').value = btn.dataset.jobNo || '';
-                document.getElementById('coord_po_no').value = btn.dataset.poNo || '';
-                document.getElementById('coord_po_date').value = btn.dataset.poDate || '';
-                document.getElementById('coord_po_value').value = btn.dataset.poValue || '';
+                document.getElementById('coord_location').value       = btn.dataset.location || '';
+                document.getElementById('coord_area').value           = btn.dataset.area || '';
+                document.getElementById('coord_quotation_no').value   = btn.dataset.quotationNo || '';
+                document.getElementById('coord_quotation_date').value = btn.dataset.quotationDate || '';
+                document.getElementById('coord_date_received').value  = btn.dataset.dateReceived || '';
+                document.getElementById('coord_products').value       = btn.dataset.products || '';
+                document.getElementById('coord_price').value          = btn.dataset.price || '';
+                document.getElementById('coord_status').value         = btn.dataset.status || '';
+
+                document.getElementById('coord_job_no').value        = btn.dataset.jobNo || '';
+                document.getElementById('coord_po_no').value         = btn.dataset.poNo || '';
+                document.getElementById('coord_po_date').value       = btn.dataset.poDate || '';
+                document.getElementById('coord_po_value').value      = btn.dataset.poValue || '';
                 document.getElementById('coord_payment_terms').value = btn.dataset.paymentTerms || '';
-                document.getElementById('coord_remarks').value = btn.dataset.remarks || '';
-                document.getElementById('coord_oaa').value = btn.dataset.oaa || '';
+                document.getElementById('coord_remarks').value       = btn.dataset.remarks || '';
+                document.getElementById('coord_oaa').value           = btn.dataset.oaa || '';
 
                 // Multi-quotation section
                 if (multiBlock && multiContainer && multiEnabled) {
@@ -1418,8 +1393,8 @@
                     }
 
                     MULTI_SELECTED_IDS = new Set();
-                    MULTI_QV_BY_ID = {};
-                    setMultiEnabled(false); // disables + resets UI
+                    MULTI_QV_BY_ID     = {};
+                    setMultiEnabled(false);
                     recalcMultiTotals();
                 }
 
@@ -1467,9 +1442,9 @@
                             li.className = 'mb-1';
 
                             const link = document.createElement('a');
-                            link.href = a.url;
+                            link.href   = a.url;
                             link.target = '_blank';
-                            link.rel = 'noopener';
+                            link.rel    = 'noopener';
                             link.textContent = a.original_name || 'Document';
 
                             const meta = document.createElement('span');
@@ -1500,7 +1475,6 @@
                     const fd = new FormData(formEl);
                     fd.append('record_id', document.getElementById('coord_record_id').value);
 
-                    // If multi-quotation is enabled, send selected project IDs
                     if (multiEnabled && multiEnabled.checked && multiContainer) {
                         const checkboxes = multiContainer.querySelectorAll('.coord-multi-item:checked');
                         checkboxes.forEach(cb => {
@@ -1568,7 +1542,7 @@
 
             // ---------- Excel download buttons ----------
             const btnDownloadExcelMonth = document.getElementById('coord_download_excel_month');
-            const btnDownloadExcelYear = document.getElementById('coord_download_excel_year');
+            const btnDownloadExcelYear  = document.getElementById('coord_download_excel_year');
 
             if (btnDownloadExcelMonth) {
                 btnDownloadExcelMonth.addEventListener('click', () => {
@@ -1586,7 +1560,7 @@
                     }
 
                     if (fromInput && fromInput.value) params.set('from', fromInput.value);
-                    if (toInput && toInput.value) params.set('to', toInput.value);
+                    if (toInput   && toInput.value)   params.set('to', toInput.value);
 
                     const url = "{{ route('coordinator.salesorders.export') }}" + '?' + params.toString();
                     window.location.href = url;
@@ -1603,7 +1577,7 @@
                     }
 
                     if (fromInput && fromInput.value) params.set('from', fromInput.value);
-                    if (toInput && toInput.value) params.set('to', toInput.value);
+                    if (toInput   && toInput.value)   params.set('to', toInput.value);
 
                     const url = "{{ route('coordinator.salesorders.exportYear') }}" + '?' + params.toString();
                     window.location.href = url;
@@ -1626,7 +1600,7 @@
                     const url = "{{ route('coordinator.searchQuotations') }}" +
                         '?term=' + encodeURIComponent(term);
 
-                    const resp = await fetch(url, {headers: {'Accept': 'application/json'}});
+                    const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     const data = await resp.json();
 
                     if (!data.ok) {
@@ -1652,10 +1626,9 @@
                         cb.type = 'checkbox';
                         cb.className = 'form-check-input coord-multi-item';
                         cb.value = p.id;
-                        cb.dataset.qv = p.quotation_value || 0;
+                        cb.dataset.qv  = p.quotation_value || 0;
                         cb.dataset.qno = p.quotation_no || '';
 
-                        // keep ticked if already selected
                         if (MULTI_SELECTED_IDS.has(String(p.id))) {
                             cb.checked = true;
                         }
@@ -1677,7 +1650,7 @@
                         label.innerHTML =
                             `<strong>${p.quotation_no}</strong> – ${p.project || ''}` +
                             ` <span class="text-muted">(${p.area || ''})</span>` +
-                            `<br><span class="text-muted">Q. Value: SAR ${fmtSAR(p.quotation_value || 0)}</span>`;
+                            `<br><span class="text-muted">Q. Value: ${fmtSAR(p.quotation_value || 0)}</span>`;
 
                         row.appendChild(cb);
                         row.appendChild(label);
@@ -1713,6 +1686,7 @@
         })();
     </script>
 @endpush
+
 
 
 

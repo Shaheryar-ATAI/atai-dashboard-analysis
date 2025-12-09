@@ -99,12 +99,12 @@
                 </li>
                 {{-- GM/Admin only --}}
                 @hasanyrole('gm|admin')
-{{--                <li class="nav-item">--}}
-{{--                    <a class="nav-link {{ request()->routeIs('salesorders.index') ? 'active fw-semibold text-primary' : '' }}"--}}
-{{--                       href="{{ route('salesorders.index') }}">--}}
-{{--                        Sales Summary--}}
-{{--                    </a>--}}
-{{--                </li>--}}
+                {{--                <li class="nav-item">--}}
+                {{--                    <a class="nav-link {{ request()->routeIs('salesorders.index') ? 'active fw-semibold text-primary' : '' }}"--}}
+                {{--                       href="{{ route('salesorders.index') }}">--}}
+                {{--                        Sales Summary--}}
+                {{--                    </a>--}}
+                {{--                </li>--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('performance.area*') ? 'active fw-semibold text-primary' : '' }}"
                        href="{{ route('performance.area') }}">
@@ -129,12 +129,12 @@
 
 
                 @endhasanyrole
-{{--                <li class="nav-item">--}}
-{{--                    <a class="nav-link {{ request()->routeIs('accounts.summary') ? 'active fw-semibold text-primary' : '' }}"--}}
-{{--                       href="{{ route('powerbi.jump') }}">--}}
-{{--                        Accounts Summary--}}
-{{--                    </a>--}}
-{{--                </li>--}}
+                {{--                <li class="nav-item">--}}
+                {{--                    <a class="nav-link {{ request()->routeIs('accounts.summary') ? 'active fw-semibold text-primary' : '' }}"--}}
+                {{--                       href="{{ route('powerbi.jump') }}">--}}
+                {{--                        Accounts Summary--}}
+                {{--                    </a>--}}
+                {{--                </li>--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active fw-semibold text-primary' : '' }}"
                        href="{{ route('powerbi.jump') }}">
@@ -152,10 +152,15 @@
                         <small>{{ strtoupper($u->region) }}</small>
                     @endif
                 </div>
-                <form method="POST" action="{{ route('logout') }}" class="m-0">@csrf
-                    <button class="btn btn-sm btn-outline-danger" type="submit">
-                        Logout
-                    </button>
+
+                <a href="{{ route('logout') }}"
+                   onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
+                   class="btn btn-sm atai-logout-btn">
+                    <i class="bi bi-box-arrow-right me-1"></i> Logout
+                </a>
+
+                <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                    @csrf
                 </form>
             </div>
         </div>

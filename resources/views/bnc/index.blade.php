@@ -36,18 +36,18 @@
     <div class="container-fluid py-3">
 
         {{-- Header + Upload button --}}
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h1 class="h4 mb-0 text-white">BNC Projects</h1>
+{{--        <div class="d-flex justify-content-between align-items-center mb-3">--}}
+{{--            <h1 class="h4 mb-0 text-white">BNC Projects</h1>--}}
 
-            @hasrole('admin')
-            <button class="btn btn-sm btn-outline-light"
-                    data-bs-toggle="modal"
-                    data-bs-target="#bncUploadModal">
-                <i class="bi bi-upload me-1"></i>
-                Upload BNC Excel
-            </button>
-            @endhasrole
-        </div>
+{{--            @hasrole('admin')--}}
+{{--            <button class="btn btn-sm btn-outline-light"--}}
+{{--                    data-bs-toggle="modal"--}}
+{{--                    data-bs-target="#bncUploadModal">--}}
+{{--                <i class="bi bi-upload me-1"></i>--}}
+{{--                Upload BNC Excel--}}
+{{--            </button>--}}
+{{--            @endhasrole--}}
+{{--        </div>--}}
 
         {{-- Filters row --}}
         <div class="card mb-3 atai-card-dark">
@@ -134,7 +134,18 @@
                     <div class="card-body py-2">
                         <div class="text-white-50 small">Total Value (USD)</div>
                         <div id="kpi_total_value" class="fs-5 fw-semibold text-white">
-                            {{ number_format($kpis['total_value'] ?? 0, 0) }}
+                            {{$kpis['total_value'] ?? 0, 0 }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-2">
+                <div class="card kpi-card">
+                    <div class="card-body py-2">
+                        <div class="text-white-50 small">Total Value (SAR)</div>
+                        <div id="total_value_Sar" class="fs-5 fw-semibold text-white">
+                            {{$kpis['total_value_Sar'] ?? 0, 0 }}
                         </div>
                     </div>
                 </div>
@@ -361,9 +372,9 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="submit" class="btn btn-sm btn-primary">
-                            <i class="bi bi-upload me-1"></i> Upload & Import
-                        </button>
+{{--                        <button type="submit" class="btn btn-sm btn-primary">--}}
+{{--                            <i class="bi bi-upload me-1"></i> Upload & Import--}}
+{{--                        </button>--}}
                     </div>
                 </form>
             </div>

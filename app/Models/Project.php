@@ -150,17 +150,27 @@ class Project extends Model
             $salesmenScope
         );
 
-        return static::query()
+        // Coordinators should see all inquiries that DO NOT have a PO yet.
+        // We use status_current as the PO-flag (you already use this in storePo()).
+        $query = static::query()
             ->whereNull('deleted_at')
-            ->whereNull('status')
+            // OLD: we were hiding any record with a non-null `status`
+            // ->whereNull('status')
+            // For "no PO yet" we only need to ensure status_current is null:
             ->whereNull('status_current')
-            ->whereIn('area', $normalizedRegions)
-            ->when(!empty($normalizedSalesmen), function (Builder $q) use ($normalizedSalesmen) {
-                $q->whereIn(
-                    DB::raw('UPPER(TRIM(salesman))'),
-                    $normalizedSalesmen
-                );
-            });
+            ->whereIn('area', $normalizedRegions);
+
+        // OPTIONAL salesman filter (currently disabled)
+        /*
+        $query->when(!empty($normalizedSalesmen), function (Builder $q) use ($normalizedSalesmen) {
+            $q->whereIn(
+                DB::raw('UPPER(TRIM(COALESCE(salesman, salesperson)))'),
+                $normalizedSalesmen
+            );
+        });
+        */
+
+        return $query;
     }
 
     /**
@@ -168,7 +178,8 @@ class Project extends Model
      */
     public static function kpiProjectsCountForCoordinator(array $regionsScope): int
     {
-        return static::coordinatorBaseQuery($regionsScope)->count();
+        // For now we don't restrict by salesman for coordinator
+        return static::coordinatorBaseQuery($regionsScope, [])->count();
     }
 
     /**

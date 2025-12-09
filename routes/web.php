@@ -67,7 +67,10 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
 
     /* ---------- Session helpers ---------- */
-    Route::post('/logout', [PageController::class, 'logout'])->name('logout');
+    Route::post('/logout', [PageController::class, 'logout'])
+        ->name('logout')
+        ->middleware('auth');
+
 
     // Small helper for navbar/user chip
     Route::get('/me', function () {

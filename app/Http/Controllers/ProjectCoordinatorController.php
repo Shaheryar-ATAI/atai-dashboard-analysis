@@ -18,6 +18,11 @@ class ProjectCoordinatorController extends Controller
 {
     private function coordinatorSalesmenScope($user): array
     {
+        // TEMP: disable salesman restriction – coordinators see ALL salesmen
+        return [];
+
+        /*
+        // === OLD LOGIC (KEEP FOR FUTURE USE) ===
         $name = strtolower(trim($user->name ?? ''));
 
         // GM/Admin → all salesmen
@@ -37,6 +42,7 @@ class ProjectCoordinatorController extends Controller
 
         // default (no restriction, or adjust as you like)
         return [];
+        */
     }
 
     private function coordinatorRegionScope($user): array
@@ -131,50 +137,113 @@ class ProjectCoordinatorController extends Controller
         $user         = $request->user();
         $userRegion   = strtolower($user->region ?? '');
         $regionsScope = $this->coordinatorRegionScope($user);
-        $salesmenScope = $this->coordinatorSalesmenScope($user);
 
-        // Projects (unchanged)
+        // For now: no salesman restriction in queries
+        $salesmenScope = [];
+
+        // ==========================
+        //  Build Salesman filter list
+        // ==========================
+        $salesmanAliasMap = [
+            'SOHAIB' => ['SOHAIB', 'SOAHIB'],
+            'TARIQ'  => ['TARIQ', 'TAREQ'],
+            'JAMAL'  => ['JAMAL'],
+            'ABDO'   => ['ABDO'],
+            'AHMED'  => ['AHMED'],
+        ];
+
+        $normalizedRegions = array_map(
+            fn ($r) => ucfirst(strtolower($r)),
+            $regionsScope
+        );
+
+        // Collect salesman names from Projects + Sales Orders within region scope
+        $salesmenRaw = collect()
+            ->merge(
+                Project::query()
+                    ->whereNull('deleted_at')
+                    ->whereIn('area', $normalizedRegions)
+                    ->pluck('salesperson')
+            )
+            ->merge(
+                Project::query()
+                    ->whereNull('deleted_at')
+                    ->whereIn('area', $normalizedRegions)
+                    ->pluck('salesperson')
+            )
+            ->merge(
+                SalesOrderLog::query()
+                    ->whereNull('deleted_at')
+                    ->whereIn('region', $normalizedRegions)
+                    ->pluck('Sales Source')
+            )
+            ->filter()
+            ->map(fn ($v) => strtoupper(trim($v)))
+            ->unique()
+            ->values();
+
+        // Map raw names to canonical codes (SOHAIB, TARIQ, …)
+        $salesmenFilterOptions = [];
+
+        foreach ($salesmenRaw as $s) {
+            foreach ($salesmanAliasMap as $canonical => $aliases) {
+                if (in_array($s, $aliases, true)) {
+                    $salesmenFilterOptions[$canonical] = $canonical;
+                    break;
+                }
+            }
+        }
+
+        // If nothing found in data, fall back to all canonical names
+        if (empty($salesmenFilterOptions)) {
+            $salesmenFilterOptions = array_keys($salesmanAliasMap);
+        } else {
+            $salesmenFilterOptions = array_values($salesmenFilterOptions);
+        }
+
+        // ==========================
+        //  Projects + Sales Orders
+        // ==========================
         $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
-        $projects = (clone $projectsQuery)
+        $projects      = (clone $projectsQuery)
             ->orderByDesc('quotation_date')
             ->get();
 
-        // 🔹 NEW: grouped Sales Orders (one row per PO/Job set)
+        // Grouped Sales Orders (one row per PO)
         $salesOrders = SalesOrderLog::coordinatorGroupedQuery($regionsScope)
             ->orderByDesc('po_date')
             ->get();
 
-        // KPIs – you can keep your existing methods, or
-        // recompute from grouped data if you prefer
-        $kpiProjectsCount = Project::kpiProjectsCountForCoordinator($regionsScope);
-
+        // KPIs
+        $kpiProjectsCount    = Project::kpiProjectsCountForCoordinator($regionsScope);
         $kpiSalesOrdersCount = $salesOrders->count();
         $kpiSalesOrdersValue = (float) $salesOrders->sum('total_po_value');
 
-        // CHART DATA – can still use your existing helpers if you want,
-        // or derive from grouped rows – up to you
+        // CHART DATA – Quotation vs PO by region
         $projectByRegion = Project::quotationTotalsByRegion($regionsScope);
         $poByRegion      = SalesOrderLog::poTotalsByRegion($regionsScope);
 
-        $regions          = ['eastern', 'central', 'western'];
-        $chartCategories  = [];
-        $chartProjects    = [];
-        $chartPOs         = [];
+        $regions         = ['eastern', 'central', 'western'];
+        $chartCategories = [];
+        $chartProjects   = [];
+        $chartPOs        = [];
 
         foreach ($regions as $r) {
-            if (!in_array($r, $regionsScope)) {
+            if (!in_array($r, $regionsScope, true)) {
                 continue;
             }
 
             $chartCategories[] = ucfirst($r);
-            $chartProjects[]   = (float)($projectByRegion[$r] ?? 0);
-            $chartPOs[]        = (float)($poByRegion[$r] ?? 0);
+            $chartProjects[]   = (float) ($projectByRegion[$r] ?? 0);
+            $chartPOs[]        = (float) ($poByRegion[$r] ?? 0);
         }
 
         return view('coordinator.index', [
             'userRegion'           => $userRegion,
             'regionsScope'         => $regionsScope,
-            'salesmenScope'        => $salesmenScope,
+            'salesmenScope'        => $salesmenScope,          // still used for permissions
+            'salesmenFilterOptions'=> $salesmenFilterOptions,  // 👈 for chips + dropdown
+
             'kpiProjectsCount'     => $kpiProjectsCount,
             'kpiSalesOrdersCount'  => $kpiSalesOrdersCount,
             'kpiSalesOrdersValue'  => $kpiSalesOrdersValue,
@@ -185,6 +254,7 @@ class ProjectCoordinatorController extends Controller
             'chartPOs'             => $chartPOs,
         ]);
     }
+
 
 
     public function storePo(Request $request)
