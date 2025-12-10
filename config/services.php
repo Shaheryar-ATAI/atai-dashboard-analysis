@@ -34,6 +34,9 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
-     'powerbi_url' => env('POWERBI_REPORT_URL', ''),
+    'powerbi_url' => env('POWERBI_REPORT_URL', ''),
+    'powerbi' => [
+        'token' => env('POWERBI_API_TOKEN'),
+    ],
 
 ];

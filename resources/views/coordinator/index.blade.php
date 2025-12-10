@@ -130,44 +130,72 @@
         </div>
 
         {{-- 🔽 FILTER BAR (Region / Month / Dates / Excel) 🔽 --}}
+        @php
+            // Options coming directly from controller
+            $salesmen = $salesmenFilterOptions ?? [];
+
+            // Enforce uppercase codes
+            $salesmen = array_map('strtoupper', $salesmen);
+
+            // Detect Western coordinator (Niyaz)
+            $isWesternCoordinator = strtolower($userRegion) === 'western';
+
+            // If Western coordinator → only Ahmed + Abdo
+            if ($isWesternCoordinator) {
+                $salesmen = array_values(array_intersect($salesmen, ['AHMED', 'ABDO']));
+            }
+        @endphp
+
         <div class="card mb-3">
             <div class="card-body d-flex flex-wrap align-items-end justify-content-between gap-3">
                 <div class="d-flex flex-wrap align-items-end gap-4">
 
                     {{-- REGION CHIPS --}}
+                    {{-- REGION CHIPS --}}
                     <div>
                         <div class="coord-filter-label">Region</div>
                         <div class="coord-chip-group">
-                            <button type="button" class="coord-chip active" data-region="all">All</button>
+                            {{-- Always show "All" (for testing), default active only for non-Western --}}
+                            <button type="button"
+                                    class="coord-chip {{ $isWesternCoordinator ? '' : 'active' }}"
+                                    data-region="all">
+                                All
+                            </button>
 
                             @foreach($regionsScope as $r)
-                                @php $label = ucfirst($r); @endphp
-                                <button type="button" class="coord-chip" data-region="{{ $label }}">
+                                @php
+                                    $label    = ucfirst($r);               // Eastern / Central / Western
+                                    // For Niyaz we still start with "Western" active by default
+                                    $isActive = $isWesternCoordinator && $label === 'active';
+                                @endphp
+                                <button type="button"
+                                        class="coord-chip {{ $isActive ? 'active' : '' }}"
+                                        data-region="{{ $label }}">
                                     {{ $label }}
                                 </button>
                             @endforeach
                         </div>
                     </div>
-                    @php
-                        // Options coming directly from controller
-                        $salesmen = $salesmenFilterOptions ?? [];
 
-                        // Just in case, enforce uppercase canonical codes
-                        $salesmen = array_map('strtoupper', $salesmen);
-                    @endphp
-
+                    {{-- SALESMAN CHIPS --}}
+                    {{-- SALESMAN CHIPS --}}
                     <div>
                         <div class="coord-filter-label">Salesman</div>
                         <div class="coord-chip-group">
-                            <button type="button" class="coord-chip active" data-salesman="all">All</button>
+                            {{-- Show "All" only for NON-Western coordinators --}}
+                            @if (! $isWesternCoordinator)
+                                <button type="button" class="coord-chip active" data-salesman="all">All</button>
+                            @endif
 
                             @foreach($salesmen as $s)
                                 @php
-                                    $upper = strtoupper($s);
-                                    $label = ucwords(strtolower($s)); // Sohaib, Tariq, etc.
+                                    $upper = strtoupper($s);              // SOHAIB / TARIQ / ...
+                                    $label = ucwords(strtolower($s));     // Sohaib / Tariq / ...
+                                    // Default active chip for Western (no "All" button)
+                                    $isSmActive = $isWesternCoordinator && $loop->first;
                                 @endphp
                                 <button type="button"
-                                        class="coord-chip"
+                                        class="coord-chip {{ $isSmActive ? 'active' : '' }}"
                                         data-salesman="{{ $upper }}">
                                     {{ $label }}
                                 </button>
@@ -847,8 +875,13 @@
             const salesmanChips = document.querySelectorAll('.coord-chip[data-salesman]');
             const regionChips   = document.querySelectorAll('.coord-chip[data-region]');
 
-            let filterSalesman = 'all';  // SOHAIB, TARIQ, etc., or all
-            let filterRegion   = 'all';  // Eastern, Central, Western, or all
+            // PHP -> JS: user region
+            const USER_REGION = '{{ strtolower($userRegion) }}';
+
+            let filterSalesman = (USER_REGION === 'western')
+                ? '{{ strtoupper($salesmen[0] ?? 'all') }}' // default Ahmed/first salesman
+                : 'all';
+            let filterRegion   = (USER_REGION === 'western') ? 'Western' : 'all';
             let filterMonth    = '';
             let filterFrom     = null;
             let filterTo       = null;
@@ -1152,17 +1185,23 @@
 
             if (btnResetFilters) {
                 btnResetFilters.addEventListener('click', () => {
-                    // region
-                    filterRegion = 'all';
-                    regionChips.forEach(c => c.classList.remove('active'));
-                    const allRegionChip = document.querySelector('.coord-chip[data-region="all"]');
-                    if (allRegionChip) allRegionChip.classList.add('active');
-
-                    // salesman
-                    filterSalesman = 'all';
-                    salesmanChips.forEach(c => c.classList.remove('active'));
-                    const allSalesmanChip = document.querySelector('.coord-chip[data-salesman="all"]');
-                    if (allSalesmanChip) allSalesmanChip.classList.add('active');
+                    // ----- REGION -----
+                    if (USER_REGION === 'western') {
+                        // Niyaz: always Western only
+                        filterRegion = 'Western';
+                        regionChips.forEach(c => {
+                            c.classList.remove('active');
+                            if ((c.dataset.region || '').toUpperCase() === 'WESTERN') {
+                                c.classList.add('active');
+                            }
+                        });
+                    } else {
+                        // Shenoy: normal behaviour (All)
+                        filterRegion = 'all';
+                        regionChips.forEach(c => c.classList.remove('active'));
+                        const allRegionChip = document.querySelector('.coord-chip[data-region="all"]');
+                        if (allRegionChip) allRegionChip.classList.add('active');
+                    }
 
                     // dates/month
                     filterMonth = '';

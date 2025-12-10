@@ -5,6 +5,7 @@ use App\Http\Controllers\BncProjectController;
 use App\Http\Controllers\EstimatorReportController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\ForecastPdfController;
+use App\Http\Controllers\PowerBiApiController;
 use App\Http\Controllers\ProjectCoordinatorController;
 use App\Http\Controllers\ProjectExportController;
 use App\Http\Controllers\ProjectSubmittalController;
@@ -438,3 +439,4 @@ Route::middleware('auth')->group(function () {
     // ================= END GM / ADMIN ONLY =================
 });
 
+Route::middleware('powerbi') ->get('/powerbi/projects', [PowerBiApiController::class, 'projects']);

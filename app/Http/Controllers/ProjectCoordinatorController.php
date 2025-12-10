@@ -60,69 +60,69 @@ class ProjectCoordinatorController extends Controller
         return ['eastern', 'central', 'western'];
     }
 
-    /*
-     *  old index fucntion
-     *
-     * */
-//    public function index(Request $request)
-//    {
-//        $user = $request->user();
-//        $userRegion = strtolower($user->region ?? '');
-//        $regionsScope = $this->coordinatorRegionScope($user);
-//        $salesmenScope = $this->coordinatorSalesmenScope($user);
-//
-//        // Projects (filtered by region + salesman)
-//        $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
-//        $projects = (clone $projectsQuery)
-//            ->orderByDesc('quotation_date')
-//            ->get();
-//
-//        // Sales Orders (same logic)
-//        $salesOrdersQuery = SalesOrderLog::coordinatorBaseQuery($regionsScope);
-//        $salesOrders = (clone $salesOrdersQuery)
-//            ->orderByDesc('date_rec')
-//            ->get();
-//
-//        // KPIs
-//        $kpiProjectsCount = Project::kpiProjectsCountForCoordinator($regionsScope);
-//
-//        $salesKpis = SalesOrderLog::kpisForCoordinator($regionsScope);
-//        $kpiSalesOrdersCount = $salesKpis['count'];
-//        $kpiSalesOrdersValue = $salesKpis['value'];
-//
-//        // CHART DATA (Quotation vs PO by region)
-//        $projectByRegion = Project::quotationTotalsByRegion($regionsScope);
-//        $poByRegion = SalesOrderLog::poTotalsByRegion($regionsScope);
-//
-//        $regions = ['eastern', 'central', 'western'];
-//        $chartCategories = [];
-//        $chartProjects = [];
-//        $chartPOs = [];
-//
-//        foreach ($regions as $r) {
-//            if (!in_array($r, $regionsScope)) {
-//                continue;
-//            }
-//
-//            $chartCategories[] = ucfirst($r);
-//            $chartProjects[] = (float)($projectByRegion[$r] ?? 0);
-//            $chartPOs[] = (float)($poByRegion[$r] ?? 0);
-//        }
-//
-//        return view('coordinator.index', [
-//            'userRegion' => $userRegion,
-//            'regionsScope' => $regionsScope,
-//            'salesmenScope' => $salesmenScope,
-//            'kpiProjectsCount' => $kpiProjectsCount,
-//            'kpiSalesOrdersCount' => $kpiSalesOrdersCount,
-//            'kpiSalesOrdersValue' => $kpiSalesOrdersValue,
-//            'projects' => $projects,
-//            'salesOrders' => $salesOrders,
-//            'chartCategories' => $chartCategories,
-//            'chartProjects' => $chartProjects,
-//            'chartPOs' => $chartPOs,
-//        ]);
-//    }
+//    /*
+//     *  old index fucntion
+//     *
+//     * */
+////    public function index(Request $request)
+////    {
+////        $user = $request->user();
+////        $userRegion = strtolower($user->region ?? '');
+////        $regionsScope = $this->coordinatorRegionScope($user);
+////        $salesmenScope = $this->coordinatorSalesmenScope($user);
+////
+////        // Projects (filtered by region + salesman)
+////        $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
+////        $projects = (clone $projectsQuery)
+////            ->orderByDesc('quotation_date')
+////            ->get();
+////
+////        // Sales Orders (same logic)
+////        $salesOrdersQuery = SalesOrderLog::coordinatorBaseQuery($regionsScope);
+////        $salesOrders = (clone $salesOrdersQuery)
+////            ->orderByDesc('date_rec')
+////            ->get();
+////
+////        // KPIs
+////        $kpiProjectsCount = Project::kpiProjectsCountForCoordinator($regionsScope);
+////
+////        $salesKpis = SalesOrderLog::kpisForCoordinator($regionsScope);
+////        $kpiSalesOrdersCount = $salesKpis['count'];
+////        $kpiSalesOrdersValue = $salesKpis['value'];
+////
+////        // CHART DATA (Quotation vs PO by region)
+////        $projectByRegion = Project::quotationTotalsByRegion($regionsScope);
+////        $poByRegion = SalesOrderLog::poTotalsByRegion($regionsScope);
+////
+////        $regions = ['eastern', 'central', 'western'];
+////        $chartCategories = [];
+////        $chartProjects = [];
+////        $chartPOs = [];
+////
+////        foreach ($regions as $r) {
+////            if (!in_array($r, $regionsScope)) {
+////                continue;
+////            }
+////
+////            $chartCategories[] = ucfirst($r);
+////            $chartProjects[] = (float)($projectByRegion[$r] ?? 0);
+////            $chartPOs[] = (float)($poByRegion[$r] ?? 0);
+////        }
+////
+////        return view('coordinator.index', [
+////            'userRegion' => $userRegion,
+////            'regionsScope' => $regionsScope,
+////            'salesmenScope' => $salesmenScope,
+////            'kpiProjectsCount' => $kpiProjectsCount,
+////            'kpiSalesOrdersCount' => $kpiSalesOrdersCount,
+////            'kpiSalesOrdersValue' => $kpiSalesOrdersValue,
+////            'projects' => $projects,
+////            'salesOrders' => $salesOrders,
+////            'chartCategories' => $chartCategories,
+////            'chartProjects' => $chartProjects,
+////            'chartPOs' => $chartPOs,
+////        ]);
+////    }
 
 
 
@@ -780,7 +780,6 @@ class ProjectCoordinatorController extends Controller
         $user         = $request->user();
         $regionsScope = $this->coordinatorRegionScope($user);
 
-        // Region permission check using the row we received
         if (!in_array(strtolower($salesorder->area ?? ''), $regionsScope, true)) {
             return response()->json([
                 'ok'      => false,
@@ -789,7 +788,7 @@ class ProjectCoordinatorController extends Controller
         }
 
         // Get PO No. and Job No. from this record
-        $poNo  = $salesorder->{'PO. No.'};       // column has dot + space
+        $poNo  = $salesorder->{'PO. No.'};
         $jobNo = $salesorder->{'Job No.'} ?? null;
 
         if (!$poNo) {
@@ -801,11 +800,12 @@ class ProjectCoordinatorController extends Controller
 
         // Soft-delete ALL rows for the same PO (and Job, if present)
         $affected = DB::table('salesorderlog')
-            ->where('PO. No.', $poNo)
-            ->when($jobNo, fn ($q) => $q->where('Job No.', $jobNo))
+            ->whereRaw('`PO. No.` = ?', [$poNo])
+            ->when($jobNo, function ($q) use ($jobNo) {
+                $q->whereRaw('`Job No.` = ?', [$jobNo]);
+            })
             ->update([
-                'deleted_at' => now(),       // standard SoftDeletes column
-                // 'deleted_by_id' => $user->id ?? null, // uncomment if you have this column
+                'deleted_at' => now(),
             ]);
 
         return response()->json([
@@ -814,6 +814,7 @@ class ProjectCoordinatorController extends Controller
             'count'   => $affected,
         ]);
     }
+
     /**
      * Return list of related quotations with the same base project code.
      * Used by coordinator modal when ticking "Multiple quotations".
