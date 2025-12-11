@@ -180,6 +180,20 @@ Route::middleware('auth')->group(function () {
         Route::get('/suggest/projects', [ForecastController::class, 'suggestProjects'])->name('forecast.suggest.projects');
         Route::post('/validate-row', [ForecastController::class, 'validateRow'])->name('forecast.validate.row');
 
+
+
+
+// Page where Sales Manager fills the form
+        Route::get('/forecast/targets-2026', [ForecastController::class, 'createTargets2026'])
+            ->name('forecast.targets2026.page');
+
+// Auto-filled download (keep ONLY if needed)
+        Route::get('/forecast/targets-2026/download', [ForecastController::class, 'downloadTargets2026'])
+            ->name('forecast.targets2026.download');
+
+// Form-based download (NEW – required for your idea)
+        Route::post('/forecast/targets-2026/download', [ForecastController::class, 'downloadTargets2026FromForm'])
+            ->name('forecast.targets2026.downloadFromForm');
     });
 
 
@@ -440,3 +454,5 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware('powerbi') ->get('/powerbi/projects', [PowerBiApiController::class, 'projects']);
+Route::middleware('powerbi')->get('/powerbi/salesorders', [PowerBiApiController::class, 'salesOrders']);
+Route::middleware('powerbi')->get('/powerbi/forecast', [PowerBiApiController::class, 'forecast']);

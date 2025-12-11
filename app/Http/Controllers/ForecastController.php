@@ -551,4 +551,165 @@ HTML;
         }
         return $issues;
     }
+
+
+
+
+
+//    public function downloadTargets2026(Request $request)
+//    {
+//        $data = [
+//            'year'      => 2026,
+//            'region'    => $request->input('region', 'All Regions'),
+//            'issuedBy'  => auth()->user()->name ?? '',
+//            'forecast'  => [
+//                'annual_target'     => 50_000_000,   // example
+//                'required_turnover' => '…',
+//            ],
+//
+//            'totAll'    => 50_000_000, // or sum of regions
+//        ];
+//
+//        $pdf = Pdf::loadView('forecast.targets_2026', $data)
+//            ->setPaper('a4', 'landscape');
+//
+//        return $pdf->download('forecast_targets_2026.pdf');
+//    }
+
+
+
+    public function buildTargets2026Data(Request $request): array
+    {
+        $user   = $request->user();           // logged-in salesman / GM
+        $region = $user->region ?? 'All Regions';
+
+        // Example: pull annual target from DB or config
+        // You will replace this with your real query
+        $annualTarget = 35_000_000;
+
+        // Example: new order rows from your Projects table / KPI query
+        $rowsA = []; // ← fill from DB as you did for the monthly forecast
+
+        return [
+            'year'           => 2026,
+            'submissionDate' => now()->format('Y-m-d'),
+            'region'         => $region,
+            'issuedBy'       => $user->name ?? '',
+            'issuedDate'     => now()->format('Y-m-d'),
+            'forecast'       => [
+                'annual_target' => $annualTarget,
+            ],
+            'criteria' => [],        // if you add later
+            'totAll'   => 0,
+            'rowsA'    => $rowsA,
+        ];
+    }
+
+    /**
+     * 1️⃣ Web page (HTML) – managers see the sheet and a Download button
+     */
+    public function showTargets2026(Request $request)
+    {
+        $data = $this->buildTargets2026Data($request);
+
+        // Use the SAME Blade you already have
+        return view('forecast.targets_2026', $data + [
+                'showDownloadButton' => true,
+            ]);
+    }
+
+
+
+
+    // GET: show the form
+    public function createTargets2026(Request $request)
+    {
+        $user   = $request->user();
+
+        return view('forecast.targets_2026_create', [
+            'year'       => 2026,
+            'region'     => $user->region ?? 'All Regions',
+            'issuedBy'   => $user->name ?? '',
+            'issuedDate' => now()->format('Y-m-d'),
+        ]);
+    }
+
+    // POST: user clicks "Download PDF" – build data + render existing PDF view
+    public function downloadTargets2026FromForm(Request $request)
+    {
+        // basic validation – adjust if you want stricter rules
+        $data = $request->validate([
+            'year'          => 'required|integer',
+            'region'        => 'required|string',
+            'issuedBy'      => 'required|string',
+            'issuedDate'    => 'required|date',
+            'annual_target' => 'required|numeric',
+
+            'orders'                    => 'array',
+            'orders.*.customer'        => 'nullable|string',
+            'orders.*.product'         => 'nullable|string',
+            'orders.*.project'         => 'nullable|string',
+            'orders.*.quotation'       => 'nullable|string',
+            'orders.*.value'           => 'nullable|numeric',
+            'orders.*.remarks'         => 'nullable|string',
+        ]);
+
+        // Clean empty rows
+        $rowsA = collect($data['orders'] ?? [])->filter(function ($row) {
+            return !empty($row['customer']) ||
+                !empty($row['product'])  ||
+                !empty($row['project'])  ||
+                !empty($row['quotation'])||
+                !empty($row['remarks'])  ||
+                (isset($row['value']) && $row['value'] > 0);
+        })->values()->all();
+
+        $payload = [
+            'year'           => $data['year'],
+            'submissionDate' => now()->format('Y-m-d'),
+            'region'         => $data['region'],
+            'issuedBy'       => $data['issuedBy'],
+            'issuedDate'     => $data['issuedDate'],
+
+            'forecast' => [
+                'annual_target' => $data['annual_target'],
+            ],
+            'criteria' => [],
+            'totAll'   => 0,
+            'rowsA'    => $rowsA,
+        ];
+
+        // Use your existing PDF layout view (the one you just finished)
+        $pdf = Pdf::loadView('forecast.targets_2026', $payload)
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->download('annual_targets_2026.pdf');
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
