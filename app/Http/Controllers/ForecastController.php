@@ -655,15 +655,20 @@ HTML;
         ]);
 
         // Clean empty rows
-        $rowsA = collect($data['orders'] ?? [])->filter(function ($row) {
-            return !empty($row['customer']) ||
-                !empty($row['product'])  ||
-                !empty($row['project'])  ||
-                !empty($row['quotation'])||
-                !empty($row['remarks'])  ||
-                (isset($row['value']) && $row['value'] > 0);
-        })->values()->all();
-
+        $rowsA = collect($request->input('orders', []))
+            ->map(function ($row) {
+                return [
+                    'customer'          => $row['customer'] ?? null,
+                    'product'           => $row['product'] ?? null,
+                    'project'           => $row['project'] ?? null,
+                    'quotation'         => $row['quotation'] ?? null,
+                    'value'             => $row['value'] ?? null,
+                    'status'            => $row['status'] ?? null,
+                    'forecast_criteria' => $row['forecast_criteria'] ?? null,
+                    'remarks'           => $row['remarks'] ?? null,
+                ];
+            })
+            ->all();
         $payload = [
             'year'           => $data['year'],
             'submissionDate' => now()->format('Y-m-d'),

@@ -179,13 +179,15 @@
         <th>Project Name</th>
         <th>Quotation No.</th>
         <th style="width:120px;" class="right">Value</th>
+        <th>Status</th>
+        <th>Forecast Criteria</th>
         <th>Remarks</th>
     </tr>
     </thead>
     <tbody>
     @php
         $totA    = 0;
-        $maxRows = max(40, count($rowsA));   // always at least 20 lines
+        $maxRows = max(25, count($rowsA));   // always at least 40 lines
     @endphp
 
     @for($i = 0; $i < $maxRows; $i++)
@@ -203,13 +205,24 @@
             <td class="right">
                 {{ $val > 0 ? number_format($val, 0) : '' }}
             </td>
+            <td>{{ $row['status'] ?? '' }}</td>
+            <td>{{ $row['forecast_criteria'] ?? '' }}</td>
             <td>{{ $row['remarks'] ?? '' }}</td>
         </tr>
     @endfor
 
     <tr class="total-row">
-        <td colspan="5" class="right">Total New Forecasted Orders for {{ $year }}</td>
-        <td class="right">{{ $totA > 0 ? number_format($totA, 0) : '' }}</td>
+        {{-- covers Serial..Quotation (5 cols) --}}
+        <td colspan="5" class="right">
+            Total New Forecasted Orders for {{ $year }}
+        </td>
+        {{-- value total aligned under Value column --}}
+        <td class="right">
+            {{ $totA > 0 ? number_format($totA, 0) : '' }}
+        </td>
+        {{-- extra cols under Status / Criteria / Remarks --}}
+        <td></td>
+        <td></td>
         <td></td>
     </tr>
     </tbody>

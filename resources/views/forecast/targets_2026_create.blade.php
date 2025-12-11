@@ -10,12 +10,12 @@
 
     /* All tables brighter */
     table, td, th {
-        background: rgb(187, 184, 184) !important;
-        color: #2f2c2c !important;
-        border-color: #000000 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        border-color: #9f9e9e !important;
     }
 
-    /* Section headers */
+    /* Section headers (normal table header cells) */
     th {
         background: #989898 !important;
         color: #000;
@@ -27,18 +27,39 @@
         font-weight: 700;
     }
 
-    /* Inputs light mode */
-    input, select, textarea {
-        background: #ffffff !important;
+    /* Inputs + selects – force light mode */
+    input,
+    select,
+    textarea,
+    .form-control,
+    .form-select {
+        background-color: #ffffff !important;
         color: #000000 !important;
         border: 1px solid #76fad4 !important;
+        box-shadow: none !important;
     }
 
-    input:focus, select:focus {
-        background: #ffffff !important;
+    input:focus,
+    select:focus,
+    .form-control:focus,
+    .form-select:focus {
+        background-color: #ffffff !important;
         border-color: #4a90e2 !important;
         box-shadow: none !important;
-        color: #8f9f98 !important;
+        color: #000000 !important;
+    }
+
+    /* Selects specifically inside table cells (fix black bars) */
+    .table td select,
+    .table td .form-control {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* Options inside dropdown list */
+    .table td select option {
+        background-color: #ffffff;
+        color: #000000;
     }
 
     /* Remove dark overlay from app layout */
@@ -48,7 +69,8 @@
     }
 
     /* Remove dark theme inherited from atai-theme.css */
-    .card, .table {
+    .card,
+    .table {
         background: #ffffff !important;
         color: #000000 !important;
     }
@@ -63,7 +85,14 @@
         background: #1a68d1 !important;
     }
 
+    /* ===== Special band above the table (Sales Data / Target Data) ===== */
+    .target-section-header th {
+        background: #dbe8f6 !important;  /* light blue/grey band */
+        color: #000000 !important;
+        font-weight: 700;
+    }
 </style>
+
 
 @section('content')
     <div class="container-fluid" style="font-size:12px;">
@@ -93,7 +122,7 @@
 
             {{-- Sales + Target Data --}}
             <table class="table table-bordered table-sm" style="width:100%;">
-                <tr style="background:#dbe8f6;">
+                <tr class="target-section-header">
                     <th style="width:45%;">Sales Data</th>
                     <th style="width:55%;">Target Data</th>
                 </tr>
@@ -178,19 +207,48 @@
                     <th>Project Name</th>
                     <th>Quotation No.</th>
                     <th style="width:120px;">Value</th>
+                    <th>Status</th>
+                    <th>Forecast Criteria</th>
                     <th>Remarks</th>
                 </tr>
                 </thead>
                 <tbody>
-                @for($i = 0; $i < 40; $i++)
+                @for($i = 0; $i < 25; $i++)
                     <tr>
                         <td>{{ $i+1 }}</td>
+
                         <td><input name="orders[{{ $i }}][customer]"  class="form-control form-control-sm"></td>
+
                         <td><input name="orders[{{ $i }}][product]"   class="form-control form-control-sm"></td>
+
                         <td><input name="orders[{{ $i }}][project]"   class="form-control form-control-sm"></td>
+
                         <td><input name="orders[{{ $i }}][quotation]" class="form-control form-control-sm"></td>
-                        <td><input name="orders[{{ $i }}][value]"     class="form-control form-control-sm" type="number" step="0.01"></td>
-                        <td><input name="orders[{{ $i }}][remarks]"   class="form-control form-control-sm"></td>
+
+                        <td><input name="orders[{{ $i }}][value]"     class="form-control form-control-sm"
+                                   type="number" step="0.01"></td>
+
+                        {{-- STATUS DROPDOWN --}}
+                        <td>
+                            <select name="orders[{{ $i }}][status]" class="form-control form-control-sm">
+                                <option value="">--</option>
+                                <option value="In-hand">In-hand</option>
+                                <option value="Bidding">Bidding</option>
+                            </select>
+                        </td>
+
+                        {{-- FORECAST CRITERIA DROPDOWN --}}
+                        <td>
+                            <select name="orders[{{ $i }}][forecast_criteria]" class="form-control form-control-sm">
+                                <option value="">--</option>
+                                <option value="A">A — Commercial matters agreed & MS approved</option>
+                                <option value="B">B — Commercial matters agreed OR MS approved</option>
+                                <option value="C">C — Neither commercial matters nor MS achieved</option>
+                                <option value="D">D — Project is in bidding stage</option>
+                            </select>
+                        </td>
+
+                        <td><input name="orders[{{ $i }}][remarks]" class="form-control form-control-sm"></td>
                     </tr>
                 @endfor
                 </tbody>
