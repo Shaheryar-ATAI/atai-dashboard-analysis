@@ -115,7 +115,7 @@
                     <td style="border:none; width:150px;">
                         <input type="date" name="submissionDate"
                                value="{{ now()->format('Y-m-d') }}"
-                               class="form-control form-control-sm" readonly>
+                               class="form-control form-control-sm">
                     </td>
                 </tr>
             </table>

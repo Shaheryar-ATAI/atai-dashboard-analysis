@@ -604,27 +604,26 @@ HTML;
             'rowsA'    => $rowsA,
         ];
     }
-
     /**
      * 1️⃣ Web page (HTML) – managers see the sheet and a Download button
+     * Always uses the canonical builder (so it shows ALL sections).
      */
     public function showTargets2026(Request $request)
     {
         $data = $this->buildTargets2026Data($request);
 
-        // Use the SAME Blade you already have
         return view('forecast.targets_2026', $data + [
                 'showDownloadButton' => true,
+                'isPdf' => false,
             ]);
     }
 
-
-
-
-    // GET: show the form
+    /**
+     * 2️⃣ GET: show manual entry form (create)
+     */
     public function createTargets2026(Request $request)
     {
-        $user   = $request->user();
+        $user = $request->user();
 
         return view('forecast.targets_2026_create', [
             'year'       => 2026,
@@ -634,11 +633,13 @@ HTML;
         ]);
     }
 
-    // POST: user clicks "Download PDF" – build data + render existing PDF view
+    /**
+     * 3️⃣ POST: Download PDF from manual form
+     * Uses the SAME data builder and injects the form data.
+     */
     public function downloadTargets2026FromForm(Request $request)
     {
-        // basic validation – adjust if you want stricter rules
-        $data = $request->validate([
+        $validated = $request->validate([
             'year'          => 'required|integer',
             'region'        => 'required|string',
             'issuedBy'      => 'required|string',
@@ -651,52 +652,87 @@ HTML;
             'orders.*.project'         => 'nullable|string',
             'orders.*.quotation'       => 'nullable|string',
             'orders.*.value'           => 'nullable|numeric',
+            'orders.*.status'          => 'nullable|string',
+            'orders.*.forecast_criteria'=> 'nullable|string',
             'orders.*.remarks'         => 'nullable|string',
         ]);
 
-        // Clean empty rows
+        // ✅ Normalize rowsA + remove totally empty rows
         $rowsA = collect($request->input('orders', []))
             ->map(function ($row) {
                 return [
-                    'customer'          => $row['customer'] ?? null,
-                    'product'           => $row['product'] ?? null,
-                    'project'           => $row['project'] ?? null,
-                    'quotation'         => $row['quotation'] ?? null,
-                    'value'             => $row['value'] ?? null,
-                    'status'            => $row['status'] ?? null,
-                    'forecast_criteria' => $row['forecast_criteria'] ?? null,
-                    'remarks'           => $row['remarks'] ?? null,
+                    'customer'          => trim((string)($row['customer'] ?? '')),
+                    'product'           => trim((string)($row['product'] ?? '')),
+                    'project'           => trim((string)($row['project'] ?? '')),
+                    'quotation'         => trim((string)($row['quotation'] ?? '')),
+                    'value'             => ($row['value'] ?? null) !== null && $row['value'] !== ''
+                        ? (float) $row['value']
+                        : null,
+                    'status'            => trim((string)($row['status'] ?? '')),
+                    'forecast_criteria' => trim((string)($row['forecast_criteria'] ?? '')),
+                    'remarks'           => trim((string)($row['remarks'] ?? '')),
                 ];
             })
+            ->filter(function ($r) {
+                // keep row if ANY meaningful cell exists
+                return ($r['customer'] !== '')
+                    || ($r['product'] !== '')
+                    || ($r['project'] !== '')
+                    || ($r['quotation'] !== '')
+                    || ($r['value'] !== null)
+                    || ($r['status'] !== '')
+                    || ($r['forecast_criteria'] !== '')
+                    || ($r['remarks'] !== '');
+            })
+            ->values()
             ->all();
-        $payload = [
-            'year'           => $data['year'],
-            'submissionDate' => now()->format('Y-m-d'),
-            'region'         => $data['region'],
-            'issuedBy'       => $data['issuedBy'],
-            'issuedDate'     => $data['issuedDate'],
 
-            'forecast' => [
-                'annual_target' => $data['annual_target'],
-            ],
-            'criteria' => [],
-            'totAll'   => 0,
-            'rowsA'    => $rowsA,
+        /**
+         * ✅ Build canonical data (the same as portal).
+         * Then override ONLY the parts from the form:
+         * - header fields
+         * - annual target
+         * - rowsA
+         */
+        $data = $this->buildTargets2026Data($request);
+
+        $data['year']           = (int) $validated['year'];
+        $data['region']         = $validated['region'];
+        $data['issuedBy']       = $validated['issuedBy'];
+        $data['issuedDate']     = $validated['issuedDate'];
+        $data['submissionDate'] = now()->format('Y-m-d');
+
+        $data['forecast'] = $data['forecast'] ?? [];
+        $data['forecast']['annual_target'] = (float) $validated['annual_target'];
+
+        // ✅ inject section A from form
+        $data['rowsA'] = $rowsA;
+
+        // ✅ criteria legend for PDF dropdown meaning (A/B/C/D)
+        $data['criteriaLegend'] = $data['criteriaLegend'] ?? [
+            'A' => 'Commercial matters agreed & MS approved',
+            'B' => 'Commercial matters agreed OR MS approved',
+            'C' => 'Neither commercial matters nor MS achieved',
+            'D' => 'Project is in bidding stage',
         ];
 
-        // Use your existing PDF layout view (the one you just finished)
-        $pdf = Pdf::loadView('forecast.targets_2026', $payload)
+        // IMPORTANT: if your portal has rowsB/rowsC etc, they remain from builder
+        // so PDF will include them once you add them to the Blade.
+
+        // ✅ Use a dedicated PDF blade (recommended)
+        // If you insist on using the same view, you can keep 'forecast.targets_2026'
+        $view = view()->exists('forecast.targets_2026_pdf')
+            ? 'forecast.targets_2026_pdf'
+            : 'forecast.targets_2026';
+
+        $pdf = Pdf::loadView($view, $data + [
+                'showDownloadButton' => false,
+                'isPdf' => true,
+            ])
             ->setPaper('a4', 'landscape');
 
         return $pdf->download('annual_targets_2026.pdf');
     }
-
-
-
-
-
-
-
 
 
 

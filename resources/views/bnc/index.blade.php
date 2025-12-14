@@ -134,7 +134,7 @@
                     <div class="card-body py-2">
                         <div class="text-white-50 small">Total Value (USD)</div>
                         <div id="kpi_total_value" class="fs-5 fw-semibold text-white">
-                            {{$kpis['total_value'] ?? 0, 0 }}
+                            {{ $kpis['total_value'] ?? '0' }}
                         </div>
                     </div>
                 </div>
@@ -145,7 +145,7 @@
                     <div class="card-body py-2">
                         <div class="text-white-50 small">Total Value (SAR)</div>
                         <div id="total_value_Sar" class="fs-5 fw-semibold text-white">
-                            {{$kpis['total_value_Sar'] ?? 0, 0 }}
+                            {{ $kpis['total_value_Sar'] ?? '0' }}
                         </div>
                     </div>
                 </div>
@@ -489,65 +489,94 @@
             });
 
             function fillBncModal(p) {
-                const safe = (v) => (v ?? '');
+                const safe = (v) => (v === null || v === undefined) ? '' : String(v).trim();
+
                 const fmtNum = (n) => Number(n || 0).toLocaleString('en-US');
 
-                // --- Modal title ---
+                const formatDate = (val) => {
+                    if (!val) return '';
+                    const s = String(val);
+                    const datePart = s.split('T')[0];
+                    if (datePart === '1970-01-01' || datePart === '1969-12-31') return '';
+                    return datePart;
+                };
+
+                const section = (title, lines) => {
+                    const cleaned = (lines || []).map(safe).filter(Boolean);
+                    if (!cleaned.length) return '';
+                    return `${title}\n${cleaned.map(x => '• ' + x).join('\n')}\n`;
+                };
+
+                const partyBlock = (label, obj) => {
+                    if (!obj || typeof obj !== 'object') return '';
+                    const lines = [];
+                    if (obj.name) lines.push(`Name: ${obj.name}`);
+                    if (obj.key_contact) lines.push(`Key Contact: ${obj.key_contact}`);
+                    if (obj.phone) lines.push(`Phone: ${obj.phone}`);
+                    if (obj.email) lines.push(`Email: ${obj.email}`);
+                    if (obj.award_date) lines.push(`Award Date: ${safe(obj.award_date)}`);
+                    if (obj.award_value) lines.push(`Award Value: ${fmtNum(obj.award_value)}`);
+                    return section(label, lines);
+                };
+
+                // Title
                 document.getElementById('bnc_modal_title').textContent =
                     safe(p.project_name) + (p.reference_no ? ' (' + p.reference_no + ')' : '');
 
-                // --- Basic info block ---
+                // Basic info
                 const basic = document.getElementById('bnc_info_basic');
                 basic.innerHTML = `
-                    <dt class="col-sm-4">City</dt><dd class="col-sm-8">${safe(p.city)}</dd>
-                    <dt class="col-sm-4">Region</dt><dd class="col-sm-8">${safe(p.region)}</dd>
-                    <dt class="col-sm-4">Stage</dt><dd class="col-sm-8">${safe(p.stage)}</dd>
-                    <dt class="col-sm-4">Industry</dt><dd class="col-sm-8">${safe(p.industry)}</dd>
-                    <dt class="col-sm-4">Client</dt><dd class="col-sm-8">${safe(p.client)}</dd>
-                    <dt class="col-sm-4">Value (USD)</dt><dd class="col-sm-8">${fmtNum(p.value_usd)}</dd>
-                    <dt class="col-sm-4">Award Date</dt><dd class="col-sm-8">${formatDate(p.award_date)}</dd>
-                `;
+        <dt class="col-sm-4">City</dt><dd class="col-sm-8">${safe(p.city)}</dd>
+        <dt class="col-sm-4">Region</dt><dd class="col-sm-8">${safe(p.region)}</dd>
+        <dt class="col-sm-4">Stage</dt><dd class="col-sm-8">${safe(p.stage)}</dd>
+        <dt class="col-sm-4">Industry</dt><dd class="col-sm-8">${safe(p.industry)}</dd>
+        <dt class="col-sm-4">Client/Owner</dt><dd class="col-sm-8">${safe(p.client)}</dd>
+        <dt class="col-sm-4">Value (USD)</dt><dd class="col-sm-8">${fmtNum(p.value_usd)}</dd>
+        <dt class="col-sm-4">Award Date</dt><dd class="col-sm-8">${formatDate(p.award_date)}</dd>
+    `;
 
-                const bullets = (txt) => {
-                    if (!txt) return '';
-                    return String(txt)
-                        .split(';')
-                        .map(s => s.trim())
-                        .filter(Boolean)
-                        .map(s => '• ' + s)
-                        .join('\n');
-                };
+                // Overview Info (clean, consistent)
+                const overviewLines = [
+                    `Reference No: ${safe(p.reference_no)}`,
+                    `Project: ${safe(p.project_name)}`,
+                    `City: ${safe(p.city)}`,
+                    `Region: ${safe(p.region)}`,
+                    `Stage: ${safe(p.stage)}`,
+                    `Industry: ${safe(p.industry)}`,
+                    `Client/Owner: ${safe(p.client)}`,
+                    `Value (USD): ${fmtNum(p.value_usd)}`,
+                    `Award Date: ${formatDate(p.award_date)}`,
+                    `Datasets: ${safe(p.datasets)}`,
+                ].filter(line => !line.endsWith(': '));
 
-                const overview = `
-Reference Number: ${safe(p.reference_no)}
-Project Sector: ${safe(p.project_sector || p.project_sector_label)}
-Project Industry: ${safe(p.industry)}
-Project Type: ${safe(p.project_type || '')}
-Stage: ${safe(p.stage)}
-Value (USD): ${fmtNum(p.value_usd)}
-Last Updated: ${safe(p.last_updated || '')}
-GPS: ${safe(p.gps || '')}
-                `.trim();
+                document.getElementById('bnc_overview_block').textContent = overviewLines.join('\n');
 
-                document.getElementById('bnc_overview_block').textContent = overview;
+                // Parties (prefer raw_parties, fallback to old)
+                const rp = p.raw_parties || {};
+                let partiesTxt = '';
+                partiesTxt += partyBlock('Owners', rp.owners);
+                partiesTxt += partyBlock('Lead/Infra/FEED/Design Consultants', rp.lead_consultant);
+                partiesTxt += partyBlock('MEP Consultants', rp.mep_consultant);
+                partiesTxt += partyBlock('MEP Contractors', rp.mep_contractor);
+                partiesTxt += partyBlock('Main/Infra/EPC Contractors', rp.main_epc);
 
-                const parties = [
-                    'Consultant(s):',
-                    bullets(p.consultant),
-                    '',
-                    'Main Contractor(s):',
-                    bullets(p.main_contractor),
-                    '',
-                    'MEP Contractor(s):',
-                    bullets(p.mep_contractor),
-                ].join('\n');
+                if (!partiesTxt.trim()) {
+                    partiesTxt = [
+                        section('Client / Owner', [p.client]),
+                        section('Consultant(s)', [p.consultant]),
+                        section('Main Contractor(s)', [p.main_contractor]),
+                        section('MEP Contractor(s)', [p.mep_contractor]),
+                    ].join('\n').trim();
+                }
 
-                document.getElementById('bnc_parties_block').textContent = parties.trim();
+                document.getElementById('bnc_parties_block').textContent =
+                    partiesTxt.trim() || 'No party/contact details available.';
 
+                // Latest news
                 document.getElementById('bnc_latest_block').textContent =
-                    p.latest_news ? String(p.latest_news) : 'No recent news available.';
+                    safe(p.latest_news) || 'No project news/updates found in the latest import.';
 
-                // Checkpoints
+                // Checkpoints form
                 document.getElementById('bnc_project_id').value = p.id;
                 document.getElementById('bnc_approached_input').value = p.approached ? '1' : '0';
                 document.getElementById('bnc_lead_qualified_input').value = p.lead_qualified ?? 'Unknown';
@@ -559,11 +588,13 @@ GPS: ${safe(p.gps || '')}
                 document.getElementById('bnc_submittal_approved').checked = !!p.submittal_approved;
                 document.getElementById('bnc_notes_input').value = p.notes ?? '';
 
+                // Audit
                 let auditText = '';
                 if (p.created_at) auditText += 'Created: ' + p.created_at;
                 if (p.updated_at) auditText += (auditText ? ' | ' : '') + 'Last updated: ' + p.updated_at;
                 document.getElementById('bnc_audit_info').textContent = auditText;
             }
+
 
             // Save checkpoints
             document.getElementById('bncSaveCheckpointBtn')?.addEventListener('click', function () {

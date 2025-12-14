@@ -9,7 +9,6 @@ class BncProject extends Model
 {
     use HasFactory;
 
-    // Internal import table, so it's safe to allow all columns
     protected $guarded = [];
 
     protected $casts = [
@@ -17,14 +16,19 @@ class BncProject extends Model
         'award_date'          => 'date',
         'expected_close_date' => 'date',
         'bnc_exported_at'     => 'datetime',
+        'scraped_at'          => 'datetime',
+
         'approached'          => 'boolean',
         'boq_shared'          => 'boolean',
         'submittal_shared'    => 'boolean',
         'submittal_approved'  => 'boolean',
+
         'penetration_percent' => 'integer',
+
+        // ✅ IMPORTANT: so frontend gets an array/object, not JSON string
+        'raw_parties'         => 'array',
     ];
 
-    // Relationships
     public function responsibleSalesman()
     {
         return $this->belongsTo(User::class, 'responsible_salesman_id');

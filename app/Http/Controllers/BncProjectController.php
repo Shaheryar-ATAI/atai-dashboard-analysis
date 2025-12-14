@@ -398,8 +398,51 @@ class BncProjectController extends Controller
     {
         $this->authorizeRegion($bncProject);
 
-        return response()->json($bncProject->load('responsibleSalesman'));
+        $bncProject->load('responsibleSalesman');
+
+        return response()->json([
+            'id' => $bncProject->id,
+            'reference_no' => $bncProject->reference_no,
+            'project_name' => $bncProject->project_name,
+            'city' => $bncProject->city,
+            'region' => $bncProject->region,
+            'country' => $bncProject->country,
+            'stage' => $bncProject->stage,
+            'industry' => $bncProject->industry,
+            'value_usd' => (float) ($bncProject->value_usd ?? 0),
+            'award_date' => optional($bncProject->award_date)->toDateString(),
+
+            'client' => $bncProject->client,
+            'consultant' => $bncProject->consultant,
+            'main_contractor' => $bncProject->main_contractor,
+            'mep_contractor' => $bncProject->mep_contractor,
+
+            'datasets' => $bncProject->datasets,
+            'overview_info' => $bncProject->overview_info,
+            'latest_news' => $bncProject->latest_news,
+
+            // ✅ structured details
+            'raw_parties' => $bncProject->raw_parties ?: [],
+
+            // checkpoints
+            'approached' => (bool) $bncProject->approached,
+            'lead_qualified' => $bncProject->lead_qualified ?: 'Unknown',
+            'penetration_percent' => (int) ($bncProject->penetration_percent ?? 0),
+            'boq_shared' => (bool) $bncProject->boq_shared,
+            'submittal_shared' => (bool) $bncProject->submittal_shared,
+            'submittal_approved' => (bool) $bncProject->submittal_approved,
+            'expected_close_date' => optional($bncProject->expected_close_date)->toDateString(),
+            'notes' => $bncProject->notes,
+
+            'responsible_salesman' => $bncProject->responsibleSalesman
+                ? ['id' => $bncProject->responsibleSalesman->id, 'name' => $bncProject->responsibleSalesman->name]
+                : null,
+
+            'created_at' => optional($bncProject->created_at)->toDateTimeString(),
+            'updated_at' => optional($bncProject->updated_at)->toDateTimeString(),
+        ]);
     }
+
 
     // POST /bnc/{id} – update checkpoints from modal
     public function update(Request $request, BncProject $bncProject)
