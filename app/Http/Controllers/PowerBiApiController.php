@@ -5,50 +5,93 @@ namespace App\Http\Controllers;
 use App\Models\Forecast;
 use App\Models\Project;
 use App\Models\SalesOrderLog;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class PowerBiApiController extends Controller
 {
-    public function projects(): JsonResponse
+    public function projects(Request $request): JsonResponse
     {
-        $projects = Project::select('project_name',
-            'client_name',
-            'project_location',
-            'area',
-            'quotation_no',
-            'revision_no',
-            'atai_products',
-            'value_with_vat',
-            'quotation_value',
-            'status_current',
-            'status',
-            'last_comment',
-            'project_type',
-            'quotation_date',
-            'technical_submittal',
-            'date_rec',
-            'action1',
-            'salesperson',
-            'salesman',
-            'technical_base',
-            'contact_person',
-            'contact_number',
-            'contact_email',
-            'company_address',
-            'created_by_id',
-            'estimator_name',
-            'coordinator_updated_by_id',
-            'created_at',
-            'updated_at')
-            ->orderByDesc('id')
-            ->limit(5000)
+        $year     = (int) $request->query('year', now()->year);
+        $month    = (int) $request->query('month', now()->month);
+        $area     = $request->query('area');      // Eastern/Central/Western
+        $salesman = $request->query('salesman');  // e.g. SOHAIB
+
+        // ✅ Build month boundaries in KSA time, then convert to UTC for DB filter
+        $tz = 'Asia/Riyadh';
+
+        $fromKsa = Carbon::create($year, $month, 1, 0, 0, 0, $tz);
+        $toKsa   = (clone $fromKsa)->endOfMonth()->setTime(23, 59, 59);
+
+        $fromUtc = (clone $fromKsa)->utc();   // e.g. 2025-12-01 00:00 KSA -> UTC
+        $toUtc   = (clone $toKsa)->utc();
+
+        $q = Project::query()
+            ->select(
+                'project_name',
+                'client_name',
+                'project_location',
+                'area',
+                'quotation_no',
+                'revision_no',
+                'atai_products',
+                'value_with_vat',
+                'quotation_value',
+                'status_current',
+                'status',
+                'last_comment',
+                'project_type',
+                'quotation_date',
+                'technical_submittal',
+                'date_rec',
+                'action1',
+                'salesperson',
+                'salesman',
+                'technical_base',
+                'contact_person',
+                'contact_number',
+                'contact_email',
+                'company_address',
+                'created_by_id',
+                'estimator_name',
+                'coordinator_updated_by_id',
+                'created_at',
+                'updated_at'
+            )
+            // ✅ Filter on UTC timestamps so KSA “Dec 11” (stored as Dec 10 21:00Z) is INCLUDED
+            ->whereBetween('quotation_date', [$fromUtc, $toUtc]);
+
+        if (!empty($area)) {
+            $q->where('area', $area);
+        }
+
+        if (!empty($salesman)) {
+            $sm = strtoupper(trim($salesman));
+            $q->whereRaw("UPPER(TRIM(salesman)) = ?", [$sm]);
+        }
+
+        $projects = $q
+            ->orderBy('quotation_date', 'asc')
+            ->orderBy('quotation_no', 'asc')
             ->get();
+
+        // ✅ Optional but strongly recommended: add KSA date column for Power BI slicing
+        $projects->transform(function ($p) use ($tz) {
+            $p->quotation_date_ksa = $p->quotation_date
+                ? Carbon::parse($p->quotation_date)->timezone($tz)->toDateString()
+                : null;
+
+            $p->date_rec_ksa = $p->date_rec
+                ? Carbon::parse($p->date_rec)->timezone($tz)->toDateString()
+                : null;
+
+            return $p;
+        });
 
         return response()->json($projects);
     }
-
 
     public function salesOrders(Request $request)
     {

@@ -350,32 +350,49 @@
         async function loadKpis() {
             document.getElementById('kpiRow')?.style?.setProperty('display', '');
 
-            const year = document.querySelector('#projYear')?.value || PROJ_YEAR || '';
-            const month = document.querySelector('#monthSelect')?.value || '';
-            const df = document.querySelector('#dateFrom')?.value || '';
-            const dt = document.querySelector('#dateTo')?.value || '';
+            const year   = document.querySelector('#projYear')?.value || PROJ_YEAR || '';
+            const month  = document.querySelector('#monthSelect')?.value || '';
+            const df     = document.querySelector('#dateFrom')?.value || '';
+            const dt     = document.querySelector('#dateTo')?.value || '';
             const family = currentFamily || '';
-            const region = (CAN_VIEW_ALL ? (document.querySelector('#projRegion')?.value || '') : PROJ_REGION) || '';
+
+            // Region rule: GM/Admin can choose dropdown, others use their own region
+            const region = (CAN_VIEW_ALL
+                    ? (document.querySelector('#projRegion')?.value || '')
+                    : (PROJ_REGION || ATAI_ME?.region || '')
+            ) || '';
+
+            // Salesman rule: only GM/Admin can send salesman filter
+            const salesman = CAN_VIEW_ALL
+                ? (document.querySelector('#salesmanInput')?.value || '').trim()
+                : '';
 
             const url = new URL("{{ route('projects.kpis') }}", window.location.origin);
+
+            // Date range overrides month/year
             if (df) url.searchParams.set('date_from', df);
             if (dt) url.searchParams.set('date_to', dt);
+
             if (!df && !dt) {
                 if (month) url.searchParams.set('month', month);
-                if (year) url.searchParams.set('year', year);
+                if (year)  url.searchParams.set('year', year);
             }
-            if (family) url.searchParams.set('family', family);
-            if (region) url.searchParams.set('area', region);
 
-            // ✅ Single fetch, one source of truth
-            const res = await fetch(url, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}});
+            if (family)  url.searchParams.set('family', family);
+            if (region)  url.searchParams.set('area', region);
+            if (salesman) url.searchParams.set('salesman', salesman); // ✅ FIX
+
+            const res = await fetch(url, {
+                credentials: 'same-origin',
+                headers: {'X-Requested-With': 'XMLHttpRequest'}
+            });
+
             const resp = await res.json();
+
             KPI_CACHE = resp;
-            // cache exactly what UI renders
-            document.dispatchEvent(new CustomEvent('kpis:updated', {detail: resp}));
-            // ✅ NEW: update stale-bidding badge
+            document.dispatchEvent(new CustomEvent('kpis:updated', { detail: resp }));
+
             hydrateKpis(resp);
-            // update UI
             updateProductTargetUI(resp.product_target_meta);
             updateDialsAndCards(resp);
             renderAreaAndPie(resp);
@@ -384,6 +401,7 @@
             renderFunnel(resp);
             renderMonthlyProductWiseChart(resp);
         }
+
 
 
         /* =============================================================================
