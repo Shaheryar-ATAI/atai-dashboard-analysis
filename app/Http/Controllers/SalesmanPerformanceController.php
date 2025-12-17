@@ -112,10 +112,18 @@ class SalesmanPerformanceController extends Controller
             $baseQuery = DB::table('salesorderlog as s')
                 ->selectRaw("$labelExpr AS salesman,$monthly")
                 ->whereYear('s.date_rec', $year)
+                ->whereNull('s.deleted_at')
+                ->whereRaw('`s`.`PO. No.` IS NOT NULL')
+                ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
+                ->whereRaw($amount . ' > 0')
                 ->groupByRaw($labelExpr);
 
-            $sum = (float)DB::table('salesorderlog as s')
+            $sum = (float) DB::table('salesorderlog as s')
                 ->whereYear('s.date_rec', $year)
+                ->whereNull('s.deleted_at')
+                ->whereRaw('`s`.`PO. No.` IS NOT NULL')
+                ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
+                ->whereRaw($amount . ' > 0')
                 ->selectRaw("SUM($amount) AS s")
                 ->value('s');
         } else {
