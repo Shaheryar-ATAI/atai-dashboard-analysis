@@ -84,7 +84,8 @@
 @endpush
 @section('content')
 
-    @php $u = auth()->user(); @endphp
+    @php $u = auth()->user();
+   $isManager = $u && ($u->hasRole('admin') || $u->hasRole('gm'));@endphp
 
     <main class="container-fluid py-4">
 
@@ -106,6 +107,14 @@
 
             <input type="date" id="fFrom" class="form-control form-control-sm" placeholder="From">
             <input type="date" id="fTo" class="form-control form-control-sm" placeholder="To">
+            @if($isManager)
+                <div class="ms-2">
+                    <select id="fSalesman" class="form-select form-select-sm">
+                        <option value="">All Salesmen</option>
+                        {{-- Options will be loaded via API for freshness --}}
+                    </select>
+                </div>
+            @endif
 
             <button id="btnApply" class="btn btn-primary btn-sm">Update</button>
         </div>
@@ -298,6 +307,9 @@
            ====================================================================== */
         const USER_NAME = @json($u->name ?? '');
         const USER_REGION = @json(strtolower($u->region ?? ''));
+        const IS_MANAGER = @json(($u && ($u->hasRole('admin') || $u->hasRole('gm'))) ? true : false);
+        const $salesman = $('#fSalesman');
+        let currentSalesman = '';
         /* ================= Helpers ================= */
         const fmtSAR = (n) => 'SAR ' + Number(n || 0).toLocaleString();
 
@@ -320,17 +332,39 @@
 
         function buildFilters() {
             return {
-                // ✅ fall back to 2025 if no year picked
                 year: $year.val() || DEFAULT_YEAR,
                 month: $month.val() || '',
                 from: $from.val() || '',
                 to: $to.val() || '',
                 family: currentFamily,
                 status: currentStatus,
-                region: currentRegion || ''
+                region: currentRegion || '',
+                salesman: IS_MANAGER ? (currentSalesman || '') : ''   // ✅ only for GM/Admin
             };
         }
+        async function loadSalesmenDropdown() {
+            if (!IS_MANAGER || !$salesman.length) return;
 
+            try {
+                const res = await fetch(`{{ route('salesorders.manager.salesmen') }}`, {
+                    headers: {'X-Requested-With': 'XMLHttpRequest'}
+                });
+                if (!res.ok) return;
+
+                const list = await res.json(); // expected: ["SOHAIB","TARIQ","JAMAL",...]
+                const opts = ['<option value="">All Salesmen</option>']
+                    .concat(list.map(n => `<option value="${String(n)}">${String(n)}</option>`));
+                $salesman.html(opts.join(''));
+
+            } catch (e) {
+                console.error('loadSalesmenDropdown failed', e);
+            }
+        }
+        $(document).on('change', '#fSalesman', async function () {
+            currentSalesman = $(this).val() || '';
+            dt.ajax.reload(null, false);
+            await loadKpisAndCharts();
+        });
         function homeRegionByUser(name, explicitRegion) {
             const key = String(name || '').trim().toUpperCase().split(' ')[0];
             if (['SOHAIB', 'SOAHIB'].includes(key)) return 'eastern';
@@ -914,8 +948,9 @@
 
         // Initial boot
         (async function boot() {
-            // ✅ show 2025 selected when the page opens (if nothing chosen yet)
             if (!$year.val()) $year.val(DEFAULT_YEAR);
+
+            await loadSalesmenDropdown();   // ✅ only runs for GM/Admin
             await loadKpisAndCharts();
         })();
 

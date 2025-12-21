@@ -340,7 +340,8 @@ Route::middleware('auth')->group(function () {
     Route::view('/sales-orders/manager/kpi', 'sales_orders.manager.manager_kpi')
         ->name('salesorders.manager.kpi');
 
-
+    Route::get('/sales-orders/manager/salesmen', [SalesOrderManagerController::class, 'salesmen'])
+        ->name('salesorders.manager.salesmen');
 
 
 

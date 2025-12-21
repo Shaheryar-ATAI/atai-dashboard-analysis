@@ -28,6 +28,25 @@ class SalesOrderManagerController extends Controller
         };
     }
 
+    public function salesmen(Request $r)
+    {
+        $u = $r->user();
+
+        // ✅ only GM/Admin can access this list
+        if (!$this->isManagerUser($u)) {
+            return response()->json([], 403);
+        }
+
+        // ✅ hardcoded canonical list (temporary)
+        return response()->json([
+            'SOHAIB',
+            'TARIQ',   // (covers TAREQ alias in your resolver)
+            'JAMAL',
+            'ABDO',
+            'AHMED',
+        ]);
+    }
+
     /** Map canonical salesperson → home region (lowercase) */
     protected function homeRegionBySalesperson(): array
     {
@@ -55,6 +74,67 @@ class SalesOrderManagerController extends Controller
         return strtoupper(preg_replace('/\s+/', '', (string)$name));
     }
 
+
+
+
+
+    /** Is user GM/Admin? */
+    protected function isManagerUser($u): bool
+    {
+        return $u && method_exists($u, 'hasAnyRole') && $u->hasAnyRole(['gm', 'admin']);
+    }
+
+    /**
+     * Decide the "effective aliases" for this request:
+     * - Sales user: their own aliases only
+     * - GM/Admin: if salesman query provided => that salesman's aliases
+     *            else => [] meaning "no salesperson filter" (see all)
+     */
+    protected function effectiveAliases(Request $r): array
+    {
+        $u = $r->user();
+        $isAdmin = $this->isManagerUser($u);
+
+        // Sales user: always restricted to self
+        if (!$isAdmin) {
+            $userKey = $this->resolveSalespersonCanonical($u->name ?? null);
+            return $this->aliasesForCanonical($userKey);
+        }
+
+        // GM/Admin: optional salesman filter
+        $sel = trim((string)$r->query('salesman', ''));
+        if ($sel === '') return []; // no filter => see all
+
+        $selCanon = $this->resolveSalespersonCanonical($sel);
+        if (!$selCanon) return [];  // unknown => treat as all (or change to ['__none__'] if you want zero results)
+
+        return $this->aliasesForCanonical($selCanon);
+    }
+
+
+    /** Apply salesperson aliases to Sales Source column */
+    protected function applySalesAliasesToSol($q, array $aliases): void
+    {
+        if (empty($aliases)) return;
+
+        $q->where(function ($qq) use ($aliases) {
+            foreach ($aliases as $a) {
+                $qq->orWhereRaw("REPLACE(UPPER(TRIM(s.`Sales Source`)),' ','') = ?", [$a]);
+            }
+        });
+    }
+
+    /** Apply salesperson aliases to Projects.salesperson column */
+    protected function applySalesAliasesToProjects($q, array $aliases): void
+    {
+        if (empty($aliases)) return;
+
+        $q->where(function ($qq) use ($aliases) {
+            foreach ($aliases as $a) {
+                $qq->orWhereRaw("REPLACE(UPPER(TRIM(p.salesperson)),' ','') = ?", [$a]);
+            }
+        });
+    }
     /** NEW: normalize any login/display name to a canonical salesperson key (handles aliases) */
     protected function resolveSalespersonCanonical(?string $name): ?string
     {
@@ -87,18 +167,27 @@ class SalesOrderManagerController extends Controller
 
 
     /** Aliases for a canonical salesperson, using existing helpers */
+    /** Aliases for a canonical salesperson, using existing helpers */
     protected function aliasesForCanonical(?string $canon): array
     {
         if (!$canon) return [];
-        // 1) Find their home region from your existing map
+
+        // Find their home region from your existing map
         $homeMap = $this->homeRegionBySalesperson();
         $home = $homeMap[$canon] ?? null;
-        // 2) Return the region’s alias list (already defined in your controller)
+
+        // Return region aliases
         $aliases = $home ? $this->salesAliasesForRegion($home) : [];
-        // 3) Fallback: at least match the canonical itself (no duplicates)
-        if (empty($aliases)) $aliases = [$canon];
-        return array_values(array_unique($aliases));
+
+        // Ensure canonical is included
+        $aliases[] = $canon;
+
+        // Unique
+        $aliases = array_values(array_unique(array_filter($aliases)));
+
+        return $aliases;
     }
+
 
     /** Family filter mapping (LIKEs; case-insensitive; robust) */
     protected function applyFamilyFilter($q, string $family): void
@@ -232,8 +321,8 @@ class SalesOrderManagerController extends Controller
         [$tmpBase, , , $applyRegion, $family, $status, $loggedUserAliases] = $this->base($r);
         $user = $r->user();
         $userKey = $this->resolveSalespersonCanonical($user->name ?? null);
-        $aliases = !empty($loggedUserAliases) ? $loggedUserAliases : ($userKey ? [$userKey] : []);
-
+//        $aliases = !empty($loggedUserAliases) ? $loggedUserAliases : ($userKey ? [$userKey] : []);
+        $aliases = $this->effectiveAliases($r);
         // Region chip → project_region
         $regionChip = strtolower(trim((string)$r->query('region', '')));
         $regionFilter = in_array($regionChip, ['eastern', 'central', 'western'], true) ? $regionChip : '';
@@ -246,18 +335,14 @@ class SalesOrderManagerController extends Controller
         // Base conditions ONLY
         $base = DB::table('salesorderlog as s')
             ->whereNull('s.deleted_at')
-            // salesperson-first (aliases)
-            ->when(!empty($aliases), function ($q) use ($aliases) {
-                $q->where(function ($qq) use ($aliases) {
-                    foreach ($aliases as $a) {
-                        $qq->orWhereRaw("REPLACE(UPPER(TRIM(s.`Sales Source`)),' ','') = ?", [$a]);
-                    }
-                });
+            ->tap(function ($q) use ($aliases) {
+                $this->applySalesAliasesToSol($q, $aliases);
             })
-            // region chip on project_region
             ->when($regionFilter !== '', fn($q) => $q->whereRaw('LOWER(TRIM(s.project_region)) = ?', [$regionFilter]))
-            // family / status chips
-            ->when($familySel !== '', fn($q) => $q->whereRaw('LOWER(COALESCE(s.`Products_raw`, s.`Products`, "")) LIKE ?', ['%' . $familySel . '%']))
+            ->when($familySel !== '', function ($q) use ($familySel) {
+                // ✅ use your robust helper
+                $this->applyFamilyFilter($q, $familySel);
+            })
             ->when($filterByStatus, fn($q) => $q->whereRaw('LOWER(TRIM(s.`Status`)) = ?', [$selectedStatus]))
             // date filters
             ->when($r->filled('year'), fn($q) => $q->whereRaw("YEAR($soDateExpr)  = ?", [(int)$r->input('year')]))
@@ -356,12 +441,13 @@ class SalesOrderManagerController extends Controller
     {
         /* ---------- user & salesperson aliases ---------- */
         $user = $r->user();
+        $isAdmin = $this->isManagerUser($user);
         $userKey = $this->resolveSalespersonCanonical($user->name ?? null);
 
         // Pull base() just for shared helpers, but we’ll drive scoping ourselves
         [$base, $dateExprSql, $valExprSql, $applyRegion, $family, $status, $loggedUserAliases] = $this->base($r);
-        $aliases = $loggedUserAliases ?: ($userKey ? [$userKey] : []);
-
+//        $aliases = $loggedUserAliases ?: ($userKey ? [$userKey] : []);
+        $aliases = $this->effectiveAliases($r);
         /* ---------- region from UI chip ONLY ---------- */
         $regionChip = strtolower(trim((string)$r->query('region', '')));   // '', 'all', 'eastern', 'central', 'western'
         $regionFilter = in_array($regionChip, ['eastern', 'central', 'western'], true) ? $regionChip : '';
@@ -390,17 +476,13 @@ class SalesOrderManagerController extends Controller
 
         $solBase = DB::table('salesorderlog as s')
             ->whereNull('s.deleted_at')
-            //->whereRaw("s.`Quote No.` IS NOT NULL AND TRIM(s.`Quote No.`) <> ''")
-            // Salesperson scope (aliases)
-            ->where(function ($q) use ($aliases) {
-                foreach ($aliases as $a) {
-                    $q->orWhereRaw("REPLACE(UPPER(TRIM(s.`Sales Source`)),' ','') = ?", [$a]);
-                }
+            ->tap(function ($q) use ($aliases) {
+                $this->applySalesAliasesToSol($q, $aliases);
             })
-            // Region chip → project_region
             ->when($regionFilter !== '', fn($q) => $q->whereRaw('LOWER(TRIM(s.project_region)) = ?', [$regionFilter]))
-            // Family / Status
-            ->when($familySel !== '', fn($q) => $q->whereRaw('LOWER(COALESCE(s.`Products_raw`, s.`Products`, "")) LIKE ?', ['%' . $familySel . '%']))
+            ->when($familySel !== '', function ($q) use ($familySel) {
+                $this->applyFamilyFilter($q, $familySel);
+            })
             ->when($filterByStatus, fn($q) => $q->whereRaw('LOWER(TRIM(s.`Status`)) = ?', [$selectedStatus]))
             // Date filters
             ->when($r->filled('year'), fn($q) => $q->whereRaw("YEAR($soDateExpr)  = ?", [(int)$r->input('year')]))
@@ -459,17 +541,16 @@ class SalesOrderManagerController extends Controller
         // Conditions ONLY (no selects) — safe to add SUM/COUNT repeatedly
         $projBaseCond = DB::table('projects as p')
             ->whereNull('p.deleted_at')
-            ->where(function ($q) use ($aliases) {
-                foreach ($aliases as $a) {
-                    $q->orWhereRaw("REPLACE(UPPER(TRIM(p.salesperson)),' ','') = ?", [$a]);
-                }
+            ->tap(function ($q) use ($aliases) {
+                $this->applySalesAliasesToProjects($q, $aliases);
             })
             ->when($regionFilter !== '', fn($q) => $q->whereRaw('LOWER(TRIM(p.area)) = ?', [$regionFilter]))
-            ->when($familySel !== '', fn($q) => $q->whereRaw('LOWER(p.atai_products) LIKE ?', ['%' . $familySel . '%']))
+            ->when($familySel !== '', fn($q) => $q->whereRaw('LOWER(p.atai_products) LIKE ?', ['%' . strtolower($familySel) . '%']))
             ->when($r->filled('year'), fn($q) => $q->whereRaw("YEAR($projDateExpr)  = ?", [(int)$r->input('year')]))
             ->when($r->filled('month'), fn($q) => $q->whereRaw("MONTH($projDateExpr) = ?", [(int)$r->input('month')]))
             ->when($r->filled('from'), fn($q) => $q->whereRaw("$projDateExpr >= ?", [$r->input('from')]))
             ->when($r->filled('to'), fn($q) => $q->whereRaw("$projDateExpr <= ?", [$r->input('to')]));
+
 
         // Salesperson totals (all project types)
         $projTotalsForUser = (clone $projBaseCond)
@@ -695,9 +776,10 @@ class SalesOrderManagerController extends Controller
         // Forecast for the logged-in salesperson (aliases), no region filter
         $forecastByMonth = [];
         $fcBase = DB::table('forecast as f');
-        if (!empty($loggedUserAliases)) {
-            $fcBase->where(function ($qq) use ($loggedUserAliases) {
-                foreach ($loggedUserAliases as $alias) {
+
+        if (!empty($aliases)) {
+            $fcBase->where(function ($qq) use ($aliases) {
+                foreach ($aliases as $alias) {
                     $qq->orWhereRaw("REPLACE(UPPER(TRIM(f.`salesman`)),' ','') = ?", [$alias]);
                 }
             });

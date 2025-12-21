@@ -146,7 +146,7 @@ class ProjectCoordinatorController extends Controller
         // ==========================
         $salesmanAliasMap = [
             'SOHAIB' => ['SOHAIB', 'SOAHIB'],
-            'TARIQ'  => ['TARIQ', 'TAREQ'],
+            'TAREQ'  => ['TARIQ', 'TAREQ'],
             'JAMAL'  => ['JAMAL'],
             'ABDO'   => ['ABDO'],
             'AHMED'  => ['AHMED'],
@@ -163,19 +163,19 @@ class ProjectCoordinatorController extends Controller
                 Project::query()
                     ->whereNull('deleted_at')
                     ->whereIn('area', $normalizedRegions)
-                    ->pluck('salesperson')
+                    ->pluck('salesperson') // from projects
             )
             ->merge(
                 Project::query()
                     ->whereNull('deleted_at')
                     ->whereIn('area', $normalizedRegions)
-                    ->pluck('salesperson')
+                    ->pluck('salesman') // ✅ (if you have this column; otherwise remove)
             )
             ->merge(
                 SalesOrderLog::query()
                     ->whereNull('deleted_at')
                     ->whereIn('region', $normalizedRegions)
-                    ->pluck('Sales Source')
+                    ->pluck('Sales Source') // from salesorderlog
             )
             ->filter()
             ->map(fn ($v) => strtoupper(trim($v)))
@@ -594,82 +594,124 @@ class ProjectCoordinatorController extends Controller
      */
     public function exportSalesOrders(Request $request): BinaryFileResponse
     {
-        $user = $request->user();
+        $user         = $request->user();
         $regionsScope = $this->coordinatorRegionScope($user);
 
-        $month = (int)$request->input('month'); // 1..12
+        $month = (int) $request->input('month'); // 1..12
         if (!$month) {
             abort(400, 'Month is required');
         }
 
-        $year = (int)($request->input('year') ?: now()->year);
-        $region = $request->input('region', 'all');
-        $from = $request->input('from');
-        $to = $request->input('to');
-        $salesman = strtoupper(trim($request->input('salesman', '')));
+        $year    = (int) ($request->input('year') ?: now()->year);
+        $region  = $request->input('region', 'all');
+        $from    = $request->input('from');
+        $to      = $request->input('to');
 
-        $normalizedRegions = array_map(
-            fn($r) => ucfirst(strtolower($r)),
-            $regionsScope
-        );
+        // ✅ NEW
+        $factory  = trim((string) $request->input('factory', ''));  // Jubail / Madinah
+        $salesmenCsv = trim((string) $request->input('salesmen', '')); // "SOHAIB,TARIQ,JAMAL"
+        $salesman = strtoupper(trim((string) $request->input('salesman', ''))); // single selection
 
+        $normalizedRegions = array_map(fn($r) => ucfirst(strtolower($r)), $regionsScope);
+
+        // Canonical -> aliases stored in DB
         $salesmanAliasMap = [
             'SOHAIB' => ['SOHAIB', 'SOAHIB'],
-            'TARIQ' => ['TARIQ', 'TAREQ'],
-            'JAMAL' => ['JAMAL'],
-            'ABDO' => ['ABDO'],
-            'AHMED' => ['AHMED'],
+            'TAREQ'  => ['TARIQ', 'TAREQ'],
+            'JAMAL'  => ['JAMAL'],
+            'ABDO'   => ['ABDO'],
+            'AHMED'  => ['AHMED'],
         ];
+
+        // ✅ Factory -> canonical list (same as frontend)
+        $factoryMap = [
+            'JUBAIL'  => ['SOHAIB', 'TARIQ', 'JAMAL'],
+            'MADINAH' => ['AHMED', 'ABDO'],
+        ];
+
+        // Helper: expand canonical codes to DB aliases
+        $expandAliases = function(array $canonList) use ($salesmanAliasMap) {
+            $out = [];
+            foreach ($canonList as $canon) {
+                $canon = strtoupper(trim($canon));
+                $out = array_merge($out, $salesmanAliasMap[$canon] ?? [$canon]);
+            }
+            return array_values(array_unique($out));
+        };
 
         $query = DB::table('salesorderlog')
             ->whereNull('deleted_at')
             ->whereIn('region', $normalizedRegions)
             ->selectRaw("
-                `Client Name`      AS client,
-                `project_region`   AS area,
-                `Location`         AS location,
-                `date_rec`         AS date_rec,
-                `PO. No.`          AS po_no,
-                `Products`         AS atai_products,
-                `Products_raw`     AS products_raw,
-                `Quote No.`        AS quotation_no,
-                `Ref.No.`          AS ref_no,
-                `Cur`              AS cur,
-                `PO Value`         AS po_value,
-                `value_with_vat`   AS value_with_vat,
-                `Payment Terms`    AS payment_terms,
-                `Project Name`     AS project,
-                `Project Location` AS project_location,
-                `Status`           AS status,
-                `Sales OAA`        AS oaa,
-                `Job No.`          AS job_no,
-                `Factory Loc`      AS factory_loc,
-                `Sales Source`     AS salesman,
-                `Remarks`          AS remarks
-            ");
+            `Client Name`      AS client,
+            `project_region`   AS area,
+            `Location`         AS location,
+            `date_rec`         AS date_rec,
+            `PO. No.`          AS po_no,
+            `Products`         AS atai_products,
+            `Products_raw`     AS products_raw,
+            `Quote No.`        AS quotation_no,
+            `Ref.No.`          AS ref_no,
+            `Cur`              AS cur,
+            `PO Value`         AS po_value,
+            `value_with_vat`   AS value_with_vat,
+            `Payment Terms`    AS payment_terms,
+            `Project Name`     AS project,
+            `Project Location` AS project_location,
+            `Status`           AS status,
+            `Sales OAA`        AS oaa,
+            `Job No.`          AS job_no,
+            `Factory Loc`      AS factory_loc,
+            `Sales Source`     AS salesman,
+            `Remarks`          AS remarks
+        ");
 
+        // Region filter (chip)
         if ($region && strtolower($region) !== 'all') {
             $query->where('project_region', ucfirst(strtolower($region)));
         }
 
-        if ($salesman && $salesman !== 'ALL') {
-            $aliases = $salesmanAliasMap[$salesman] ?? [$salesman];
-            $query->whereIn('Sales Source', $aliases);
-        }
-
+        // ✅ DATE filter month/year first
         $query->whereYear('date_rec', $year)
             ->whereMonth('date_rec', $month);
 
-        if ($from) {
-            $query->whereDate('date_rec', '>=', $from);
-        }
-        if ($to) {
-            $query->whereDate('date_rec', '<=', $to);
+        if ($from) $query->whereDate('date_rec', '>=', $from);
+        if ($to)   $query->whereDate('date_rec', '<=', $to);
+
+        /**
+         * ✅ SALESMAN SCOPING RULES
+         * - If salesman is selected (single), use that only.
+         * - Else if salesman is "all" and salesmenCsv exists, restrict to those canonical salesmen (factory scope).
+         * - Else if factory exists, restrict by factory list.
+         */
+
+        // 1) Single salesman chosen
+        if ($salesman !== '' && $salesman !== 'ALL') {
+            $aliases = $salesmanAliasMap[$salesman] ?? [$salesman];
+            $query->whereIn('Sales Source', $aliases);
+
+        } else {
+            // 2) "All" case: use salesmenCsv if sent
+            if ($salesmenCsv !== '') {
+                $canonList = array_filter(array_map('trim', explode(',', $salesmenCsv)));
+                $aliases = $expandAliases($canonList);
+                if (!empty($aliases)) {
+                    $query->whereIn('Sales Source', $aliases);
+                }
+            } else {
+                // 3) Fallback: apply factory mapping if provided
+                $factoryKey = strtoupper($factory);
+                if ($factoryKey !== '' && isset($factoryMap[$factoryKey])) {
+                    $aliases = $expandAliases($factoryMap[$factoryKey]);
+                    $query->whereIn('Sales Source', $aliases);
+                }
+            }
         }
 
         $rows = collect($query->orderBy('date_rec')->get());
 
         $filename = sprintf('sales_orders_%d_%02d.xlsx', $year, $month);
+
         $regionLabel = ($region && strtolower($region) !== 'all')
             ? ucfirst(strtolower($region)) . ' Region'
             : 'All Regions';
@@ -680,22 +722,31 @@ class ProjectCoordinatorController extends Controller
         );
     }
 
+
     public function exportSalesOrdersYear(Request $request): BinaryFileResponse
     {
-        $user = $request->user();
+        $user         = $request->user();
         $regionsScope = $this->coordinatorRegionScope($user);
 
-        $year = (int)($request->input('year') ?: now()->year);
+        $year   = (int) ($request->input('year') ?: now()->year);
         $region = $request->input('region', 'all');
-        $from = $request->input('from');
-        $to = $request->input('to');
-        $salesman = strtoupper(trim($request->input('salesman', '')));
+        $from   = $request->input('from');
+        $to     = $request->input('to');
 
-        $export = new SalesOrdersYearExport($regionsScope, $year, $region, $from, $to, $salesman);
+        // ✅ NEW
+
+        $salesmenCsv = trim((string) $request->input('salesmen', '')); // "SOHAIB,TARIQ,JAMAL"
+        $salesman    = strtoupper(trim((string) $request->input('salesman', ''))); // single
+
+        // ✅ You must update SalesOrdersYearExport constructor to accept these (see below)
+        $factory = $request->input('factory'); // Jubail/Madinah from frontend
+        $export = new SalesOrdersYearExport($regionsScope, $year, $region, $from, $to, $salesman, $factory);
+
         $filename = sprintf('sales_orders_%d_full_year.xlsx', $year);
 
         return Excel::download($export, $filename);
     }
+
 
     public function salesOrderAttachments(SalesOrderLog $salesorder)
     {

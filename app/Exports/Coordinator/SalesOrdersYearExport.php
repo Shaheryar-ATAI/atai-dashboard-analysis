@@ -13,9 +13,14 @@ class SalesOrdersYearExport implements WithMultipleSheets
     protected array $regionsScope;
     protected array $normalizedRegions;
     protected int $year;
+
     protected ?string $regionKey;
     protected ?string $from;
     protected ?string $to;
+
+    // ✅ NEW
+    protected ?string $salesman;   // canonical e.g. SOHAIB (or null/ALL)
+    protected ?string $factory;    // Jubail | Madinah (or null)
 
     /**
      * @param array       $regionsScope  e.g. ['eastern','central'] from coordinatorRegionScope()
@@ -23,13 +28,17 @@ class SalesOrdersYearExport implements WithMultipleSheets
      * @param string|null $regionKey     'all' | 'eastern' | 'central' | 'western'
      * @param string|null $from          optional from-date (Y-m-d)
      * @param string|null $to            optional to-date   (Y-m-d)
+     * @param string|null $salesman      optional canonical salesman (SOHAIB/TARIQ/...)
+     * @param string|null $factory       optional factory (Jubail/Madinah)
      */
     public function __construct(
         array $regionsScope,
         int $year,
         ?string $regionKey = 'all',
         ?string $from = null,
-        ?string $to = null
+        ?string $to = null,
+        ?string $salesman = null,
+        ?string $factory = null
     ) {
         $this->regionsScope      = $regionsScope;
         $this->normalizedRegions = array_map(
@@ -41,6 +50,9 @@ class SalesOrdersYearExport implements WithMultipleSheets
         $this->regionKey = $regionKey;
         $this->from      = $from;
         $this->to        = $to;
+
+        $this->salesman  = $salesman ? strtoupper(trim($salesman)) : null;
+        $this->factory   = $factory ? ucfirst(strtolower(trim($factory))) : null; // Jubail/Madinah
     }
 
     public function sheets(): array
@@ -51,7 +63,21 @@ class SalesOrdersYearExport implements WithMultipleSheets
             ? ucfirst(strtolower($this->regionKey)) . ' Region'
             : 'All Regions';
 
-        // One sheet per month, using EXACTLY the same structure as exportSalesOrders()
+        // Same alias map as monthly exportSalesOrders()
+        $salesmanAliasMap = [
+            'SOHAIB' => ['SOHAIB', 'SOAHIB'],
+            'TARIQ'  => ['TARIQ', 'TAREQ'],
+            'JAMAL'  => ['JAMAL'],
+            'ABDO'   => ['ABDO'],
+            'AHMED'  => ['AHMED'],
+        ];
+
+        // ✅ Factory → canonical salesmen mapping (same as frontend chips)
+        $factoryMap = [
+            'Jubail'  => ['SOHAIB', 'TARIQ', 'JAMAL'],
+            'Madinah' => ['AHMED', 'ABDO'],
+        ];
+
         for ($month = 1; $month <= 12; $month++) {
 
             $query = DB::table('salesorderlog')
@@ -81,16 +107,35 @@ class SalesOrdersYearExport implements WithMultipleSheets
                     `Remarks`          AS remarks
                 ");
 
-            // same region dropdown logic as monthly
+            // ✅ Region dropdown logic (same as monthly)
             if ($this->regionKey && strtolower($this->regionKey) !== 'all') {
                 $query->where('project_region', ucfirst(strtolower($this->regionKey)));
             }
 
-            // filter for THIS month of the selected year
+            // ✅ Salesman filter (same as monthly)
+            // If a salesman is selected (not ALL), apply aliases
+            if ($this->salesman && $this->salesman !== 'ALL') {
+                $aliases = $salesmanAliasMap[$this->salesman] ?? [$this->salesman];
+                $query->whereIn('Sales Source', $aliases);
+            }
+            // ✅ Else apply factory filter (only when salesman is ALL/empty)
+            elseif ($this->factory && isset($factoryMap[$this->factory])) {
+                $canonList = $factoryMap[$this->factory];
+                $aliases = [];
+                foreach ($canonList as $canon) {
+                    $aliases = array_merge($aliases, $salesmanAliasMap[$canon] ?? [$canon]);
+                }
+                $aliases = array_values(array_unique($aliases));
+                if (!empty($aliases)) {
+                    $query->whereIn('Sales Source', $aliases);
+                }
+            }
+
+            // ✅ Month/year filter
             $query->whereYear('date_rec', $this->year)
                 ->whereMonth('date_rec', $month);
 
-            // optional global from/to (applied inside each month)
+            // ✅ Optional global from/to inside each sheet query
             if ($this->from) {
                 $query->whereDate('date_rec', '>=', $this->from);
             }
@@ -99,9 +144,6 @@ class SalesOrdersYearExport implements WithMultipleSheets
             }
 
             $rows = collect($query->orderBy('date_rec')->get());
-
-            // if you ever want to skip empty months, you can uncomment:
-            // if ($rows->isEmpty()) continue;
 
             $sheets[] = new SalesOrdersMonthExport(
                 $rows,

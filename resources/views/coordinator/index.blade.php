@@ -144,29 +144,56 @@
             if ($isWesternCoordinator) {
                 $salesmen = array_values(array_intersect($salesmen, ['AHMED', 'ABDO']));
             }
+
+                // Coordinator “type”
+
+
+            // Factories: Eastern can see both, Western locked to Madinah
+            $factories = $isWesternCoordinator ? ['Madinah'] : ['Jubail', 'Madinah'];
+
+            // Default selection
+            $defaultFactory = $isWesternCoordinator ? 'Madinah' : 'Jubail';
+
+
+
+
+
+
         @endphp
 
-        <div class="card mb-3">
-            <div class="card-body d-flex flex-wrap align-items-end justify-content-between gap-3">
-                <div class="d-flex flex-wrap align-items-end gap-4">
+                <div class="card mb-3">
+                    <div class="card-body d-flex flex-wrap align-items-end justify-content-between gap-3">
+                        <div class="d-flex flex-wrap align-items-end gap-4">
 
-                    {{-- REGION CHIPS --}}
-                    {{-- REGION CHIPS --}}
-                    <div>
-                        <div class="coord-filter-label">Region</div>
-                        <div class="coord-chip-group">
-                            {{-- Always show "All" (for testing), default active only for non-Western --}}
-                            <button type="button"
-                                    class="coord-chip {{ $isWesternCoordinator ? '' : 'active' }}"
-                                    data-region="all">
-                                All
-                            </button>
+                            {{-- REGION CHIPS --}}
+                            {{-- REGION CHIPS --}}
+                            <div>
+                                <div class="coord-filter-label">Factory Location</div>
+                                <div class="coord-chip-group">
+                                    @foreach($factories as $f)
+                                        <button type="button"
+                                                class="coord-chip {{ $f === $defaultFactory ? 'active' : '' }}"
+                                                data-factory="{{ $f }}">
+                                            {{ $f }}
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </div>
+                            <div>
+                                <div class="coord-filter-label">Region</div>
+                                <div class="coord-chip-group">
+                                    {{-- Always show "All" (for testing), default active only for non-Western --}}
+                                    <button type="button"
+                                            class="coord-chip {{ $isWesternCoordinator ? '' : 'active' }}"
+                                            data-region="all">
+                                        All
+                                    </button>
 
-                            @foreach($regionsScope as $r)
-                                @php
-                                    $label    = ucfirst($r);               // Eastern / Central / Western
-                                    // For Niyaz we still start with "Western" active by default
-                                    $isActive = $isWesternCoordinator && $label === 'active';
+                                    @foreach($regionsScope as $r)
+                                        @php
+                                            $label    = ucfirst($r);               // Eastern / Central / Western
+                                            // For Niyaz we still start with "Western" active by default
+                                           $isActive = $isWesternCoordinator && strtolower($label) === 'western';
                                 @endphp
                                 <button type="button"
                                         class="coord-chip {{ $isActive ? 'active' : '' }}"
@@ -866,22 +893,35 @@
             // ----- Salesman alias map -----
             const SALESMAN_ALIASES = {
                 'SOHAIB': ['SOHAIB', 'SOAHIB'],
-                'TARIQ': ['TARIQ', 'TAREQ'],
-                'JAMAL': ['JAMAL'],
-                'ABDO': ['ABDO'],
-                'AHMED': ['AHMED'],
+                'TAREQ':  ['TARIQ', 'TAREQ'],
+                'JAMAL':  ['JAMAL'],
+                'ABDO':   ['ABDO'],
+                'AHMED':  ['AHMED'],
             };
 
             const salesmanChips = document.querySelectorAll('.coord-chip[data-salesman]');
             const regionChips   = document.querySelectorAll('.coord-chip[data-region]');
+            const factoryChips  = document.querySelectorAll('.coord-chip[data-factory]');
+
+            const FACTORY_SALESMEN = {
+                'Jubail':  ['SOHAIB', 'TAREQ', 'JAMAL'],
+                'Madinah': ['AHMED', 'ABDO'],
+            };
 
             // PHP -> JS: user region
             const USER_REGION = '{{ strtolower($userRegion) }}';
 
+            // Default factory based on coordinator region (same logic as Blade defaults)
+            let filterFactory = (USER_REGION === 'western') ? 'Madinah' : 'Jubail';
+
+            // Default salesman: western -> first allowed in its factory; others -> all
             let filterSalesman = (USER_REGION === 'western')
-                ? '{{ strtoupper($salesmen[0] ?? 'all') }}' // default Ahmed/first salesman
+                ? '{{ strtoupper($salesmen[0] ?? 'AHMED') }}'
                 : 'all';
+
+            // Default region: western -> Western; others -> all
             let filterRegion   = (USER_REGION === 'western') ? 'Western' : 'all';
+
             let filterMonth    = '';
             let filterFrom     = null;
             let filterTo       = null;
@@ -917,8 +957,39 @@
             const coordModalEl     = document.getElementById('coordinatorModal');
             const coordModal       = coordModalEl ? new bootstrap.Modal(coordModalEl) : null;
 
-            const btnSave          = document.getElementById('btnCoordinatorSave');
+            const btnSave           = document.getElementById('btnCoordinatorSave');
             const attachmentsListEl = document.getElementById('coord_attachments_list');
+
+            // ---------- Helpers ----------
+            function getAllowedSalesmenForFactory(factoryName) {
+                return FACTORY_SALESMEN[factoryName] || [];
+            }
+
+            function hasAllSalesmanChip() {
+                return !!document.querySelector('.coord-chip[data-salesman="all"]');
+            }
+
+            // When Salesman=All, export must respect factory scope
+            function getSalesmenForExport() {
+                const allowed = getAllowedSalesmenForFactory(filterFactory);
+
+                if (filterSalesman && filterSalesman !== 'all') {
+                    return allowed.includes(filterSalesman) ? [filterSalesman] : [];
+                }
+                return allowed; // "all" within factory scope
+            }
+
+            function setActiveChipBy(selector, datasetKey, valueUpperOrRaw) {
+                const chips = document.querySelectorAll(selector);
+                chips.forEach(c => c.classList.remove('active'));
+
+                const target = Array.from(chips).find(c => {
+                    const v = (c.dataset[datasetKey] || '').toString();
+                    return v.toUpperCase() === valueUpperOrRaw.toString().toUpperCase();
+                });
+
+                if (target) target.classList.add('active');
+            }
 
             // ---------- DataTables ----------
             const dtProjects = new DataTable('#tblCoordinatorProjects', {
@@ -936,62 +1007,55 @@
                 const tableId = settings.nTable.id;
 
                 if (tableId !== 'tblCoordinatorProjects' && tableId !== 'tblCoordinatorSalesOrders') {
-                    return true; // ignore other tables
+                    return true;
                 }
 
                 let areaStr, salesmanStr, dateStr;
 
                 if (tableId === 'tblCoordinatorProjects') {
-                    // Projects table
-                    // 0 Quotation No, 1 Project, 2 Client, 3 Salesman, 4 Area, 5 Products, 6 Quotation Date, 7 Status
                     areaStr     = (data[4] || '').trim();
                     salesmanStr = (data[3] || '').trim();
-                    dateStr     = data[6] || '';        // Quotation Date
+                    dateStr     = data[6] || '';
                 } else {
-                    // Sales Orders table
-                    // 0 Client, 1 PO No, 2 PO Value, 3 Quotation No(s), 4 Project,
-                    // 5 Job No, 6 PO Date, 7 Salesman, 8 Area, 9 Products, 10 Value with VAT
-                    areaStr     = (data[8] || '').trim(); // Area
-                    salesmanStr = (data[7] || '').trim(); // Salesman
-                    dateStr     = data[6] || '';          // PO Date
+                    areaStr     = (data[8] || '').trim();
+                    salesmanStr = (data[7] || '').trim();
+                    dateStr     = data[6] || '';
+                }
+
+                // ✅ FACTORY filter FIRST (based on salesman membership in factory list)
+                const cellSmUpper = (salesmanStr || '').toUpperCase();
+                const allowed = getAllowedSalesmenForFactory(filterFactory);
+
+                // If filterFactory set but no allowed list, don't block
+                if (allowed.length) {
+                    if (!allowed.includes(cellSmUpper)) return false;
                 }
 
                 // REGION filter
                 if (filterRegion !== 'all') {
                     const cellRegion = (areaStr || '').toUpperCase();
                     const wanted     = filterRegion.toUpperCase();
-                    if (cellRegion !== wanted) {
-                        return false;
-                    }
+                    if (cellRegion !== wanted) return false;
                 }
 
-                // SALESMAN filter (with aliases)
+                // SALESMAN filter (aliases)
                 if (filterSalesman !== 'all') {
                     const cellUpper = (salesmanStr || '').toUpperCase();
                     const aliases   = SALESMAN_ALIASES[filterSalesman] || [filterSalesman];
-                    if (!aliases.includes(cellUpper)) {
-                        return false;
-                    }
+                    if (!aliases.includes(cellUpper)) return false;
                 }
 
                 // DATE filter
                 if (!dateStr || dateStr === '-') {
-                    if (filterMonth || filterFrom || filterTo) {
-                        return false;
-                    }
-                    return true;
+                    return !(filterMonth || filterFrom || filterTo);
                 }
 
-                const rowDate = new Date(dateStr); // expecting YYYY-MM-DD
-                if (isNaN(rowDate.getTime())) {
-                    return true; // fail open
-                }
+                const rowDate = new Date(dateStr);
+                if (isNaN(rowDate.getTime())) return true;
 
                 if (filterMonth) {
                     const m = rowDate.getMonth() + 1;
-                    if (m !== parseInt(filterMonth, 10)) {
-                        return false;
-                    }
+                    if (m !== parseInt(filterMonth, 10)) return false;
                 }
 
                 if (filterFrom && rowDate < filterFrom) return false;
@@ -1005,7 +1069,45 @@
                 dtSalesOrders.draw();
             }
 
-            // ---------- KPI recalculation (using CORRECT columns) ----------
+            // ---------- Factory chips ----------
+            factoryChips.forEach(chip => {
+                chip.addEventListener('click', () => {
+                    factoryChips.forEach(c => c.classList.remove('active'));
+                    chip.classList.add('active');
+
+                    filterFactory = chip.dataset.factory || 'Jubail';
+
+                    // On factory change:
+                    // - Non-western: reset salesman to all (if chip exists)
+                    // - Western: select first allowed salesman for that factory (since no "all")
+                    if (USER_REGION !== 'western' && hasAllSalesmanChip()) {
+                        filterSalesman = 'all';
+                        salesmanChips.forEach(c => c.classList.remove('active'));
+                        const allSalesChip = document.querySelector('.coord-chip[data-salesman="all"]');
+                        if (allSalesChip) allSalesChip.classList.add('active');
+                    } else {
+                        const allowed = getAllowedSalesmenForFactory(filterFactory);
+                        const firstAllowedChip = Array.from(salesmanChips).find(c => {
+                            const v = (c.dataset.salesman || '').toUpperCase();
+                            return allowed.includes(v);
+                        });
+
+                        salesmanChips.forEach(c => c.classList.remove('active'));
+
+                        if (firstAllowedChip) {
+                            firstAllowedChip.classList.add('active');
+                            filterSalesman = (firstAllowedChip.dataset.salesman || '').toUpperCase();
+                        } else {
+                            // fallback
+                            filterSalesman = 'all';
+                        }
+                    }
+
+                    redrawTables();
+                });
+            });
+
+            // ---------- KPI recalculation ----------
             function refreshKpis() {
                 const projCount = dtProjects.rows({ filter: 'applied' }).count();
                 const soCount   = dtSalesOrders.rows({ filter: 'applied' }).count();
@@ -1021,9 +1123,7 @@
                         } else if (typeof value === 'string') {
                             num = parseFloat(value.replace(/[^0-9.-]/g, '')) || 0;
                         }
-                        if (!isNaN(num)) {
-                            soTotal += num;
-                        }
+                        if (!isNaN(num)) soTotal += num;
                     });
 
                 if (elKpiProjects)   elKpiProjects.textContent   = projCount.toLocaleString('en-SA');
@@ -1031,16 +1131,10 @@
                 if (elKpiSoValueNum) elKpiSoValueNum.textContent = soTotal.toLocaleString('en-SA');
             }
 
-            // ---------- Highcharts (PO VALUE vs REGION) ----------
+            // ---------- Highcharts ----------
             let regionChart = Highcharts.chart('coordinatorRegionStacked', {
-                chart: {
-                    type: 'column',
-                    backgroundColor: '#0f172a'
-                },
-                title: {
-                    text: 'PO Value by Region',
-                    style: { color: '#e5e7eb' }
-                },
+                chart: { type: 'column', backgroundColor: '#0f172a' },
+                title: { text: 'PO Value by Region', style: { color: '#e5e7eb' } },
                 xAxis: {
                     categories: ['Eastern', 'Central', 'Western'],
                     crosshair: true,
@@ -1048,16 +1142,11 @@
                 },
                 yAxis: {
                     min: 0,
-                    title: {
-                        text: 'Value (SAR)',
-                        style: { color: '#cbd5e1' }
-                    },
+                    title: { text: 'Value (SAR)', style: { color: '#cbd5e1' } },
                     labels: { style: { color: '#cbd5e1' } },
                     gridLineColor: '#1e293b'
                 },
-                legend: {
-                    itemStyle: { color: '#e5e7eb' }
-                },
+                legend: { itemStyle: { color: '#e5e7eb' } },
                 tooltip: {
                     shared: true,
                     backgroundColor: '#1e293b',
@@ -1068,36 +1157,19 @@
                         this.points.forEach(p => total += p.y);
                         return (
                             '<b>' + this.x + '</b><br/>' +
-                            this.points.map(p =>
-                                p.series.name + ': ' + fmtSAR(p.y)
-                            ).join('<br/>') +
+                            this.points.map(p => p.series.name + ': ' + fmtSAR(p.y)).join('<br/>') +
                             '<br/><span style="font-weight:600">Total: ' + fmtSAR(total) + '</span>'
                         );
                     }
                 },
-                plotOptions: {
-                    column: {
-                        borderWidth: 0
-                    }
-                },
-                series: [
-                    {
-                        name: 'PO Value',
-                        data: [0, 0, 0] // will be replaced by refreshChartFromTable()
-                    }
-                ]
+                plotOptions: { column: { borderWidth: 0 } },
+                series: [{ name: 'PO Value', data: [0, 0, 0] }]
             });
 
-            // Rebuild chart from filtered Sales Orders table (REGION vs PO VALUE)
             function refreshChartFromTable() {
                 if (!regionChart) return;
 
-                // Initialize with 0 for each region
-                const sums = {
-                    'Eastern': 0,
-                    'Central': 0,
-                    'Western': 0,
-                };
+                const sums = { 'Eastern': 0, 'Central': 0, 'Western': 0 };
 
                 dtSalesOrders.rows({ filter: 'applied' }).every(function () {
                     const row = this.data();
@@ -1106,18 +1178,11 @@
                     const areaRaw = (row[8] || '').trim();
                     const areaKey = areaRaw || 'Unknown';
 
-                    let val = row[2]; // PO Value (SAR)
+                    let val = row[2];
+                    if (typeof val === 'string') val = parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
+                    if (typeof val !== 'number' || isNaN(val)) val = 0;
 
-                    if (typeof val === 'string') {
-                        val = parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
-                    }
-                    if (typeof val !== 'number' || isNaN(val)) {
-                        val = 0;
-                    }
-
-                    if (areaKey in sums) {
-                        sums[areaKey] += val;
-                    }
+                    if (areaKey in sums) sums[areaKey] += val;
                 });
 
                 const cats = ['Eastern', 'Central', 'Western'];
@@ -1128,14 +1193,8 @@
             }
 
             // ---------- DataTables draw hooks ----------
-            dtProjects.on('draw', function () {
-                refreshKpis();
-            });
-
-            dtSalesOrders.on('draw', function () {
-                refreshKpis();
-                refreshChartFromTable();
-            });
+            dtProjects.on('draw', function () { refreshKpis(); });
+            dtSalesOrders.on('draw', function () { refreshKpis(); refreshChartFromTable(); });
 
             // ---------- Region chips ----------
             regionChips.forEach(chip => {
@@ -1183,30 +1242,49 @@
                 });
             }
 
+            // ---------- Reset filters ----------
             if (btnResetFilters) {
                 btnResetFilters.addEventListener('click', () => {
-                    // ----- REGION -----
+
+                    // 1) FACTORY reset
+                    filterFactory = (USER_REGION === 'western') ? 'Madinah' : 'Jubail';
+                    setActiveChipBy('.coord-chip[data-factory]', 'factory', filterFactory);
+
+                    // 2) REGION reset
                     if (USER_REGION === 'western') {
-                        // Niyaz: always Western only
                         filterRegion = 'Western';
-                        regionChips.forEach(c => {
-                            c.classList.remove('active');
-                            if ((c.dataset.region || '').toUpperCase() === 'WESTERN') {
-                                c.classList.add('active');
-                            }
-                        });
+                        setActiveChipBy('.coord-chip[data-region]', 'region', 'Western');
                     } else {
-                        // Shenoy: normal behaviour (All)
                         filterRegion = 'all';
-                        regionChips.forEach(c => c.classList.remove('active'));
-                        const allRegionChip = document.querySelector('.coord-chip[data-region="all"]');
-                        if (allRegionChip) allRegionChip.classList.add('active');
+                        setActiveChipBy('.coord-chip[data-region]', 'region', 'all');
                     }
 
-                    // dates/month
+                    // 3) SALESMAN reset
+                    if (USER_REGION !== 'western' && hasAllSalesmanChip()) {
+                        filterSalesman = 'all';
+                        setActiveChipBy('.coord-chip[data-salesman]', 'salesman', 'all');
+                    } else {
+                        // western: choose first allowed for default factory
+                        const allowed = getAllowedSalesmenForFactory(filterFactory);
+                        const firstAllowedChip = Array.from(salesmanChips).find(c => {
+                            const v = (c.dataset.salesman || '').toUpperCase();
+                            return allowed.includes(v);
+                        });
+
+                        salesmanChips.forEach(c => c.classList.remove('active'));
+                        if (firstAllowedChip) {
+                            firstAllowedChip.classList.add('active');
+                            filterSalesman = (firstAllowedChip.dataset.salesman || '').toUpperCase();
+                        } else {
+                            filterSalesman = 'all';
+                        }
+                    }
+
+                    // 4) dates/month reset
                     filterMonth = '';
                     filterFrom  = null;
                     filterTo    = null;
+
                     if (monthSelect) monthSelect.value = '';
                     if (fromInput)   fromInput.value   = '';
                     if (toInput)     toInput.value     = '';
@@ -1250,7 +1328,6 @@
                 MAIN_QUOTATION_VALUE = parseFloat(priceInput?.value || '0') || 0;
 
                 let extraTotal = 0;
-
                 MULTI_SELECTED_IDS.forEach(id => {
                     const qv = parseFloat(MULTI_QV_BY_ID[id] || '0') || 0;
                     extraTotal += qv;
@@ -1283,9 +1360,9 @@
             function setMultiEnabled(enabled) {
                 if (!multiEnabled || !multiSearchInput || !multiSearchBtn) return;
 
-                multiEnabled.checked     = enabled;
-                multiSearchInput.disabled = !enabled;
-                multiSearchBtn.disabled   = !enabled;
+                multiEnabled.checked       = enabled;
+                multiSearchInput.disabled  = !enabled;
+                multiSearchBtn.disabled    = !enabled;
 
                 if (!enabled) {
                     MULTI_SELECTED_IDS = new Set();
@@ -1294,9 +1371,7 @@
                         multiContainer.innerHTML =
                             '<div class="text-muted">Enable multiple quotations and search above.</div>';
                     }
-                    if (multiSelectedList) {
-                        multiSelectedList.textContent = '(none)';
-                    }
+                    if (multiSelectedList) multiSelectedList.textContent = '(none)';
                     recalcMultiTotals();
                 }
             }
@@ -1341,14 +1416,10 @@
                         .then(async resp => {
                             const contentType = resp.headers.get('content-type') || '';
                             let data = null;
-                            if (contentType.includes('application/json')) {
-                                data = await resp.json();
-                            }
+                            if (contentType.includes('application/json')) data = await resp.json();
 
                             if (!resp.ok || !data || !data.ok) {
-                                const msg = (data && data.message)
-                                    ? data.message
-                                    : 'Error while deleting record.';
+                                const msg = (data && data.message) ? data.message : 'Error while deleting record.';
                                 alert(msg);
                                 return;
                             }
@@ -1507,7 +1578,7 @@
                     });
             });
 
-            // ---------- Save PO (Po Received button) ----------
+            // ---------- Save PO ----------
             if (btnSave) {
                 btnSave.addEventListener('click', async () => {
                     const formEl = document.getElementById('coordinatorForm');
@@ -1545,11 +1616,8 @@
                             let msg = 'Error while saving PO.';
 
                             if (data) {
-                                if (data.message) {
-                                    msg = data.message;
-                                } else if (data.errors) {
-                                    msg = Object.values(data.errors).flat().join('\n');
-                                }
+                                if (data.message) msg = data.message;
+                                else if (data.errors) msg = Object.values(data.errors).flat().join('\n');
                             } else if (resp.status === 419) {
                                 msg = 'Session expired. Please refresh the page and try again.';
                             }
@@ -1563,9 +1631,8 @@
                         const res = data || {};
                         alert(res.message || 'PO saved successfully.');
 
-                        if (res.ok) {
-                            window.location.reload();
-                        } else {
+                        if (res.ok) window.location.reload();
+                        else {
                             btnSave.disabled = false;
                             btnSave.innerText = 'Po Received';
                         }
@@ -1579,27 +1646,45 @@
                 });
             }
 
-            // ---------- Excel download buttons ----------
+            // ---------- Excel download buttons (FIXED: send FACTORY + scoped salesmen) ----------
             const btnDownloadExcelMonth = document.getElementById('coord_download_excel_month');
             const btnDownloadExcelYear  = document.getElementById('coord_download_excel_year');
 
+            function buildExportParams({ requireMonth = false } = {}) {
+                if (requireMonth && (!monthSelect || !monthSelect.value)) {
+                    alert('Please select a month before downloading the Excel file.');
+                    return null;
+                }
+
+                const params = new URLSearchParams();
+
+                if (requireMonth) params.set('month', monthSelect.value);
+
+                // ✅ Always send factory
+                params.set('factory', filterFactory || 'Jubail');
+
+                // ✅ Send region
+                params.set('region', filterRegion || 'all');
+
+                // ✅ Send scoped salesman list
+                const salesmenList = getSalesmenForExport(); // array of canonical names
+                params.set('salesmen', salesmenList.join(',')); // "SOHAIB,TARIQ,JAMAL"
+
+                // Optional single salesman selection
+                if (filterSalesman !== 'all') {
+                    params.set('salesman', filterSalesman);
+                }
+
+                if (fromInput && fromInput.value) params.set('from', fromInput.value);
+                if (toInput && toInput.value)     params.set('to', toInput.value);
+
+                return params;
+            }
+
             if (btnDownloadExcelMonth) {
                 btnDownloadExcelMonth.addEventListener('click', () => {
-                    if (!monthSelect || !monthSelect.value) {
-                        alert('Please select a month before downloading the Excel file.');
-                        return;
-                    }
-
-                    const params = new URLSearchParams();
-                    params.set('month', monthSelect.value);
-                    params.set('region', filterRegion || 'all');
-
-                    if (filterSalesman !== 'all') {
-                        params.set('salesman', filterSalesman);
-                    }
-
-                    if (fromInput && fromInput.value) params.set('from', fromInput.value);
-                    if (toInput   && toInput.value)   params.set('to', toInput.value);
+                    const params = buildExportParams({ requireMonth: true });
+                    if (!params) return;
 
                     const url = "{{ route('coordinator.salesorders.export') }}" + '?' + params.toString();
                     window.location.href = url;
@@ -1608,15 +1693,8 @@
 
             if (btnDownloadExcelYear) {
                 btnDownloadExcelYear.addEventListener('click', () => {
-                    const params = new URLSearchParams();
-                    params.set('region', filterRegion || 'all');
-
-                    if (filterSalesman !== 'all') {
-                        params.set('salesman', filterSalesman);
-                    }
-
-                    if (fromInput && fromInput.value) params.set('from', fromInput.value);
-                    if (toInput   && toInput.value)   params.set('to', toInput.value);
+                    const params = buildExportParams({ requireMonth: false });
+                    if (!params) return;
 
                     const url = "{{ route('coordinator.salesorders.exportYear') }}" + '?' + params.toString();
                     window.location.href = url;
@@ -1633,7 +1711,7 @@
                     return;
                 }
 
-                multiContainer.innerHTML = '<div class="text-muted">Searching...</div>';
+                if (multiContainer) multiContainer.innerHTML = '<div class="text-muted">Searching...</div>';
 
                 try {
                     const url = "{{ route('coordinator.searchQuotations') }}" +
@@ -1643,15 +1721,19 @@
                     const data = await resp.json();
 
                     if (!data.ok) {
-                        multiContainer.innerHTML =
-                            '<div class="text-danger">Search failed: ' + (data.message || '') + '</div>';
+                        if (multiContainer) {
+                            multiContainer.innerHTML =
+                                '<div class="text-danger">Search failed: ' + (data.message || '') + '</div>';
+                        }
                         return;
                     }
 
                     const results = data.results || [];
                     if (results.length === 0) {
-                        multiContainer.innerHTML =
-                            '<div class="text-muted">No quotations found for this search.</div>';
+                        if (multiContainer) {
+                            multiContainer.innerHTML =
+                                '<div class="text-muted">No quotations found for this search.</div>';
+                        }
                         return;
                     }
 
@@ -1668,19 +1750,14 @@
                         cb.dataset.qv  = p.quotation_value || 0;
                         cb.dataset.qno = p.quotation_no || '';
 
-                        if (MULTI_SELECTED_IDS.has(String(p.id))) {
-                            cb.checked = true;
-                        }
+                        if (MULTI_SELECTED_IDS.has(String(p.id))) cb.checked = true;
 
                         MULTI_QV_BY_ID[p.id] = p.quotation_value || 0;
 
                         cb.addEventListener('change', () => {
                             const id = String(cb.value);
-                            if (cb.checked) {
-                                MULTI_SELECTED_IDS.add(id);
-                            } else {
-                                MULTI_SELECTED_IDS.delete(id);
-                            }
+                            if (cb.checked) MULTI_SELECTED_IDS.add(id);
+                            else MULTI_SELECTED_IDS.delete(id);
                             recalcMultiTotals();
                         });
 
@@ -1696,14 +1773,18 @@
                         list.appendChild(row);
                     });
 
-                    multiContainer.innerHTML = '';
-                    multiContainer.appendChild(list);
+                    if (multiContainer) {
+                        multiContainer.innerHTML = '';
+                        multiContainer.appendChild(list);
+                    }
                     recalcMultiTotals();
 
                 } catch (err) {
                     console.error(err);
-                    multiContainer.innerHTML =
-                        '<div class="text-danger">Error while searching quotations.</div>';
+                    if (multiContainer) {
+                        multiContainer.innerHTML =
+                            '<div class="text-danger">Error while searching quotations.</div>';
+                    }
                 }
             }
 
@@ -1712,18 +1793,43 @@
             }
             if (multiSearchInput) {
                 multiSearchInput.addEventListener('keyup', (e) => {
-                    if (e.key === 'Enter') {
-                        performMultiSearch();
-                    }
+                    if (e.key === 'Enter') performMultiSearch();
                 });
             }
 
-            // Initial draw + KPI + chart sync
+            // ---------- Initial sync ----------
+            // Set active chips to match defaults
+            setActiveChipBy('.coord-chip[data-factory]', 'factory', filterFactory);
+            if (USER_REGION === 'western') setActiveChipBy('.coord-chip[data-region]', 'region', 'Western');
+            else setActiveChipBy('.coord-chip[data-region]', 'region', 'all');
+
+            // Salesman default: western choose first in allowed if current invalid
+            (function enforceInitialSalesman() {
+                const allowed = getAllowedSalesmenForFactory(filterFactory);
+                if (filterSalesman === 'all') {
+                    if (USER_REGION === 'western') {
+                        const firstAllowed = allowed[0];
+                        if (firstAllowed) filterSalesman = firstAllowed;
+                    }
+                } else {
+                    // if initial salesman not in allowed for the factory, fix it
+                    if (allowed.length && !allowed.includes(filterSalesman)) {
+                        filterSalesman = (USER_REGION === 'western') ? (allowed[0] || 'all') : 'all';
+                    }
+                }
+
+                // reflect UI
+                if (filterSalesman === 'all') setActiveChipBy('.coord-chip[data-salesman]', 'salesman', 'all');
+                else setActiveChipBy('.coord-chip[data-salesman]', 'salesman', filterSalesman);
+            })();
+
             redrawTables();
             refreshKpis();
             refreshChartFromTable();
+
         })();
     </script>
+
 @endpush
 
 
