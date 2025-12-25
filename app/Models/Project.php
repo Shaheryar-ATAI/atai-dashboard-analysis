@@ -136,43 +136,33 @@ class Project extends Model
      * Base query for coordinator scope (area = Eastern / Central / Western).
      * $regionsScope is array like ['eastern','central'].
      */
-    public static function coordinatorBaseQuery(
-        array $regionsScope,
-        array $salesmenScope = []
-    ): Builder {
-        $normalizedRegions = array_map(
-            fn ($r) => ucfirst(strtolower($r)),
-            $regionsScope
-        );
+    public static function coordinatorBaseQuery(array $regionsScope, array $salesmenScope = []): Builder
+    {
+        $normalizedRegions = array_map(fn($r) => strtoupper(trim($r)), $regionsScope);
+        $normalizedSalesmen = array_map(fn($s) => strtoupper(trim($s)), $salesmenScope);
 
-        $normalizedSalesmen = array_map(
-            fn ($s) => strtoupper(trim($s)),
-            $salesmenScope
-        );
-
-        // Coordinators should see all inquiries that DO NOT have a PO yet.
-        // We use status_current as the PO-flag (you already use this in storePo()).
         $query = static::query()
             ->whereNull('deleted_at')
-            // OLD: we were hiding any record with a non-null `status`
-            // ->whereNull('status')
-            // For "no PO yet" we only need to ensure status_current is null:
-            ->whereNull('status_current')
-            ->whereIn('area', $normalizedRegions);
+            ->where(function ($q) {
+                $q->whereNull('status_current')
+                    ->orWhereRaw("TRIM(status_current) = ''");
+            })
+//            ->where(function ($q) {
+//                $q->whereNull('status')
+//                    ->orWhereRaw("TRIM(status) = ''");
+//            })
+            ->whereIn(DB::raw('UPPER(TRIM(area))'), $normalizedRegions);
 
-        // OPTIONAL salesman filter (currently disabled)
-        /*
-        $query->when(!empty($normalizedSalesmen), function (Builder $q) use ($normalizedSalesmen) {
+        // OPTIONAL salesman filter (enable when needed)
+        $query->when(!empty($normalizedSalesmen), function ($q) use ($normalizedSalesmen) {
             $q->whereIn(
                 DB::raw('UPPER(TRIM(COALESCE(salesman, salesperson)))'),
                 $normalizedSalesmen
             );
         });
-        */
 
         return $query;
     }
-
     /**
      * Count of projects for coordinator regions.
      */
@@ -243,9 +233,9 @@ class Project extends Model
     }
 
     public function coordinatorUpdater()
-        {
-            return $this->belongsTo(User::class, 'coordinator_updated_by_id');
-        }
+    {
+        return $this->belongsTo(User::class, 'coordinator_updated_by_id');
+    }
 
     /**
      * Extract base project code from a quotation number.

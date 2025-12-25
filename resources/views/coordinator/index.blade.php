@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Project Coordinator — ATAI')
+@section('title', 'Project Coordinator ATAI')
 
 @push('head')
     {{-- Extra styling for coordinator page --}}
@@ -115,21 +115,8 @@
     <div class="container-fluid py-3">
 
         {{-- HEADER --}}
-        <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
-            <div>
-                <h4 class="mb-0">Project Coordinator Panel</h4>
-                <small class="text-muted">
-                    Region scope:
-                    @if(in_array($userRegion, ['western']))
-                        Madinah Factory
-                    @else
-                        Jubail Factory
-                    @endif
-                </small>
-            </div>
-        </div>
 
-        {{-- 🔽 FILTER BAR (Region / Month / Dates / Excel) 🔽 --}}
+        {{-- ðŸ”½ FILTER BAR (Region / Month / Dates / Excel) ðŸ”½ --}}
         @php
             // Options coming directly from controller
             $salesmen = $salesmenFilterOptions ?? [];
@@ -137,66 +124,42 @@
             // Enforce uppercase codes
             $salesmen = array_map('strtoupper', $salesmen);
 
-            // Detect Western coordinator (Niyaz)
-            $isWesternCoordinator = strtolower($userRegion) === 'western';
+            // Factory chips (UI only)
+//            $factories = ['Jubail', 'Madinah'];
+//            $defaultFactory = 'Jubail';
 
-            // If Western coordinator → only Ahmed + Abdo
-            if ($isWesternCoordinator) {
-                $salesmen = array_values(array_intersect($salesmen, ['AHMED', 'ABDO']));
-            }
-
-                // Coordinator “type”
-
-
-            // Factories: Eastern can see both, Western locked to Madinah
-            $factories = $isWesternCoordinator ? ['Madinah'] : ['Jubail', 'Madinah'];
-
-            // Default selection
-            $defaultFactory = $isWesternCoordinator ? 'Madinah' : 'Jubail';
-
-
-
-
-
-
+            // âœ… No Western restriction anymore
+            //$isWesternCoordinator = false;
         @endphp
 
-                <div class="card mb-3">
-                    <div class="card-body d-flex flex-wrap align-items-end justify-content-between gap-3">
-                        <div class="d-flex flex-wrap align-items-end gap-4">
+        <div class="card mb-3">
+            <div class="card-body d-flex flex-wrap align-items-end justify-content-between gap-3">
+                <div class="d-flex flex-wrap align-items-end gap-4">
 
-                            {{-- REGION CHIPS --}}
-                            {{-- REGION CHIPS --}}
-                            <div>
-                                <div class="coord-filter-label">Factory Location</div>
-                                <div class="coord-chip-group">
-                                    @foreach($factories as $f)
-                                        <button type="button"
-                                                class="coord-chip {{ $f === $defaultFactory ? 'active' : '' }}"
-                                                data-factory="{{ $f }}">
-                                            {{ $f }}
-                                        </button>
-                                    @endforeach
-                                </div>
-                            </div>
-                            <div>
-                                <div class="coord-filter-label">Region</div>
-                                <div class="coord-chip-group">
-                                    {{-- Always show "All" (for testing), default active only for non-Western --}}
-                                    <button type="button"
-                                            class="coord-chip {{ $isWesternCoordinator ? '' : 'active' }}"
-                                            data-region="all">
-                                        All
-                                    </button>
+                    {{-- FACTORY CHIPS (UI ONLY â€” no filtering) --}}
+                    {{--                    <div>--}}
+                    {{--                        <div class="coord-filter-label">Factory Location</div>--}}
+                    {{--                        <div class="coord-chip-group">--}}
+                    {{--                            @foreach($factories as $f)--}}
+                    {{--                                <button type="button"--}}
+                    {{--                                        class="coord-chip {{ $f === $defaultFactory ? 'active' : '' }}"--}}
+                    {{--                                        data-factory="{{ $f }}">--}}
+                    {{--                                    {{ $f }}--}}
+                    {{--                                </button>--}}
+                    {{--                            @endforeach--}}
+                    {{--                        </div>--}}
+                    {{--                    </div>--}}
 
-                                    @foreach($regionsScope as $r)
-                                        @php
-                                            $label    = ucfirst($r);               // Eastern / Central / Western
-                                            // For Niyaz we still start with "Western" active by default
-                                           $isActive = $isWesternCoordinator && strtolower($label) === 'western';
-                                @endphp
+                    {{-- REGION CHIPS --}}
+                    <div>
+                        <div class="coord-filter-label">Region</div>
+                        <div class="coord-chip-group">
+                            <button type="button" class="coord-chip active" data-region="all">All</button>
+
+                            @foreach($regionsScope as $r)
+                                @php $label = ucfirst($r); @endphp
                                 <button type="button"
-                                        class="coord-chip {{ $isActive ? 'active' : '' }}"
+                                        class="coord-chip"
                                         data-region="{{ $label }}">
                                     {{ $label }}
                                 </button>
@@ -205,39 +168,51 @@
                     </div>
 
                     {{-- SALESMAN CHIPS --}}
-                    {{-- SALESMAN CHIPS --}}
+                    @php
+                        // Options coming directly from controller
+                        $salesmen = $salesmenFilterOptions ?? [];
+                        $salesmen = array_values(array_unique(array_map('strtoupper', $salesmen)));
+
+                        // ✅ Restrict by role (Western coordinator)
+                        if (auth()->user()->hasRole('project_coordinator_western')) {
+                            $salesmen = array_values(array_intersect($salesmen, ['ABDO','AHMED']));
+                        }
+                    @endphp
+
                     <div>
                         <div class="coord-filter-label">Salesman</div>
                         <div class="coord-chip-group">
-                            {{-- Show "All" only for NON-Western coordinators --}}
-                            @if (! $isWesternCoordinator)
-                                <button type="button" class="coord-chip active" data-salesman="all">All</button>
-                            @endif
+                            <button type="button" class="coord-chip active" data-salesman="all">All</button>
 
                             @foreach($salesmen as $s)
                                 @php
-                                    $upper = strtoupper($s);              // SOHAIB / TARIQ / ...
-                                    $label = ucwords(strtolower($s));     // Sohaib / Tariq / ...
-                                    // Default active chip for Western (no "All" button)
-                                    $isSmActive = $isWesternCoordinator && $loop->first;
+                                    $upper = strtoupper(trim($s));
+
+                                    // ✅ Canonicalize for UI/export
+                                    $canonical = in_array($upper, ['TARIQ','TAREQ']) ? 'TAREQ' : $upper;
+
+                                    // ✅ Display label
+                                    $label = ($canonical === 'TAREQ')
+                                        ? 'Tareq'
+                                        : ucwords(strtolower($canonical));
                                 @endphp
+
                                 <button type="button"
-                                        class="coord-chip {{ $isSmActive ? 'active' : '' }}"
-                                        data-salesman="{{ $upper }}">
+                                        class="coord-chip"
+                                        data-salesman="{{ $canonical }}">
                                     {{ $label }}
                                 </button>
                             @endforeach
                         </div>
                     </div>
+
                     {{-- MONTH SELECT --}}
                     <div>
                         <div class="coord-filter-label">Month</div>
                         <select id="coord_month" class="form-select form-select-sm" style="min-width: 140px;">
                             <option value="">All Months</option>
                             @for($m = 1; $m <= 12; $m++)
-                                @php
-                                    $monthName = \Carbon\Carbon::create()->month($m)->format('F');
-                                @endphp
+                                @php $monthName = \Carbon\Carbon::create()->month($m)->format('F'); @endphp
                                 <option value="{{ $m }}">{{ $monthName }}</option>
                             @endfor
                         </select>
@@ -267,18 +242,15 @@
                         Excel download is for <strong>Sales Order Log</strong> with the filters above applied.
                     </small>
                     <div class="d-flex gap-2 justify-content-end">
-                        <button id="coord_download_excel_month"
-                                type="button"
-                                class="btn btn-outline-success btn-sm">
+                        <button id="coord_download_excel_month" type="button" class="btn btn-outline-success btn-sm">
                             Download Selected Month
                         </button>
-                        <button id="coord_download_excel_year"
-                                type="button"
-                                class="btn btn-outline-primary btn-sm">
+                        <button id="coord_download_excel_year" type="button" class="btn btn-outline-primary btn-sm">
                             Download Full Year
                         </button>
                     </div>
                 </div>
+
             </div>
         </div>
 
@@ -384,7 +356,6 @@
                             <th>ATAI Products</th>
                             <th>Quotation Date</th>
                             <th>Status</th>
-
                             <th style="width: 1%;">Action</th>
                         </tr>
                         </thead>
@@ -422,7 +393,7 @@
                                             <i class="bi bi-eye"></i> View
                                         </button>
 
-                                        {{-- Delete button (clear for naive user) --}}
+                                        {{-- Delete button --}}
                                         <button
                                             type="button"
                                             class="btn btn-outline-danger btnDeleteCoordinator"
@@ -440,91 +411,6 @@
                     </table>
                 </div>
 
-{{--                --}}{{-- Sales Orders table --}}
-{{--                <div id="wrapSalesOrdersTable" class="d-none">--}}
-{{--                    <table id="tblCoordinatorSalesOrders"--}}
-{{--                           class="table table-sm table-striped table-hover align-middle w-100">--}}
-{{--                        <thead>--}}
-{{--                        <tr>--}}
-{{--                            <th>PO No</th>--}}
-{{--                            <th>Quotation No</th>--}}
-{{--                            <th>Job No</th>--}}
-{{--                            <th>Project</th>--}}
-{{--                            <th>Client</th>--}}
-{{--                            <th>Salesman</th>--}}
-{{--                            <th>Area</th>--}}
-{{--                            <th>ATAI Products</th>--}}
-{{--                            <th>PO Date</th>--}}
-{{--                            <th>PO Value (SAR)</th>--}}
-{{--                            <th>Value with VAT (SAR)</th>--}}
-{{--                            <th>Created By</th>--}}
-{{--                            <th style="width: 1%;">Action</th>--}}
-{{--                        </tr>--}}
-{{--                        </thead>--}}
-{{--                        <tbody>--}}
-{{--                        @foreach($salesOrders as $so)--}}
-{{--                            <tr>--}}
-{{--                                <td>{{ $so->po_no ?? '-' }}</td>--}}
-{{--                                <td>{{ $so->quotation_no ?? '-' }}</td>--}}
-{{--                                <td>{{ $so->job_no ?? '-' }}</td>--}}
-{{--                                <td>{{ $so->project ?? '-' }}</td>--}}
-{{--                                <td>{{ $so->client ?? '-' }}</td>--}}
-{{--                                <td>{{ $so->salesman ?? '-' }}</td>--}}
-{{--                                <td>{{ $so->area ?? '-' }}</td>--}}
-{{--                                <td>{{ $so->atai_products ?? '-' }}</td>--}}
-{{--                                <td>{{ optional($so->po_date)->format('Y-m-d') ?? '-' }}</td>--}}
-{{--                                <td>{{ number_format($so->total_po_value ?? 0, 0) }}</td>--}}
-{{--                                <td>{{ number_format($so->value_with_vat ?? (($so->total_po_value ?? 0) * 1.15), 0) }}</td>--}}
-{{--                                <td>{{ optional($so->creator)->name ?? '-' }}</td>--}}
-
-{{--                                <td class="table-actions">--}}
-{{--                                    <div class="btn-group btn-group-sm" role="group">--}}
-{{--                                        --}}{{-- View button --}}
-{{--                                        <button--}}
-{{--                                            type="button"--}}
-{{--                                            class="btn btn-outline-light btnViewCoordinator"--}}
-{{--                                            data-source="salesorder"--}}
-{{--                                            data-id="{{ $so->id }}"--}}
-{{--                                            data-project="{{ $so->project }}"--}}
-{{--                                            data-client="{{ $so->client }}"--}}
-{{--                                            data-salesman="{{ $so->salesman }}"--}}
-{{--                                            data-location="{{ $so->location }}"--}}
-{{--                                            data-area="{{ $so->area }}"--}}
-{{--                                            data-quotation-no="{{ $so->quotation_no }}"--}}
-{{--                                            data-quotation-date="{{ optional($so->quotation_date)->format('Y-m-d') }}"--}}
-{{--                                            data-date-received="{{ optional($so->date_received)->format('Y-m-d') }}"--}}
-{{--                                            data-products="{{ $so->atai_products }}"--}}
-{{--                                            data-price="{{ $so->quotation_value }}"--}}
-{{--                                            data-status="{{ strtoupper(trim($so->status ?? '')) }}"--}}
-{{--                                            data-oaa="{{ $so->oaa }}"--}}
-{{--                                            data-job-no="{{ $so->job_no }}"--}}
-{{--                                            data-payment-terms="{{ $so->payment_terms }}"--}}
-{{--                                            data-remarks="{{ $so->remarks }}"--}}
-{{--                                            data-po-no="{{ $so->po_no }}"--}}
-{{--                                            data-po-date="{{ optional($so->po_date)->format('Y-m-d') }}"--}}
-{{--                                            data-po-value="{{ $so->total_po_value }}"--}}
-{{--                                        >--}}
-{{--                                            <i class="bi bi-eye"></i> View--}}
-{{--                                        </button>--}}
-
-{{--                                        --}}{{-- Delete button --}}
-{{--                                        <button--}}
-{{--                                            type="button"--}}
-{{--                                            class="btn btn-outline-danger btnDeleteCoordinator"--}}
-{{--                                            data-source="salesorder"--}}
-{{--                                            data-id="{{ $so->id }}"--}}
-{{--                                            data-label="{{ $so->po_no ?? $so->quotation_no ?? 'this sales order' }}"--}}
-{{--                                        >--}}
-{{--                                            <i class="bi bi-trash"></i> Delete--}}
-{{--                                        </button>--}}
-{{--                                    </div>--}}
-{{--                                </td>--}}
-{{--                            </tr>--}}
-{{--                        @endforeach--}}
-{{--                        </tbody>--}}
-{{--                    </table>--}}
-{{--                </div>--}}
-
                 {{-- Sales Orders table --}}
                 <div id="wrapSalesOrdersTable" class="d-none">
                     <table id="tblCoordinatorSalesOrders"
@@ -537,45 +423,42 @@
                             <th>Quotation No(s)</th>         {{-- 3 --}}
                             <th>Project</th>                 {{-- 4 --}}
                             <th>Job No</th>                  {{-- 5 --}}
-                            <th>PO Date</th>                 {{-- 6 (Date Rec) --}}
+                            <th>PO Date</th>                 {{-- 6 --}}
                             <th>Salesman</th>                {{-- 7 --}}
                             <th>Area</th>                    {{-- 8 --}}
                             <th>ATAI Products</th>           {{-- 9 --}}
                             <th>Value with VAT (SAR)</th>    {{-- 10 --}}
-
-                            <th style="width: 1%;">Action</th> {{-- 12 --}}
+                            <th style="width: 1%;">Action</th>
                         </tr>
                         </thead>
                         <tbody>
                         @foreach($salesOrders as $so)
                             <tr>
-                                <td>{{ $so->client ?? '-' }}</td>                           {{-- 0 --}}
-                                <td>{{ $so->po_no ?? '-' }}</td>                            {{-- 1 --}}
-                                <td>{{ number_format($so->total_po_value ?? 0, 0) }}</td>   {{-- 2 --}}
-                                <td>{{ $so->quotation_no ?? '-' }}</td>                     {{-- 3 --}}
-                                <td>{{ $so->project ?? '-' }}</td>                          {{-- 4 --}}
-                                <td>{{ $so->job_no ?? '-' }}</td>                           {{-- 5 --}}
-                                <td>{{ \Illuminate\Support\Carbon::parse($so->po_date)->format('Y-m-d') }}</td> {{-- 6 --}}
-                                <td>{{ $so->salesman ?? '-' }}</td>                         {{-- 7 --}}
-                                <td>{{ $so->area ?? '-' }}</td>                             {{-- 8 --}}
-                                <td>{{ $so->atai_products ?? '-' }}</td>                    {{-- 9 --}}
-                                <td>{{ number_format($so->value_with_vat ?? 0, 0) }}</td>   {{-- 10 --}}
+                                <td>{{ $so->client ?? '-' }}</td>
+                                <td>{{ $so->po_no ?? '-' }}</td>
+                                <td>{{ number_format($so->total_po_value ?? 0, 0) }}</td>
+                                <td>{{ $so->quotation_no ?? '-' }}</td>
+                                <td>{{ $so->project ?? '-' }}</td>
+                                <td>{{ $so->job_no ?? '-' }}</td>
+                                <td>{{ \Illuminate\Support\Carbon::parse($so->po_date)->format('Y-m-d') }}</td>
+                                <td>{{ $so->salesman ?? '-' }}</td>
+                                <td>{{ $so->area ?? '-' }}</td>
+                                <td>{{ $so->atai_products ?? '-' }}</td>
+                                <td>{{ number_format($so->value_with_vat ?? 0, 0) }}</td>
 
-
-                                <td class="table-actions">                                   {{-- 12 --}}
+                                <td class="table-actions">
                                     <div class="btn-group btn-group-sm" role="group">
-                                        {{-- View button --}}
                                         <button
                                             type="button"
                                             class="btn btn-outline-light btnViewCoordinator"
                                             data-source="salesorder"
-                                            data-id="{{ $so->id }}" {{-- MIN(id) of group --}}
+                                            data-id="{{ $so->id }}"
                                             data-project="{{ $so->project }}"
                                             data-client="{{ $so->client }}"
                                             data-salesman="{{ $so->salesman }}"
-                                            data-location="" {{-- optional --}}
+                                            data-location=""
                                             data-area="{{ $so->area }}"
-                                            data-quotation-no="{{ $so->quotation_no }}" {{-- combined list --}}
+                                            data-quotation-no="{{ $so->quotation_no }}"
                                             data-quotation-date="{{ $so->po_date }}"
                                             data-date-received="{{ $so->po_date }}"
                                             data-products="{{ $so->atai_products }}"
@@ -592,7 +475,6 @@
                                             <i class="bi bi-eye"></i> View
                                         </button>
 
-                                        {{-- Delete --}}
                                         <button
                                             type="button"
                                             class="btn btn-outline-danger btnDeleteCoordinator"
@@ -609,9 +491,6 @@
                         </tbody>
                     </table>
                 </div>
-
-
-
 
             </div>
         </div>
@@ -656,14 +535,15 @@
                                     <div class="coordinator-label">Salesperson</div>
 
                                     <select name="salesman"
-                                            id="coord_salesman" {{-- keep this id for JS --}}
+                                            id="coord_salesman"
                                             class="form-select form-select-sm"
                                             required>
                                         <option value="">Select...</option>
                                         @foreach($salesmen as $sm)
                                             @php
-                                                $value = strtoupper(trim($sm));           // SOHAIB, TARIQ, ...
-                                                $label = ucwords(strtolower($sm));        // Sohaib, Tariq, ...
+                                                $upper = strtoupper(trim($sm));
+                                                $value = in_array($upper, ['TARIQ','TAREQ']) ? 'TAREQ' : $upper;
+                                                $label = ($value === 'TAREQ') ? 'Tareq' : ucwords(strtolower($value));
                                             @endphp
                                             <option value="{{ $value }}">{{ $label }}</option>
                                         @endforeach
@@ -731,7 +611,7 @@
                                     <input type="text"
                                            class="form-control form-control-sm"
                                            id="coord_status"
-                                           readonly> {{-- keep status readonly; OAA dropdown controls Status --}}
+                                           readonly>
                                 </div>
 
                             </div>
@@ -758,6 +638,7 @@
                                     <input type="number" step="0.01" name="po_value" id="coord_po_value"
                                            class="form-control form-control-sm">
                                 </div>
+
                                 <div class="mb-2" id="coord_multi_block" style="display: none;">
                                     <div class="coordinator-label">Multiple Quotations</div>
 
@@ -768,7 +649,6 @@
                                         </label>
                                     </div>
 
-                                    {{-- Search box --}}
                                     <div class="input-group input-group-sm mb-2">
                                         <input type="text"
                                                id="coord_multi_search"
@@ -783,14 +663,12 @@
                                         </button>
                                     </div>
 
-                                    {{-- Search results (checkbox list) --}}
                                     <div id="coord_multi_container"
                                          class="border rounded p-2 small"
                                          style="max-height: 200px; overflow-y: auto;">
                                         <div class="text-muted">Enable multiple quotations and search above.</div>
                                     </div>
 
-                                    {{-- Selected summary --}}
                                     <div class="mt-2 small">
                                         <strong>Selected extra quotations:</strong>
                                         <div id="coord_multi_selected_list" class="mt-1 text-info">
@@ -800,12 +678,13 @@
                                             <strong>Total selected quotation value:</strong>
                                             SAR <span id="coord_multi_total_qv">0</span><br>
                                             <span class="text-muted">
-                PO value will be split proportionally based on quotation values
-                (main quotation + selected ones).
-            </span>
+                                                PO value will be split proportionally based on quotation values
+                                                (main quotation + selected ones).
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
+
                                 <div class="mb-2">
                                     <div class="coordinator-label">Payment Terms</div>
                                     <select name="payment_terms" id="coord_payment_terms"
@@ -835,7 +714,7 @@
                                 </div>
                             </div>
                         </div>
-                        {{-- Existing documents list --}}
+
                         <div class="card h-100 mt-3">
                             <div class="card-header">Existing Documents</div>
                             <div class="card-body">
@@ -845,14 +724,13 @@
                             </div>
                         </div>
 
-                        {{-- Optional: upload section inside modal --}}
                         <div class="card h-100 mt-3">
                             <div class="card-header">Upload Documents</div>
                             <div class="card-body">
                                 <div class="p-3 upload-block border border-2 text-center">
                                     <p class="mb-2">Upload related files (PO, Job Card, Email, etc.).</p>
                                     <p class="text-muted small mb-3">
-                                        Multiple files allowed (max 4–5 files recommended).
+                                        Multiple files allowed (max 4â€“5 files recommended).
                                     </p>
                                     <input type="file" class="form-control mb-2" name="attachments[]" multiple>
                                 </div>
@@ -861,13 +739,11 @@
                     </form>
                 </div>
 
-
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
                         Close
                     </button>
                     <button type="button" class="btn btn-primary" id="btnCoordinatorSave">
-
                         Po Received
                     </button>
                 </div>
@@ -875,12 +751,18 @@
         </div>
     </div>
 @endsection
-@push('scripts')
-    <script src="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.js"></script>
-    <script src="https://code.highcharts.com/highcharts.js"></script>
 
+@push('scripts')
     <script>
         (function () {
+            'use strict';
+
+            if (!window.jQuery) {
+                console.error('jQuery is not loaded. Load jQuery BEFORE this script.');
+                return;
+            }
+            const $ = window.jQuery;
+
             const fmtSAR = value => {
                 if (value === null || value === undefined) return '0';
                 return new Intl.NumberFormat('en-SA', {
@@ -890,43 +772,46 @@
                 }).format(Number(value || 0));
             };
 
-            // ----- Salesman alias map -----
             const SALESMAN_ALIASES = {
                 'SOHAIB': ['SOHAIB', 'SOAHIB'],
                 'TAREQ':  ['TARIQ', 'TAREQ'],
                 'JAMAL':  ['JAMAL'],
-                'ABDO':   ['ABDO'],
+                'ABDO':   ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF'],
                 'AHMED':  ['AHMED'],
             };
 
-            const salesmanChips = document.querySelectorAll('.coord-chip[data-salesman]');
-            const regionChips   = document.querySelectorAll('.coord-chip[data-region]');
-            const factoryChips  = document.querySelectorAll('.coord-chip[data-factory]');
+            // âœ… Factory UI only â€” we keep variable but DO NOT use it for filtering/export
+            // let filterFactory  = 'Jubail';
 
-            const FACTORY_SALESMEN = {
-                'Jubail':  ['SOHAIB', 'TAREQ', 'JAMAL'],
-                'Madinah': ['AHMED', 'ABDO'],
-            };
-
-            // PHP -> JS: user region
-            const USER_REGION = '{{ strtolower($userRegion) }}';
-
-            // Default factory based on coordinator region (same logic as Blade defaults)
-            let filterFactory = (USER_REGION === 'western') ? 'Madinah' : 'Jubail';
-
-            // Default salesman: western -> first allowed in its factory; others -> all
-            let filterSalesman = (USER_REGION === 'western')
-                ? '{{ strtoupper($salesmen[0] ?? 'AHMED') }}'
-                : 'all';
-
-            // Default region: western -> Western; others -> all
-            let filterRegion   = (USER_REGION === 'western') ? 'Western' : 'all';
-
+            let filterSalesman = 'all';
+            let filterRegion   = 'all';
             let filterMonth    = '';
             let filterFrom     = null;
             let filterTo       = null;
 
-            // ----- Multi-quotation DOM + state -----
+            const salesmanChips = document.querySelectorAll('.coord-chip[data-salesman]');
+            const regionChips   = document.querySelectorAll('.coord-chip[data-region]');
+            //   const factoryChips  = document.querySelectorAll('.coord-chip[data-factory]');
+
+            const monthSelect     = document.getElementById('coord_month');
+            const fromInput       = document.getElementById('coord_from');
+            const toInput         = document.getElementById('coord_to');
+            const btnResetFilters = document.getElementById('coord_reset_filters');
+
+            const elKpiProjects   = document.getElementById('kpiProjectsCount');
+            const elKpiSoCount    = document.getElementById('kpiSalesOrdersCount');
+            const elKpiSoValueNum = document.getElementById('kpiSalesOrdersValue');
+
+            const wrapProjects    = document.getElementById('wrapProjectsTable');
+            const wrapSalesOrder  = document.getElementById('wrapSalesOrdersTable');
+            const btnProj         = document.getElementById('btnShowProjects');
+            const btnSO           = document.getElementById('btnShowSalesOrders');
+
+            const coordModalEl      = document.getElementById('coordinatorModal');
+            const coordModal        = coordModalEl ? new bootstrap.Modal(coordModalEl) : null;
+            const btnSave           = document.getElementById('btnCoordinatorSave');
+            const attachmentsListEl = document.getElementById('coord_attachments_list');
+
             const multiBlock        = document.getElementById('coord_multi_block');
             const multiEnabled      = document.getElementById('coord_multi_enabled');
             const multiContainer    = document.getElementById('coord_multi_container');
@@ -935,49 +820,9 @@
             const multiSearchBtn    = document.getElementById('coord_multi_search_btn');
             const multiSelectedList = document.getElementById('coord_multi_selected_list');
 
-            let MULTI_SELECTED_IDS = new Set();   // extra project ids
-            let MULTI_QV_BY_ID     = {};          // id -> quotation_value
-            let MAIN_QUOTATION_VALUE = 0;
-
-            // ----- Filter DOM -----
-            const monthSelect      = document.getElementById('coord_month');
-            const fromInput        = document.getElementById('coord_from');
-            const toInput          = document.getElementById('coord_to');
-            const btnResetFilters  = document.getElementById('coord_reset_filters');
-
-            const elKpiProjects    = document.getElementById('kpiProjectsCount');
-            const elKpiSoCount     = document.getElementById('kpiSalesOrdersCount');
-            const elKpiSoValueNum  = document.getElementById('kpiSalesOrdersValue');
-
-            const wrapProjects     = document.getElementById('wrapProjectsTable');
-            const wrapSalesOrder   = document.getElementById('wrapSalesOrdersTable');
-            const btnProj          = document.getElementById('btnShowProjects');
-            const btnSO            = document.getElementById('btnShowSalesOrders');
-
-            const coordModalEl     = document.getElementById('coordinatorModal');
-            const coordModal       = coordModalEl ? new bootstrap.Modal(coordModalEl) : null;
-
-            const btnSave           = document.getElementById('btnCoordinatorSave');
-            const attachmentsListEl = document.getElementById('coord_attachments_list');
-
-            // ---------- Helpers ----------
-            function getAllowedSalesmenForFactory(factoryName) {
-                return FACTORY_SALESMEN[factoryName] || [];
-            }
-
-            function hasAllSalesmanChip() {
-                return !!document.querySelector('.coord-chip[data-salesman="all"]');
-            }
-
-            // When Salesman=All, export must respect factory scope
-            function getSalesmenForExport() {
-                const allowed = getAllowedSalesmenForFactory(filterFactory);
-
-                if (filterSalesman && filterSalesman !== 'all') {
-                    return allowed.includes(filterSalesman) ? [filterSalesman] : [];
-                }
-                return allowed; // "all" within factory scope
-            }
+            let MULTI_SELECTED_IDS    = new Set();
+            let MULTI_QV_BY_ID        = {};
+            let MAIN_QUOTATION_VALUE  = 0;
 
             function setActiveChipBy(selector, datasetKey, valueUpperOrRaw) {
                 const chips = document.querySelectorAll(selector);
@@ -991,345 +836,38 @@
                 if (target) target.classList.add('active');
             }
 
-            // ---------- DataTables ----------
-            const dtProjects = new DataTable('#tblCoordinatorProjects', {
-                pageLength: 25,
-                order: [[6, 'desc']] // quotation_date
-            });
+            function parseYmd(dateStr) {
+                if (!dateStr || dateStr === '-') return null;
+                const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+                if (!m) return null;
+                return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+            }
 
-            const dtSalesOrders = new DataTable('#tblCoordinatorSalesOrders', {
-                pageLength: 25,
-                order: [[6, 'desc']] // PO Date (index 6)
-            });
-
-            // ---------- Custom global filter for BOTH tables ----------
-            $.fn.dataTable.ext.search.push(function (settings, data) {
-                const tableId = settings.nTable.id;
-
-                if (tableId !== 'tblCoordinatorProjects' && tableId !== 'tblCoordinatorSalesOrders') {
-                    return true;
+            function canonicalSalesmanCode(raw) {
+                const x = (raw || '').trim().toUpperCase();
+                for (const [canon, aliases] of Object.entries(SALESMAN_ALIASES)) {
+                    if (aliases.includes(x)) return canon;
                 }
-
-                let areaStr, salesmanStr, dateStr;
-
-                if (tableId === 'tblCoordinatorProjects') {
-                    areaStr     = (data[4] || '').trim();
-                    salesmanStr = (data[3] || '').trim();
-                    dateStr     = data[6] || '';
-                } else {
-                    areaStr     = (data[8] || '').trim();
-                    salesmanStr = (data[7] || '').trim();
-                    dateStr     = data[6] || '';
-                }
-
-                // ✅ FACTORY filter FIRST (based on salesman membership in factory list)
-                const cellSmUpper = (salesmanStr || '').toUpperCase();
-                const allowed = getAllowedSalesmenForFactory(filterFactory);
-
-                // If filterFactory set but no allowed list, don't block
-                if (allowed.length) {
-                    if (!allowed.includes(cellSmUpper)) return false;
-                }
-
-                // REGION filter
-                if (filterRegion !== 'all') {
-                    const cellRegion = (areaStr || '').toUpperCase();
-                    const wanted     = filterRegion.toUpperCase();
-                    if (cellRegion !== wanted) return false;
-                }
-
-                // SALESMAN filter (aliases)
-                if (filterSalesman !== 'all') {
-                    const cellUpper = (salesmanStr || '').toUpperCase();
-                    const aliases   = SALESMAN_ALIASES[filterSalesman] || [filterSalesman];
-                    if (!aliases.includes(cellUpper)) return false;
-                }
-
-                // DATE filter
-                if (!dateStr || dateStr === '-') {
-                    return !(filterMonth || filterFrom || filterTo);
-                }
-
-                const rowDate = new Date(dateStr);
-                if (isNaN(rowDate.getTime())) return true;
-
-                if (filterMonth) {
-                    const m = rowDate.getMonth() + 1;
-                    if (m !== parseInt(filterMonth, 10)) return false;
-                }
-
-                if (filterFrom && rowDate < filterFrom) return false;
-                if (filterTo && rowDate > filterTo) return false;
-
-                return true;
-            });
-
-            function redrawTables() {
-                dtProjects.draw();
-                dtSalesOrders.draw();
+                return x;
             }
 
-            // ---------- Factory chips ----------
-            factoryChips.forEach(chip => {
-                chip.addEventListener('click', () => {
-                    factoryChips.forEach(c => c.classList.remove('active'));
-                    chip.classList.add('active');
-
-                    filterFactory = chip.dataset.factory || 'Jubail';
-
-                    // On factory change:
-                    // - Non-western: reset salesman to all (if chip exists)
-                    // - Western: select first allowed salesman for that factory (since no "all")
-                    if (USER_REGION !== 'western' && hasAllSalesmanChip()) {
-                        filterSalesman = 'all';
-                        salesmanChips.forEach(c => c.classList.remove('active'));
-                        const allSalesChip = document.querySelector('.coord-chip[data-salesman="all"]');
-                        if (allSalesChip) allSalesChip.classList.add('active');
-                    } else {
-                        const allowed = getAllowedSalesmenForFactory(filterFactory);
-                        const firstAllowedChip = Array.from(salesmanChips).find(c => {
-                            const v = (c.dataset.salesman || '').toUpperCase();
-                            return allowed.includes(v);
-                        });
-
-                        salesmanChips.forEach(c => c.classList.remove('active'));
-
-                        if (firstAllowedChip) {
-                            firstAllowedChip.classList.add('active');
-                            filterSalesman = (firstAllowedChip.dataset.salesman || '').toUpperCase();
-                        } else {
-                            // fallback
-                            filterSalesman = 'all';
-                        }
-                    }
-
-                    redrawTables();
-                });
-            });
-
-            // ---------- KPI recalculation ----------
-            function refreshKpis() {
-                const projCount = dtProjects.rows({ filter: 'applied' }).count();
-                const soCount   = dtSalesOrders.rows({ filter: 'applied' }).count();
-
-                let soTotal = 0;
-                dtSalesOrders
-                    .column(2, { filter: 'applied' }) // PO Value (SAR) is column 2
-                    .data()
-                    .each(function (value) {
-                        let num = 0;
-                        if (typeof value === 'number') {
-                            num = value;
-                        } else if (typeof value === 'string') {
-                            num = parseFloat(value.replace(/[^0-9.-]/g, '')) || 0;
-                        }
-                        if (!isNaN(num)) soTotal += num;
-                    });
-
-                if (elKpiProjects)   elKpiProjects.textContent   = projCount.toLocaleString('en-SA');
-                if (elKpiSoCount)    elKpiSoCount.textContent    = soCount.toLocaleString('en-SA');
-                if (elKpiSoValueNum) elKpiSoValueNum.textContent = soTotal.toLocaleString('en-SA');
+            function canonicalSalesmanLabel(raw) {
+                const canon = canonicalSalesmanCode(raw);
+                if (!canon) return '';
+                if (canon === 'SOHAIB') return 'Sohaib';
+                if (canon === 'TAREQ')  return 'Tareq';
+                return canon.charAt(0) + canon.slice(1).toLowerCase();
             }
 
-            // ---------- Highcharts ----------
-            let regionChart = Highcharts.chart('coordinatorRegionStacked', {
-                chart: { type: 'column', backgroundColor: '#0f172a' },
-                title: { text: 'PO Value by Region', style: { color: '#e5e7eb' } },
-                xAxis: {
-                    categories: ['Eastern', 'Central', 'Western'],
-                    crosshair: true,
-                    labels: { style: { color: '#cbd5e1' } }
-                },
-                yAxis: {
-                    min: 0,
-                    title: { text: 'Value (SAR)', style: { color: '#cbd5e1' } },
-                    labels: { style: { color: '#cbd5e1' } },
-                    gridLineColor: '#1e293b'
-                },
-                legend: { itemStyle: { color: '#e5e7eb' } },
-                tooltip: {
-                    shared: true,
-                    backgroundColor: '#1e293b',
-                    borderColor: '#475569',
-                    style: { color: 'white' },
-                    formatter: function () {
-                        let total = 0;
-                        this.points.forEach(p => total += p.y);
-                        return (
-                            '<b>' + this.x + '</b><br/>' +
-                            this.points.map(p => p.series.name + ': ' + fmtSAR(p.y)).join('<br/>') +
-                            '<br/><span style="font-weight:600">Total: ' + fmtSAR(total) + '</span>'
-                        );
-                    }
-                },
-                plotOptions: { column: { borderWidth: 0 } },
-                series: [{ name: 'PO Value', data: [0, 0, 0] }]
-            });
-
-            function refreshChartFromTable() {
-                if (!regionChart) return;
-
-                const sums = { 'Eastern': 0, 'Central': 0, 'Western': 0 };
-
-                dtSalesOrders.rows({ filter: 'applied' }).every(function () {
-                    const row = this.data();
-
-                    // Area index 8, PO Value index 2
-                    const areaRaw = (row[8] || '').trim();
-                    const areaKey = areaRaw || 'Unknown';
-
-                    let val = row[2];
-                    if (typeof val === 'string') val = parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
-                    if (typeof val !== 'number' || isNaN(val)) val = 0;
-
-                    if (areaKey in sums) sums[areaKey] += val;
-                });
-
-                const cats = ['Eastern', 'Central', 'Western'];
-                const data = cats.map(r => sums[r] || 0);
-
-                regionChart.xAxis[0].setCategories(cats, false);
-                regionChart.series[0].setData(data, true);
-            }
-
-            // ---------- DataTables draw hooks ----------
-            dtProjects.on('draw', function () { refreshKpis(); });
-            dtSalesOrders.on('draw', function () { refreshKpis(); refreshChartFromTable(); });
-
-            // ---------- Region chips ----------
-            regionChips.forEach(chip => {
-                chip.addEventListener('click', () => {
-                    regionChips.forEach(c => c.classList.remove('active'));
-                    chip.classList.add('active');
-
-                    filterRegion = chip.dataset.region || 'all';
-                    redrawTables();
-                });
-            });
-
-            // ---------- Salesman chips ----------
-            salesmanChips.forEach(chip => {
-                chip.addEventListener('click', () => {
-                    salesmanChips.forEach(c => c.classList.remove('active'));
-                    chip.classList.add('active');
-
-                    const v = chip.dataset.salesman || 'all';
-                    filterSalesman = v === 'all' ? 'all' : v.toUpperCase();
-
-                    redrawTables();
-                });
-            });
-
-            // ---------- Month / date inputs ----------
-            if (monthSelect) {
-                monthSelect.addEventListener('change', () => {
-                    filterMonth = monthSelect.value || '';
-                    redrawTables();
-                });
-            }
-
-            if (fromInput) {
-                fromInput.addEventListener('change', () => {
-                    filterFrom = fromInput.value ? new Date(fromInput.value) : null;
-                    redrawTables();
-                });
-            }
-
-            if (toInput) {
-                toInput.addEventListener('change', () => {
-                    filterTo = toInput.value ? new Date(toInput.value) : null;
-                    redrawTables();
-                });
-            }
-
-            // ---------- Reset filters ----------
-            if (btnResetFilters) {
-                btnResetFilters.addEventListener('click', () => {
-
-                    // 1) FACTORY reset
-                    filterFactory = (USER_REGION === 'western') ? 'Madinah' : 'Jubail';
-                    setActiveChipBy('.coord-chip[data-factory]', 'factory', filterFactory);
-
-                    // 2) REGION reset
-                    if (USER_REGION === 'western') {
-                        filterRegion = 'Western';
-                        setActiveChipBy('.coord-chip[data-region]', 'region', 'Western');
-                    } else {
-                        filterRegion = 'all';
-                        setActiveChipBy('.coord-chip[data-region]', 'region', 'all');
-                    }
-
-                    // 3) SALESMAN reset
-                    if (USER_REGION !== 'western' && hasAllSalesmanChip()) {
-                        filterSalesman = 'all';
-                        setActiveChipBy('.coord-chip[data-salesman]', 'salesman', 'all');
-                    } else {
-                        // western: choose first allowed for default factory
-                        const allowed = getAllowedSalesmenForFactory(filterFactory);
-                        const firstAllowedChip = Array.from(salesmanChips).find(c => {
-                            const v = (c.dataset.salesman || '').toUpperCase();
-                            return allowed.includes(v);
-                        });
-
-                        salesmanChips.forEach(c => c.classList.remove('active'));
-                        if (firstAllowedChip) {
-                            firstAllowedChip.classList.add('active');
-                            filterSalesman = (firstAllowedChip.dataset.salesman || '').toUpperCase();
-                        } else {
-                            filterSalesman = 'all';
-                        }
-                    }
-
-                    // 4) dates/month reset
-                    filterMonth = '';
-                    filterFrom  = null;
-                    filterTo    = null;
-
-                    if (monthSelect) monthSelect.value = '';
-                    if (fromInput)   fromInput.value   = '';
-                    if (toInput)     toInput.value     = '';
-
-                    redrawTables();
-                });
-            }
-
-            // ---------- Toggle tables ----------
-            if (btnProj && btnSO && wrapProjects && wrapSalesOrder) {
-                btnProj.addEventListener('click', () => {
-                    btnProj.classList.add('btn-primary', 'active');
-                    btnProj.classList.remove('btn-outline-primary');
-
-                    btnSO.classList.remove('btn-primary', 'active');
-                    btnSO.classList.add('btn-outline-primary');
-
-                    wrapProjects.classList.remove('d-none');
-                    wrapSalesOrder.classList.add('d-none');
-
-                    dtProjects.columns.adjust().draw(false);
-                });
-
-                btnSO.addEventListener('click', () => {
-                    btnSO.classList.add('btn-primary', 'active');
-                    btnSO.classList.remove('btn-outline-primary');
-
-                    btnProj.classList.remove('btn-primary', 'active');
-                    btnProj.classList.add('btn-outline-primary');
-
-                    wrapProjects.classList.add('d-none');
-                    wrapSalesOrder.classList.remove('d-none');
-
-                    dtSalesOrders.columns.adjust().draw(false);
-                });
-            }
-
-            // ----- Multi-quotation helpers -----
             function recalcMultiTotals() {
                 const priceInput = document.getElementById('coord_price');
-                MAIN_QUOTATION_VALUE = parseFloat(priceInput?.value || '0') || 0;
+                const rawMain = (priceInput?.value || '0').toString().replace(/,/g, '');
+                MAIN_QUOTATION_VALUE = parseFloat(rawMain) || 0;
 
                 let extraTotal = 0;
                 MULTI_SELECTED_IDS.forEach(id => {
-                    const qv = parseFloat(MULTI_QV_BY_ID[id] || '0') || 0;
+                    const raw = (MULTI_QV_BY_ID[id] || '0').toString().replace(/,/g,'');
+                    const qv = parseFloat(raw) || 0;
                     extraTotal += qv;
                 });
 
@@ -1337,9 +875,7 @@
                     if (MULTI_SELECTED_IDS.size === 0) {
                         multiSelectedList.textContent = '(none)';
                     } else {
-                        const cbs = multiContainer
-                            ? multiContainer.querySelectorAll('.coord-multi-item:checked')
-                            : [];
+                        const cbs = multiContainer ? multiContainer.querySelectorAll('.coord-multi-item:checked') : [];
                         const texts = [];
                         cbs.forEach(cb => {
                             const label = cb.dataset.qno || '';
@@ -1360,16 +896,15 @@
             function setMultiEnabled(enabled) {
                 if (!multiEnabled || !multiSearchInput || !multiSearchBtn) return;
 
-                multiEnabled.checked       = enabled;
-                multiSearchInput.disabled  = !enabled;
-                multiSearchBtn.disabled    = !enabled;
+                multiEnabled.checked      = enabled;
+                multiSearchInput.disabled = !enabled;
+                multiSearchBtn.disabled   = !enabled;
 
                 if (!enabled) {
                     MULTI_SELECTED_IDS = new Set();
                     MULTI_QV_BY_ID     = {};
                     if (multiContainer) {
-                        multiContainer.innerHTML =
-                            '<div class="text-muted">Enable multiple quotations and search above.</div>';
+                        multiContainer.innerHTML = '<div class="text-muted">Enable multiple quotations and search above.</div>';
                     }
                     if (multiSelectedList) multiSelectedList.textContent = '(none)';
                     recalcMultiTotals();
@@ -1377,276 +912,9 @@
             }
 
             if (multiEnabled) {
-                multiEnabled.addEventListener('change', () => {
-                    setMultiEnabled(multiEnabled.checked);
-                });
+                multiEnabled.addEventListener('change', () => setMultiEnabled(multiEnabled.checked));
             }
 
-            // ---------- Modal open (view) + delete ----------
-            document.addEventListener('click', function (e) {
-                // DELETE (soft delete)
-                const delBtn = e.target.closest('.btnDeleteCoordinator');
-                if (delBtn) {
-                    const source = delBtn.dataset.source || '';
-                    const id     = delBtn.dataset.id;
-                    const label  = delBtn.dataset.label ||
-                        (source === 'salesorder' ? 'this sales order' : 'this inquiry');
-
-                    if (!id) return;
-
-                    if (!confirm(`Are you sure you want to delete ${label}? This is a soft delete and can be recovered later by admin.`)) {
-                        return;
-                    }
-
-                    let url = '';
-                    if (source === 'salesorder') {
-                        url = "{{ route('coordinator.salesorders.destroy', ['salesorder' => '__ID__']) }}";
-                    } else {
-                        url = "{{ route('coordinator.projects.destroy', ['project' => '__ID__']) }}";
-                    }
-                    url = url.replace('__ID__', id);
-
-                    fetch(url, {
-                        method: 'DELETE',
-                        headers: {
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                            'Accept': 'application/json'
-                        }
-                    })
-                        .then(async resp => {
-                            const contentType = resp.headers.get('content-type') || '';
-                            let data = null;
-                            if (contentType.includes('application/json')) data = await resp.json();
-
-                            if (!resp.ok || !data || !data.ok) {
-                                const msg = (data && data.message) ? data.message : 'Error while deleting record.';
-                                alert(msg);
-                                return;
-                            }
-
-                            alert(data.message || 'Record deleted.');
-                            window.location.reload();
-                        })
-                        .catch(err => {
-                            console.error(err);
-                            alert('Unexpected error while deleting: ' + err.message);
-                        });
-
-                    return;
-                }
-
-                // VIEW (open modal)
-                const btn = e.target.closest('.btnViewCoordinator');
-                if (!btn) return;
-
-                const source = btn.dataset.source || '';
-
-                document.getElementById('coord_source').value     = source;
-                document.getElementById('coord_record_id').value  = btn.dataset.id || '';
-
-                document.getElementById('coord_project').value       = btn.dataset.project || '';
-                document.getElementById('coord_client').value        = btn.dataset.client || '';
-
-                // Salesperson select with alias map
-                const salesmanSelect = document.getElementById('coord_salesman');
-                if (salesmanSelect) {
-                    const rawSm = (btn.dataset.salesman || '').trim().toUpperCase();
-                    let canonical = rawSm;
-
-                    if (rawSm) {
-                        for (const [canon, aliases] of Object.entries(SALESMAN_ALIASES)) {
-                            if (aliases.includes(rawSm)) {
-                                canonical = canon;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (canonical) {
-                        const hasOption = Array.from(salesmanSelect.options)
-                            .some(o => o.value === canonical);
-
-                        if (!hasOption) {
-                            const opt = new Option(canonical, canonical, true, true);
-                            salesmanSelect.add(opt);
-                        }
-
-                        salesmanSelect.value = canonical;
-                    } else {
-                        salesmanSelect.value = '';
-                    }
-                }
-
-                document.getElementById('coord_location').value       = btn.dataset.location || '';
-                document.getElementById('coord_area').value           = btn.dataset.area || '';
-                document.getElementById('coord_quotation_no').value   = btn.dataset.quotationNo || '';
-                document.getElementById('coord_quotation_date').value = btn.dataset.quotationDate || '';
-                document.getElementById('coord_date_received').value  = btn.dataset.dateReceived || '';
-                document.getElementById('coord_products').value       = btn.dataset.products || '';
-                document.getElementById('coord_price').value          = btn.dataset.price || '';
-                document.getElementById('coord_status').value         = btn.dataset.status || '';
-
-                document.getElementById('coord_job_no').value        = btn.dataset.jobNo || '';
-                document.getElementById('coord_po_no').value         = btn.dataset.poNo || '';
-                document.getElementById('coord_po_date').value       = btn.dataset.poDate || '';
-                document.getElementById('coord_po_value').value      = btn.dataset.poValue || '';
-                document.getElementById('coord_payment_terms').value = btn.dataset.paymentTerms || '';
-                document.getElementById('coord_remarks').value       = btn.dataset.remarks || '';
-                document.getElementById('coord_oaa').value           = btn.dataset.oaa || '';
-
-                // Multi-quotation section
-                if (multiBlock && multiContainer && multiEnabled) {
-                    if (source === 'project') {
-                        multiBlock.style.display = 'block';
-                    } else {
-                        multiBlock.style.display = 'none';
-                    }
-
-                    MULTI_SELECTED_IDS = new Set();
-                    MULTI_QV_BY_ID     = {};
-                    setMultiEnabled(false);
-                    recalcMultiTotals();
-                }
-
-                if (attachmentsListEl) {
-                    attachmentsListEl.innerHTML =
-                        '<li class="text-muted">Documents list will appear here (after upload).</li>';
-                }
-
-                if (source !== 'salesorder') {
-                    if (coordModal) coordModal.show();
-                    return;
-                }
-
-                // For salesorder, load attachments list first
-                const soId = btn.dataset.id;
-
-                if (attachmentsListEl) {
-                    attachmentsListEl.innerHTML = '<li class="text-muted">Loading documents...</li>';
-                }
-
-                const url = "{{ route('coordinator.salesorders.attachments', ['salesorder' => '__ID__']) }}"
-                    .replace('__ID__', soId);
-
-                fetch(url)
-                    .then(r => r.json())
-                    .then(res => {
-                        if (!attachmentsListEl) return;
-
-                        if (!res.ok) {
-                            attachmentsListEl.innerHTML =
-                                '<li class="text-danger">Unable to load documents.</li>';
-                            return;
-                        }
-
-                        const atts = res.attachments || [];
-                        if (atts.length === 0) {
-                            attachmentsListEl.innerHTML =
-                                '<li class="text-muted">No documents uploaded.</li>';
-                            return;
-                        }
-
-                        attachmentsListEl.innerHTML = '';
-                        atts.forEach(a => {
-                            const li = document.createElement('li');
-                            li.className = 'mb-1';
-
-                            const link = document.createElement('a');
-                            link.href   = a.url;
-                            link.target = '_blank';
-                            link.rel    = 'noopener';
-                            link.textContent = a.original_name || 'Document';
-
-                            const meta = document.createElement('span');
-                            meta.className = 'text-muted ms-1';
-                            meta.textContent = a.created_at ? ` (${a.created_at})` : '';
-
-                            li.appendChild(link);
-                            li.appendChild(meta);
-                            attachmentsListEl.appendChild(li);
-                        });
-                    })
-                    .catch(err => {
-                        console.error(err);
-                        if (attachmentsListEl) {
-                            attachmentsListEl.innerHTML =
-                                '<li class="text-danger">Error loading documents.</li>';
-                        }
-                    })
-                    .finally(() => {
-                        if (coordModal) coordModal.show();
-                    });
-            });
-
-            // ---------- Save PO ----------
-            if (btnSave) {
-                btnSave.addEventListener('click', async () => {
-                    const formEl = document.getElementById('coordinatorForm');
-                    const fd = new FormData(formEl);
-                    fd.append('record_id', document.getElementById('coord_record_id').value);
-
-                    if (multiEnabled && multiEnabled.checked && multiContainer) {
-                        const checkboxes = multiContainer.querySelectorAll('.coord-multi-item:checked');
-                        checkboxes.forEach(cb => {
-                            fd.append('extra_project_ids[]', cb.value);
-                        });
-                    }
-
-                    btnSave.disabled = true;
-                    btnSave.innerText = 'Saving...';
-
-                    try {
-                        const resp = await fetch("{{ route('coordinator.storePo') }}", {
-                            method: 'POST',
-                            headers: {
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                'Accept': 'application/json'
-                            },
-                            body: fd
-                        });
-
-                        const contentType = resp.headers.get('content-type') || '';
-                        let data = null;
-
-                        if (contentType.includes('application/json')) {
-                            data = await resp.json();
-                        }
-
-                        if (!resp.ok) {
-                            let msg = 'Error while saving PO.';
-
-                            if (data) {
-                                if (data.message) msg = data.message;
-                                else if (data.errors) msg = Object.values(data.errors).flat().join('\n');
-                            } else if (resp.status === 419) {
-                                msg = 'Session expired. Please refresh the page and try again.';
-                            }
-
-                            alert(msg);
-                            btnSave.disabled = false;
-                            btnSave.innerText = 'Po Received';
-                            return;
-                        }
-
-                        const res = data || {};
-                        alert(res.message || 'PO saved successfully.');
-
-                        if (res.ok) window.location.reload();
-                        else {
-                            btnSave.disabled = false;
-                            btnSave.innerText = 'Po Received';
-                        }
-
-                    } catch (err) {
-                        console.error(err);
-                        alert('Unexpected error while saving PO: ' + err.message);
-                        btnSave.disabled = false;
-                        btnSave.innerText = 'Po Received';
-                    }
-                });
-            }
-
-            // ---------- Excel download buttons (FIXED: send FACTORY + scoped salesmen) ----------
             const btnDownloadExcelMonth = document.getElementById('coord_download_excel_month');
             const btnDownloadExcelYear  = document.getElementById('coord_download_excel_year');
 
@@ -1660,20 +928,10 @@
 
                 if (requireMonth) params.set('month', monthSelect.value);
 
-                // ✅ Always send factory
-                params.set('factory', filterFactory || 'Jubail');
-
-                // ✅ Send region
+                // âœ… FACTORY REMOVED from export
                 params.set('region', filterRegion || 'all');
 
-                // ✅ Send scoped salesman list
-                const salesmenList = getSalesmenForExport(); // array of canonical names
-                params.set('salesmen', salesmenList.join(',')); // "SOHAIB,TARIQ,JAMAL"
-
-                // Optional single salesman selection
-                if (filterSalesman !== 'all') {
-                    params.set('salesman', filterSalesman);
-                }
+                if (filterSalesman !== 'all') params.set('salesman', filterSalesman);
 
                 if (fromInput && fromInput.value) params.set('from', fromInput.value);
                 if (toInput && toInput.value)     params.set('to', toInput.value);
@@ -1681,59 +939,27 @@
                 return params;
             }
 
-            if (btnDownloadExcelMonth) {
-                btnDownloadExcelMonth.addEventListener('click', () => {
-                    const params = buildExportParams({ requireMonth: true });
-                    if (!params) return;
-
-                    const url = "{{ route('coordinator.salesorders.export') }}" + '?' + params.toString();
-                    window.location.href = url;
-                });
-            }
-
-            if (btnDownloadExcelYear) {
-                btnDownloadExcelYear.addEventListener('click', () => {
-                    const params = buildExportParams({ requireMonth: false });
-                    if (!params) return;
-
-                    const url = "{{ route('coordinator.salesorders.exportYear') }}" + '?' + params.toString();
-                    window.location.href = url;
-                });
-            }
-
-            // ---------- Multi-quotation search ----------
             async function performMultiSearch() {
                 if (!multiSearchInput || multiSearchInput.disabled) return;
 
                 const term = multiSearchInput.value.trim();
-                if (!term) {
-                    alert('Please type a quotation number to search.');
-                    return;
-                }
+                if (!term) { alert('Please type a quotation number to search.'); return; }
 
                 if (multiContainer) multiContainer.innerHTML = '<div class="text-muted">Searching...</div>';
 
                 try {
-                    const url = "{{ route('coordinator.searchQuotations') }}" +
-                        '?term=' + encodeURIComponent(term);
-
+                    const url = "{{ route('coordinator.searchQuotations') }}" + '?term=' + encodeURIComponent(term);
                     const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     const data = await resp.json();
 
                     if (!data.ok) {
-                        if (multiContainer) {
-                            multiContainer.innerHTML =
-                                '<div class="text-danger">Search failed: ' + (data.message || '') + '</div>';
-                        }
+                        multiContainer.innerHTML = '<div class="text-danger">Search failed: ' + (data.message || '') + '</div>';
                         return;
                     }
 
                     const results = data.results || [];
-                    if (results.length === 0) {
-                        if (multiContainer) {
-                            multiContainer.innerHTML =
-                                '<div class="text-muted">No quotations found for this search.</div>';
-                        }
+                    if (!results.length) {
+                        multiContainer.innerHTML = '<div class="text-muted">No quotations found for this search.</div>';
                         return;
                     }
 
@@ -1751,7 +977,6 @@
                         cb.dataset.qno = p.quotation_no || '';
 
                         if (MULTI_SELECTED_IDS.has(String(p.id))) cb.checked = true;
-
                         MULTI_QV_BY_ID[p.id] = p.quotation_value || 0;
 
                         cb.addEventListener('change', () => {
@@ -1764,7 +989,7 @@
                         const label = document.createElement('label');
                         label.className = 'form-check-label small';
                         label.innerHTML =
-                            `<strong>${p.quotation_no}</strong> – ${p.project || ''}` +
+                            `<strong>${p.quotation_no}</strong> â€“ ${p.project || ''}` +
                             ` <span class="text-muted">(${p.area || ''})</span>` +
                             `<br><span class="text-muted">Q. Value: ${fmtSAR(p.quotation_value || 0)}</span>`;
 
@@ -1773,70 +998,472 @@
                         list.appendChild(row);
                     });
 
-                    if (multiContainer) {
-                        multiContainer.innerHTML = '';
-                        multiContainer.appendChild(list);
-                    }
+                    multiContainer.innerHTML = '';
+                    multiContainer.appendChild(list);
                     recalcMultiTotals();
 
                 } catch (err) {
                     console.error(err);
-                    if (multiContainer) {
-                        multiContainer.innerHTML =
-                            '<div class="text-danger">Error while searching quotations.</div>';
-                    }
+                    if (multiContainer) multiContainer.innerHTML = '<div class="text-danger">Error while searching quotations.</div>';
                 }
             }
 
-            if (multiSearchBtn) {
-                multiSearchBtn.addEventListener('click', performMultiSearch);
-            }
+            if (multiSearchBtn) multiSearchBtn.addEventListener('click', performMultiSearch);
             if (multiSearchInput) {
                 multiSearchInput.addEventListener('keyup', (e) => {
                     if (e.key === 'Enter') performMultiSearch();
                 });
             }
 
-            // ---------- Initial sync ----------
-            // Set active chips to match defaults
-            setActiveChipBy('.coord-chip[data-factory]', 'factory', filterFactory);
-            if (USER_REGION === 'western') setActiveChipBy('.coord-chip[data-region]', 'region', 'Western');
-            else setActiveChipBy('.coord-chip[data-region]', 'region', 'all');
+            $(document).ready(function () {
 
-            // Salesman default: western choose first in allowed if current invalid
-            (function enforceInitialSalesman() {
-                const allowed = getAllowedSalesmenForFactory(filterFactory);
-                if (filterSalesman === 'all') {
-                    if (USER_REGION === 'western') {
-                        const firstAllowed = allowed[0];
-                        if (firstAllowed) filterSalesman = firstAllowed;
-                    }
-                } else {
-                    // if initial salesman not in allowed for the factory, fix it
-                    if (allowed.length && !allowed.includes(filterSalesman)) {
-                        filterSalesman = (USER_REGION === 'western') ? (allowed[0] || 'all') : 'all';
-                    }
+                const dtProjects = $('#tblCoordinatorProjects').DataTable({
+                    pageLength: 25,
+                    order: [[6, 'desc']]
+                });
+
+                const dtSalesOrders = $('#tblCoordinatorSalesOrders').DataTable({
+                    pageLength: 25,
+                    order: [[6, 'desc']]
+                });
+
+                function redrawTables() {
+                    dtProjects.draw();
+                    dtSalesOrders.draw();
                 }
 
-                // reflect UI
-                if (filterSalesman === 'all') setActiveChipBy('.coord-chip[data-salesman]', 'salesman', 'all');
-                else setActiveChipBy('.coord-chip[data-salesman]', 'salesman', filterSalesman);
-            })();
+                // âœ… Global filter (Region + Salesman + Month + Date range) â€” FACTORY REMOVED
+                $.fn.dataTable.ext.search.push(function (settings, data) {
+                    const tableId = settings.nTable.id;
 
-            redrawTables();
-            refreshKpis();
-            refreshChartFromTable();
+                    if (tableId !== 'tblCoordinatorProjects' && tableId !== 'tblCoordinatorSalesOrders') {
+                        return true;
+                    }
+
+                    let areaStr, salesmanStr, dateStr;
+
+                    if (tableId === 'tblCoordinatorProjects') {
+                        areaStr     = (data[4] || '').trim();
+                        salesmanStr = (data[3] || '').trim();
+                        dateStr     = (data[6] || '').trim();
+                    } else {
+                        areaStr     = (data[8] || '').trim();
+                        salesmanStr = (data[7] || '').trim();
+                        dateStr     = (data[6] || '').trim();
+                    }
+
+                    const cellCanon = canonicalSalesmanCode(salesmanStr);
+
+                    if (filterRegion !== 'all') {
+                        if ((areaStr || '').toUpperCase() !== (filterRegion || '').toUpperCase()) return false;
+                    }
+
+                    if (filterSalesman !== 'all') {
+                        if (cellCanon !== filterSalesman) return false;
+                    }
+
+                    if (!dateStr || dateStr === '-') {
+                        return !(filterMonth || filterFrom || filterTo);
+                    }
+
+                    const rowDate = parseYmd(dateStr);
+                    if (!rowDate) return true;
+
+                    if (filterMonth) {
+                        const m = rowDate.getMonth() + 1;
+                        if (m !== parseInt(filterMonth, 10)) return false;
+                    }
+
+                    if (filterFrom && rowDate < filterFrom) return false;
+                    if (filterTo && rowDate > filterTo) return false;
+
+                    return true;
+                });
+
+                function repaintSalesmanCells() {
+                    $('#tblCoordinatorProjects tbody tr').each(function(){
+                        const td = $(this).find('td').eq(3);
+                        td.text(canonicalSalesmanLabel(td.text()));
+                    });
+
+                    $('#tblCoordinatorSalesOrders tbody tr').each(function(){
+                        const td = $(this).find('td').eq(7);
+                        td.text(canonicalSalesmanLabel(td.text()));
+                    });
+                }
+
+                function refreshKpis() {
+                    const projCount = dtProjects.rows({ search: 'applied' }).count();
+                    const soCount   = dtSalesOrders.rows({ search: 'applied' }).count();
+
+                    let soTotal = 0;
+                    dtSalesOrders.column(2, { search: 'applied' }).data().each(function (value) {
+                        let num = 0;
+                        if (typeof value === 'number') num = value;
+                        else if (typeof value === 'string') num = parseFloat(value.replace(/[^0-9.-]/g, '')) || 0;
+                        if (!isNaN(num)) soTotal += num;
+                    });
+
+                    if (elKpiProjects)   elKpiProjects.textContent   = projCount.toLocaleString('en-SA');
+                    if (elKpiSoCount)    elKpiSoCount.textContent    = soCount.toLocaleString('en-SA');
+                    if (elKpiSoValueNum) elKpiSoValueNum.textContent = soTotal.toLocaleString('en-SA');
+                }
+
+                let regionChart = Highcharts.chart('coordinatorRegionStacked', {
+                    chart: { type: 'column', backgroundColor: '#0f172a' },
+                    title: { text: 'PO Value by Region', style: { color: '#e5e7eb' } },
+                    xAxis: { categories: ['Eastern', 'Central', 'Western'], labels: { style: { color: '#cbd5e1' } } },
+                    yAxis: { min: 0, title: { text: 'Value (SAR)', style: { color: '#cbd5e1' } }, labels: { style: { color: '#cbd5e1' } }, gridLineColor: '#1e293b' },
+                    legend: { itemStyle: { color: '#e5e7eb' } },
+                    tooltip: {
+                        shared: true,
+                        backgroundColor: '#1e293b',
+                        borderColor: '#475569',
+                        style: { color: 'white' },
+                        formatter: function () {
+                            let total = 0;
+                            this.points.forEach(p => total += p.y);
+                            return '<b>' + this.x + '</b><br/>' +
+                                this.points.map(p => p.series.name + ': ' + fmtSAR(p.y)).join('<br/>') +
+                                '<br/><span style="font-weight:600">Total: ' + fmtSAR(total) + '</span>';
+                        }
+                    },
+                    series: [{ name: 'PO Value', data: [0, 0, 0] }]
+                });
+
+                function refreshChartFromTable() {
+                    const sums = { 'Eastern': 0, 'Central': 0, 'Western': 0 };
+
+                    dtSalesOrders.rows({ search: 'applied' }).every(function () {
+                        const row = this.data();
+                        const areaKey = (row[8] || '').trim();
+                        let val = row[2];
+                        if (typeof val === 'string') val = parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
+                        if (!areaKey || !(areaKey in sums)) return;
+                        sums[areaKey] += (isNaN(val) ? 0 : val);
+                    });
+
+                    const cats = ['Eastern', 'Central', 'Western'];
+                    regionChart.series[0].setData(cats.map(r => sums[r] || 0), true);
+                }
+
+                $('#tblCoordinatorProjects').on('draw.dt', () => { repaintSalesmanCells(); refreshKpis(); });
+                $('#tblCoordinatorSalesOrders').on('draw.dt', () => { repaintSalesmanCells(); refreshKpis(); refreshChartFromTable(); });
+
+                // âœ… Factory chips: UI only (no filtering)
+                // factoryChips.forEach(chip => {
+                //     chip.addEventListener('click', () => {
+                //         factoryChips.forEach(c => c.classList.remove('active'));
+                //         chip.classList.add('active');
+                //         filterFactory = chip.dataset.factory || 'Jubail';
+                //         // DO NOTHING ELSE (no redraw, no salesman restriction)
+                //     });
+                // });
+
+                regionChips.forEach(chip => {
+                    chip.addEventListener('click', () => {
+                        regionChips.forEach(c => c.classList.remove('active'));
+                        chip.classList.add('active');
+                        filterRegion = chip.dataset.region || 'all';
+                        redrawTables();
+                    });
+                });
+
+                salesmanChips.forEach(chip => {
+                    chip.addEventListener('click', () => {
+                        salesmanChips.forEach(c => c.classList.remove('active'));
+                        chip.classList.add('active');
+                        const v = chip.dataset.salesman || 'all';
+                        filterSalesman = (v === 'all') ? 'all' : v.toUpperCase();
+                        redrawTables();
+                    });
+                });
+
+                if (monthSelect) monthSelect.addEventListener('change', () => { filterMonth = monthSelect.value || ''; redrawTables(); });
+                if (fromInput)   fromInput.addEventListener('change',  () => { filterFrom = fromInput.value ? parseYmd(fromInput.value) : null; redrawTables(); });
+                if (toInput)     toInput.addEventListener('change',    () => { filterTo = toInput.value ? parseYmd(toInput.value) : null; redrawTables(); });
+
+                if (btnResetFilters) {
+                    btnResetFilters.addEventListener('click', () => {
+                        filterFactory  = 'Jubail';
+                        filterRegion   = 'all';
+                        filterSalesman = 'all';
+                        filterMonth    = '';
+                        filterFrom     = null;
+                        filterTo       = null;
+
+                        if (monthSelect) monthSelect.value = '';
+                        if (fromInput) fromInput.value = '';
+                        if (toInput) toInput.value = '';
+
+                        // setActiveChipBy('.coord-chip[data-factory]', 'factory', filterFactory);
+                        setActiveChipBy('.coord-chip[data-region]', 'region', 'all');
+                        setActiveChipBy('.coord-chip[data-salesman]', 'salesman', 'all');
+
+                        redrawTables();
+                    });
+                }
+
+                if (btnProj && btnSO && wrapProjects && wrapSalesOrder) {
+                    btnProj.addEventListener('click', () => {
+                        btnProj.classList.add('btn-primary', 'active');
+                        btnProj.classList.remove('btn-outline-primary');
+                        btnSO.classList.remove('btn-primary', 'active');
+                        btnSO.classList.add('btn-outline-primary');
+                        wrapProjects.classList.remove('d-none');
+                        wrapSalesOrder.classList.add('d-none');
+                        dtProjects.columns.adjust();
+                    });
+
+                    btnSO.addEventListener('click', () => {
+                        btnSO.classList.add('btn-primary', 'active');
+                        btnSO.classList.remove('btn-outline-primary');
+                        btnProj.classList.remove('btn-primary', 'active');
+                        btnProj.classList.add('btn-outline-primary');
+                        wrapProjects.classList.add('d-none');
+                        wrapSalesOrder.classList.remove('d-none');
+                        dtSalesOrders.columns.adjust();
+                    });
+                }
+
+                if (btnDownloadExcelMonth) {
+                    btnDownloadExcelMonth.addEventListener('click', () => {
+                        const params = buildExportParams({ requireMonth: true });
+                        if (!params) return;
+                        window.location.href = "{{ route('coordinator.salesorders.export') }}" + '?' + params.toString();
+                    });
+                }
+
+                if (btnDownloadExcelYear) {
+                    btnDownloadExcelYear.addEventListener('click', () => {
+                        const params = buildExportParams({ requireMonth: false });
+                        if (!params) return;
+                        window.location.href = "{{ route('coordinator.salesorders.exportYear') }}" + '?' + params.toString();
+                    });
+                }
+
+                // ---------- Modal open (view) + delete ----------
+                document.addEventListener('click', function (e) {
+                    const delBtn = e.target.closest('.btnDeleteCoordinator');
+                    if (delBtn) {
+                        const source = delBtn.dataset.source || '';
+                        const id     = delBtn.dataset.id;
+                        const label  = delBtn.dataset.label || (source === 'salesorder' ? 'this sales order' : 'this inquiry');
+                        if (!id) return;
+
+                        if (!confirm(`Are you sure you want to delete ${label}? This is a soft delete and can be recovered later by admin.`)) {
+                            return;
+                        }
+
+                        let url = '';
+                        if (source === 'salesorder') {
+                            url = "{{ route('coordinator.salesorders.destroy', ['salesorder' => '__ID__']) }}";
+                        } else {
+                            url = "{{ route('coordinator.projects.destroy', ['project' => '__ID__']) }}";
+                        }
+                        url = url.replace('__ID__', id);
+
+                        fetch(url, {
+                            method: 'DELETE',
+                            headers: {
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Accept': 'application/json'
+                            }
+                        })
+                            .then(async resp => {
+                                const contentType = resp.headers.get('content-type') || '';
+                                let data = null;
+                                if (contentType.includes('application/json')) data = await resp.json();
+
+                                if (!resp.ok || !data || !data.ok) {
+                                    const msg = (data && data.message) ? data.message : 'Error while deleting record.';
+                                    alert(msg);
+                                    return;
+                                }
+
+                                alert(data.message || 'Record deleted.');
+                                window.location.reload();
+                            })
+                            .catch(err => {
+                                console.error(err);
+                                alert('Unexpected error while deleting: ' + err.message);
+                            });
+
+                        return;
+                    }
+
+                    const btn = e.target.closest('.btnViewCoordinator');
+                    if (!btn) return;
+
+                    const source = btn.dataset.source || '';
+
+                    document.getElementById('coord_source').value    = source;
+                    document.getElementById('coord_record_id').value = btn.dataset.id || '';
+
+                    document.getElementById('coord_project').value = btn.dataset.project || '';
+                    document.getElementById('coord_client').value  = btn.dataset.client || '';
+
+                    const salesmanSelect = document.getElementById('coord_salesman');
+                    if (salesmanSelect) {
+                        const rawSm = (btn.dataset.salesman || '').trim();
+                        const canonical = canonicalSalesmanCode(rawSm);
+
+                        if (canonical) {
+                            const hasOption = Array.from(salesmanSelect.options).some(o => o.value === canonical);
+                            if (!hasOption) salesmanSelect.add(new Option(canonical, canonical, true, true));
+                            salesmanSelect.value = canonical;
+                        } else {
+                            salesmanSelect.value = '';
+                        }
+                    }
+
+                    document.getElementById('coord_location').value       = btn.dataset.location || '';
+                    document.getElementById('coord_area').value           = btn.dataset.area || '';
+                    document.getElementById('coord_quotation_no').value   = btn.dataset.quotationNo || '';
+                    document.getElementById('coord_quotation_date').value = btn.dataset.quotationDate || '';
+                    document.getElementById('coord_date_received').value  = btn.dataset.dateReceived || '';
+                    document.getElementById('coord_products').value       = btn.dataset.products || '';
+                    document.getElementById('coord_price').value          = btn.dataset.price || '';
+                    document.getElementById('coord_status').value         = btn.dataset.status || '';
+
+                    document.getElementById('coord_job_no').value        = btn.dataset.jobNo || '';
+                    document.getElementById('coord_po_no').value         = btn.dataset.poNo || '';
+                    document.getElementById('coord_po_date').value       = btn.dataset.poDate || '';
+                    document.getElementById('coord_po_value').value      = btn.dataset.poValue || '';
+                    document.getElementById('coord_payment_terms').value = btn.dataset.paymentTerms || '';
+                    document.getElementById('coord_remarks').value       = btn.dataset.remarks || '';
+                    document.getElementById('coord_oaa').value           = btn.dataset.oaa || '';
+
+                    if (multiBlock && multiContainer && multiEnabled) {
+                        multiBlock.style.display = (source === 'project') ? 'block' : 'none';
+                        MULTI_SELECTED_IDS = new Set();
+                        MULTI_QV_BY_ID     = {};
+                        setMultiEnabled(false);
+                        recalcMultiTotals();
+                    }
+
+                    if (attachmentsListEl) {
+                        attachmentsListEl.innerHTML = '<li class="text-muted">Documents list will appear here (after upload).</li>';
+                    }
+
+                    if (source !== 'salesorder') {
+                        coordModal && coordModal.show();
+                        return;
+                    }
+
+                    const soId = btn.dataset.id;
+                    if (attachmentsListEl) attachmentsListEl.innerHTML = '<li class="text-muted">Loading documents...</li>';
+
+                    const url = "{{ route('coordinator.salesorders.attachments', ['salesorder' => '__ID__']) }}"
+                        .replace('__ID__', soId);
+
+                    fetch(url)
+                        .then(r => r.json())
+                        .then(res => {
+                            if (!attachmentsListEl) return;
+
+                            if (!res.ok) {
+                                attachmentsListEl.innerHTML = '<li class="text-danger">Unable to load documents.</li>';
+                                return;
+                            }
+
+                            const atts = res.attachments || [];
+                            if (atts.length === 0) {
+                                attachmentsListEl.innerHTML = '<li class="text-muted">No documents uploaded.</li>';
+                                return;
+                            }
+
+                            attachmentsListEl.innerHTML = '';
+                            atts.forEach(a => {
+                                const li = document.createElement('li');
+                                li.className = 'mb-1';
+
+                                const link = document.createElement('a');
+                                link.href   = a.url;
+                                link.target = '_blank';
+                                link.rel    = 'noopener';
+                                link.textContent = a.original_name || 'Document';
+
+                                const meta = document.createElement('span');
+                                meta.className = 'text-muted ms-1';
+                                meta.textContent = a.created_at ? ` (${a.created_at})` : '';
+
+                                li.appendChild(link);
+                                li.appendChild(meta);
+                                attachmentsListEl.appendChild(li);
+                            });
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            if (attachmentsListEl) attachmentsListEl.innerHTML = '<li class="text-danger">Error loading documents.</li>';
+                        })
+                        .finally(() => coordModal && coordModal.show());
+                });
+
+                if (btnSave) {
+                    btnSave.addEventListener('click', async () => {
+                        const formEl = document.getElementById('coordinatorForm');
+                        const fd = new FormData(formEl);
+                        fd.append('record_id', document.getElementById('coord_record_id').value);
+
+                        if (multiEnabled && multiEnabled.checked && multiContainer) {
+                            const checkboxes = multiContainer.querySelectorAll('.coord-multi-item:checked');
+                            checkboxes.forEach(cb => fd.append('extra_project_ids[]', cb.value));
+                        }
+
+                        btnSave.disabled = true;
+                        btnSave.innerText = 'Saving...';
+
+                        try {
+                            const resp = await fetch("{{ route('coordinator.storePo') }}", {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                    'Accept': 'application/json'
+                                },
+                                body: fd
+                            });
+
+                            const contentType = resp.headers.get('content-type') || '';
+                            const data = contentType.includes('application/json') ? await resp.json() : null;
+
+                            if (!resp.ok) {
+                                let msg = 'Error while saving PO.';
+                                if (data) {
+                                    if (data.message) msg = data.message;
+                                    else if (data.errors) msg = Object.values(data.errors).flat().join('\n');
+                                } else if (resp.status === 419) {
+                                    msg = 'Session expired. Please refresh the page and try again.';
+                                }
+                                alert(msg);
+                                btnSave.disabled = false;
+                                btnSave.innerText = 'Po Received';
+                                return;
+                            }
+
+                            alert((data && data.message) ? data.message : 'PO saved successfully.');
+                            window.location.reload();
+
+                        } catch (err) {
+                            console.error(err);
+                            alert('Unexpected error while saving PO: ' + err.message);
+                            btnSave.disabled = false;
+                            btnSave.innerText = 'Po Received';
+                        }
+                    });
+                }
+
+                // Initial state
+                setActiveChipBy('.coord-chip[data-factory]', 'factory', filterFactory);
+                setActiveChipBy('.coord-chip[data-region]', 'region', 'all');
+                setActiveChipBy('.coord-chip[data-salesman]', 'salesman', 'all');
+
+                redrawTables();
+                repaintSalesmanCells();
+                refreshKpis();
+                refreshChartFromTable();
+            });
 
         })();
     </script>
-
 @endpush
-
-
-
-
-
-
-
-
-

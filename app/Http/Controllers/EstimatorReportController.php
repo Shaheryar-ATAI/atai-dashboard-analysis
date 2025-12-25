@@ -317,7 +317,7 @@ class EstimatorReportController extends Controller
             'atai_products' => $data['atai_products'],
             'quotation_value' => $data['price'],
             'project_type' => strtoupper($data['status']),
-            'status' => null,
+            'status' => $data['status'],
             'technical_base' => $data['technical_base'] ?? null,
             'technical_submittal' => $data['technical_submittal'] ?? null,  // 👈 save
             'contact_person' => $data['contact_person'] ?? null,

@@ -8,11 +8,27 @@
     $forecast = $forecast ?? [];
     $isPdf    = $isPdf ?? false;
 
+    /**
+     * ✅ Support BOTH payload styles:
+     * 1) Old style: sections A/B/C/D coming from controller
+     * 2) New style (your form): orders[] rows (dynamic 25 + added rows)
+     */
+    $orders = $orders ?? ($forecast['orders'] ?? []); // just in case controller packs inside forecast
+
     // Sections data coming from controller/form
-    $rowsA = $rowsA ?? ($newOrders ?? []);
+    $rowsA = $rowsA ?? ($newOrders ?? []);  // legacy
     $rowsB = $rowsB ?? [];
     $rowsC = $rowsC ?? [];
     $rowsD = $rowsD ?? [];
+
+    // ✅ If orders[] exists (from the form), use it as the combined rows list (single table)
+    // and treat it as "A" category for compatibility with existing logic.
+    if (!empty($orders) && is_array($orders)) {
+        $rowsA = $orders;
+        $rowsB = [];
+        $rowsC = [];
+        $rowsD = [];
+    }
 
     // Criteria meanings
     $criteriaLegend = $criteriaLegend ?? [
@@ -195,7 +211,7 @@
     <thead class="thead">
     <tr>
         <th style="width:40px;">Serial</th>
-{{--        <th style="width:36px;">Cat</th>--}}
+        {{--        <th style="width:36px;">Cat</th>--}}
         <th>Customer Name</th>
         <th>Products</th>
         <th>Project Name</th>
@@ -208,7 +224,7 @@
     </thead>
     <tbody>
     @php
-        // Keep a nice fixed number of visible lines in PDF
+        // ✅ Keep a minimum number of rows (form look), but if user added rows, show them too
         $minRows = 25;
         $maxRows = max($minRows, count($combined));
         $grand = 0;
@@ -230,15 +246,25 @@
             // If the row has forecast_criteria code like "A", expand it to full meaning
             $crit = $criteriaText($row['forecast_criteria'] ?? '');
 
-            // If user didn't fill criteria, but category exists, you may want to show meaning based on category:
-            if ($crit === '' && isset($criteriaLegend[$cat])) {
-                $crit = $cat . ' — ' . $criteriaLegend[$cat];
-            }
+            // If user didn't fill criteria, but category exists, show meaning based on category:
+          // Show default criteria ONLY if row has actual content
+$hasData =
+    ($row['customer'] ?? '') !== '' ||
+    ($row['product'] ?? '') !== '' ||
+    ($row['project'] ?? '') !== '' ||
+    ($row['quotation'] ?? '') !== '' ||
+    ($val ?? 0) > 0 ||
+    ($row['status'] ?? '') !== '' ||
+    ($row['remarks'] ?? '') !== '';
+
+if ($crit === '') {
+    $crit = ''; // keep blank
+}
         @endphp
 
         <tr>
             <td class="center">{{ $i + 1 }}</td>
-{{--            <td class="center">{{ $cat }}</td>--}}
+            {{--            <td class="center">{{ $cat }}</td>--}}
             <td>{{ $row['customer'] ?? '' }}</td>
             <td>{{ $row['product'] ?? '' }}</td>
             <td>{{ $row['project'] ?? '' }}</td>
@@ -250,12 +276,11 @@
         </tr>
     @endfor
 
+    {{-- ✅ FIXED COLSPANS (Total must sit under "Value" column) --}}
     <tr class="total-row">
-        <td colspan="6" class="right">Totals</td>
+        <td colspan="5" class="right">Totals</td>
         <td class="right">{{ $grand > 0 ? number_format($grand, 0) : '' }}</td>
-        <td colspan="3" class="small">
-
-        </td>
+        <td colspan="3" class="small"></td>
     </tr>
     </tbody>
 </table>

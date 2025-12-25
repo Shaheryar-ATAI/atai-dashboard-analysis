@@ -578,35 +578,74 @@ HTML;
 
 
 
-    public function buildTargets2026Data(Request $request): array
+    /**
+     * Canonical data builder for Targets 2026 (Portal + PDF).
+     * Keeps defaults, but allows controller to override header + rows.
+     */
+    public function buildTargets2026Data(Request $request, array $overrides = []): array
     {
-        $user   = $request->user();           // logged-in salesman / GM
-        $region = $user->region ?? 'All Regions';
+        $user = $request->user();
 
-        // Example: pull annual target from DB or config
-        // You will replace this with your real query
-        $annualTarget = 35_000_000;
+        // Base (from logged-in user)
+        $baseRegion = $user->region ?? 'All Regions';
 
-        // Example: new order rows from your Projects table / KPI query
-        $rowsA = []; // ← fill from DB as you did for the monthly forecast
+        // ✅ Allow override (manual form may pick region)
+        $region = $overrides['region'] ?? $baseRegion;
+
+        // ✅ Region-based annual target (adjust to your real numbers)
+        // You can replace this with DB/config later.
+        $annualTargetByRegion = [
+            'Eastern'     => 50_000_000,
+            'Central'     => 50_000_000,
+            'Western'     => 36_000_000,
+            'All Regions' => 50_000_000,
+        ];
+        $annualTarget = $annualTargetByRegion[$region] ?? 35_000_000;
+
+        // ✅ Rows coming from DB (portal view) - keep your real query later
+        $rowsA = []; // new orders
+        $rowsB = [];
+        $rowsC = [];
+        $rowsD = [];
+
+        // ✅ Merge overrides for rows if passed
+        if (array_key_exists('rowsA', $overrides)) $rowsA = (array) $overrides['rowsA'];
+        if (array_key_exists('rowsB', $overrides)) $rowsB = (array) $overrides['rowsB'];
+        if (array_key_exists('rowsC', $overrides)) $rowsC = (array) $overrides['rowsC'];
+        if (array_key_exists('rowsD', $overrides)) $rowsD = (array) $overrides['rowsD'];
+
+        // ✅ Criteria legend (used by PDF blade)
+        $criteriaLegend = [
+            'A' => 'Commercial matters agreed & MS approved',
+            'B' => 'Commercial matters agreed OR MS approved',
+            'C' => 'Neither commercial matters nor MS achieved',
+            'D' => 'Project is in bidding stage',
+        ];
 
         return [
-            'year'           => 2026,
-            'submissionDate' => now()->format('Y-m-d'),
+            'year'           => $overrides['year']           ?? 2026,
+            'submissionDate' => $overrides['submissionDate'] ?? now()->format('Y-m-d'),
             'region'         => $region,
-            'issuedBy'       => $user->name ?? '',
-            'issuedDate'     => now()->format('Y-m-d'),
-            'forecast'       => [
+            'issuedBy'       => $overrides['issuedBy']       ?? ($user->name ?? ''),
+            'issuedDate'     => $overrides['issuedDate']     ?? now()->format('Y-m-d'),
+
+            'forecast' => array_merge([
                 'annual_target' => $annualTarget,
-            ],
-            'criteria' => [],        // if you add later
-            'totAll'   => 0,
-            'rowsA'    => $rowsA,
+            ], (array)($overrides['forecast'] ?? [])),
+
+            // ✅ Sections (your PDF blade already supports these)
+            'rowsA' => $rowsA,
+            'rowsB' => $rowsB,
+            'rowsC' => $rowsC,
+            'rowsD' => $rowsD,
+
+            // ✅ Make sure blade sees this name
+            'criteriaLegend' => $criteriaLegend,
         ];
     }
+
     /**
      * 1️⃣ Web page (HTML) – managers see the sheet and a Download button
-     * Always uses the canonical builder (so it shows ALL sections).
      */
     public function showTargets2026(Request $request)
     {
@@ -614,7 +653,7 @@ HTML;
 
         return view('forecast.targets_2026', $data + [
                 'showDownloadButton' => true,
-                'isPdf' => false,
+                'isPdf'              => false,
             ]);
     }
 
@@ -635,107 +674,100 @@ HTML;
 
     /**
      * 3️⃣ POST: Download PDF from manual form
-     * Uses the SAME data builder and injects the form data.
+     * Uses canonical builder then overrides headers + annual target + rowsA.
+     *
+     * ✅ FIX: Do NOT collapse/renumber rows. Keep blank rows so PDF row numbers match the form.
+     *       Only trim trailing empty rows after the last filled row.
      */
     public function downloadTargets2026FromForm(Request $request)
     {
         $validated = $request->validate([
-            'year'          => 'required|integer',
-            'region'        => 'required|string',
-            'issuedBy'      => 'required|string',
-            'issuedDate'    => 'required|date',
-            'annual_target' => 'required|numeric',
+            'year'           => 'required|integer',
+            'region'         => 'required|string',
+            'issuedBy'       => 'required|string',
+            'issuedDate'     => 'required|date',
+            'submissionDate' => 'nullable|date',
+            'annual_target'  => 'required|numeric',
 
-            'orders'                    => 'array',
-            'orders.*.customer'        => 'nullable|string',
-            'orders.*.product'         => 'nullable|string',
-            'orders.*.project'         => 'nullable|string',
-            'orders.*.quotation'       => 'nullable|string',
-            'orders.*.value'           => 'nullable|numeric',
-            'orders.*.status'          => 'nullable|string',
-            'orders.*.forecast_criteria'=> 'nullable|string',
-            'orders.*.remarks'         => 'nullable|string',
+            'orders'                     => 'array',
+            'orders.*.customer'          => 'nullable|string',
+            'orders.*.product'           => 'nullable|string',
+            'orders.*.project'           => 'nullable|string',
+            'orders.*.quotation'         => 'nullable|string',
+            'orders.*.value'             => 'nullable|numeric',
+            'orders.*.status'            => 'nullable|in:In-hand,Bidding',
+            'orders.*.forecast_criteria' => 'nullable|in:A,B,C,D',
+            'orders.*.remarks'           => 'nullable|string',
         ]);
 
-        // ✅ Normalize rowsA + remove totally empty rows
-        $rowsA = collect($request->input('orders', []))
-            ->map(function ($row) {
-                return [
-                    'customer'          => trim((string)($row['customer'] ?? '')),
-                    'product'           => trim((string)($row['product'] ?? '')),
-                    'project'           => trim((string)($row['project'] ?? '')),
-                    'quotation'         => trim((string)($row['quotation'] ?? '')),
-                    'value'             => ($row['value'] ?? null) !== null && $row['value'] !== ''
-                        ? (float) $row['value']
-                        : null,
-                    'status'            => trim((string)($row['status'] ?? '')),
-                    'forecast_criteria' => trim((string)($row['forecast_criteria'] ?? '')),
-                    'remarks'           => trim((string)($row['remarks'] ?? '')),
-                ];
-            })
-            ->filter(function ($r) {
-                // keep row if ANY meaningful cell exists
-                return ($r['customer'] !== '')
-                    || ($r['product'] !== '')
-                    || ($r['project'] !== '')
-                    || ($r['quotation'] !== '')
-                    || ($r['value'] !== null)
-                    || ($r['status'] !== '')
-                    || ($r['forecast_criteria'] !== '')
-                    || ($r['remarks'] !== '');
-            })
-            ->values()
-            ->all();
+        // ✅ Normalize rows but KEEP index positions (do not ->filter()->values())
+        $rawOrders = $request->input('orders', []);
 
-        /**
-         * ✅ Build canonical data (the same as portal).
-         * Then override ONLY the parts from the form:
-         * - header fields
-         * - annual target
-         * - rowsA
-         */
-        $data = $this->buildTargets2026Data($request);
+        $normalized = collect($rawOrders)->map(function ($row) {
+            return [
+                'customer'          => trim((string)($row['customer'] ?? '')),
+                'product'           => trim((string)($row['product'] ?? '')),
+                'project'           => trim((string)($row['project'] ?? '')),
+                'quotation'         => trim((string)($row['quotation'] ?? '')),
+                'value'             => ($row['value'] ?? null) !== null && $row['value'] !== ''
+                    ? (float) $row['value']
+                    : null,
+                'status'            => trim((string)($row['status'] ?? '')),
+                'forecast_criteria' => trim((string)($row['forecast_criteria'] ?? '')),
+                'remarks'           => trim((string)($row['remarks'] ?? '')),
+            ];
+        });
 
-        $data['year']           = (int) $validated['year'];
-        $data['region']         = $validated['region'];
-        $data['issuedBy']       = $validated['issuedBy'];
-        $data['issuedDate']     = $validated['issuedDate'];
-        $data['submissionDate'] = now()->format('Y-m-d');
+        // ✅ Find last non-empty row so we keep blanks in between but remove blanks after last entry
+        $lastFilledIndex = -1;
 
-        $data['forecast'] = $data['forecast'] ?? [];
-        $data['forecast']['annual_target'] = (float) $validated['annual_target'];
+        foreach ($normalized as $idx => $r) {
+            $hasAny =
+                ($r['customer'] !== '')
+                || ($r['product'] !== '')
+                || ($r['project'] !== '')
+                || ($r['quotation'] !== '')
+                || ($r['value'] !== null)
+                || ($r['status'] !== '')
+                || ($r['forecast_criteria'] !== '')
+                || ($r['remarks'] !== '');
 
-        // ✅ inject section A from form
-        $data['rowsA'] = $rowsA;
+            if ($hasAny) {
+                $lastFilledIndex = $idx;
+            }
+        }
 
-        // ✅ criteria legend for PDF dropdown meaning (A/B/C/D)
-        $data['criteriaLegend'] = $data['criteriaLegend'] ?? [
-            'A' => 'Commercial matters agreed & MS approved',
-            'B' => 'Commercial matters agreed OR MS approved',
-            'C' => 'Neither commercial matters nor MS achieved',
-            'D' => 'Project is in bidding stage',
-        ];
+        // ✅ Keep up to last filled (preserve row order), else empty
+        $rowsA = $lastFilledIndex >= 0
+            ? $normalized->slice(0, $lastFilledIndex + 1)->values()->all()
+            : [];
 
-        // IMPORTANT: if your portal has rowsB/rowsC etc, they remain from builder
-        // so PDF will include them once you add them to the Blade.
+        // ✅ Build canonical base + override from form
+        $data = $this->buildTargets2026Data($request, [
+            'year'           => (int) $validated['year'],
+            'region'         => $validated['region'],
+            'issuedBy'       => $validated['issuedBy'],
+            'issuedDate'     => $validated['issuedDate'],
+            'submissionDate' => $validated['submissionDate'] ?? now()->format('Y-m-d'),
+            'forecast'       => [
+                'annual_target' => (float) $validated['annual_target'],
+            ],
+            'rowsA'          => $rowsA,
+        ]);
 
-        // ✅ Use a dedicated PDF blade (recommended)
-        // If you insist on using the same view, you can keep 'forecast.targets_2026'
+        // ✅ Pick PDF view if exists else fallback to same view
         $view = view()->exists('forecast.targets_2026_pdf')
             ? 'forecast.targets_2026_pdf'
             : 'forecast.targets_2026';
 
         $pdf = Pdf::loadView($view, $data + [
                 'showDownloadButton' => false,
-                'isPdf' => true,
+                'isPdf'              => true,
             ])
             ->setPaper('a4', 'landscape');
 
         return $pdf->download('annual_targets_2026.pdf');
     }
-
-
-
 
 
 

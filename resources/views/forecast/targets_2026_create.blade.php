@@ -1,4 +1,5 @@
 @extends('layouts.app')
+
 <style>
     /* ======= TARGET 2026 FORM – LIGHT MODE OVERRIDE ======= */
 
@@ -212,7 +213,9 @@
                     <th>Remarks</th>
                 </tr>
                 </thead>
-                <tbody>
+
+                {{-- ✅ Dynamic tbody (initial 25 rows + JS can append more) --}}
+                <tbody id="orders_tbody" data-next-index="25" data-next-serial="26">
                 @for($i = 0; $i < 25; $i++)
                     <tr>
                         <td>{{ $i+1 }}</td>
@@ -254,6 +257,13 @@
                 </tbody>
             </table>
 
+            {{-- ✅ Add rows button (frontend only) --}}
+            <div class="d-flex justify-content-end gap-2 mt-2">
+                <button type="button" id="addRowsBtn" class="btn btn-outline-primary btn-sm">
+                    + Add 10 rows
+                </button>
+            </div>
+
             <div class="text-end mt-3">
                 <button type="submit" class="btn btn-primary btn-sm">
                     Download PDF
@@ -262,7 +272,7 @@
         </form>
     </div>
 
-    {{-- simple JS to auto-calc Monthly Avg --}}
+    {{-- simple JS to auto-calc Monthly Avg + Add rows --}}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
 
@@ -292,6 +302,73 @@
 
             // Recalculate whenever user edits target
             annual.addEventListener('input', recalc);
+
+            // =======================
+            // ADD 10 ROWS EACH CLICK
+            // =======================
+            const tbody = document.getElementById('orders_tbody');
+            const addBtn = document.getElementById('addRowsBtn');
+
+            function buildRow(index, serial) {
+                return `
+                    <tr>
+                        <td>${serial}</td>
+
+                        <td><input name="orders[${index}][customer]"  class="form-control form-control-sm"></td>
+                        <td><input name="orders[${index}][product]"   class="form-control form-control-sm"></td>
+                        <td><input name="orders[${index}][project]"   class="form-control form-control-sm"></td>
+                        <td><input name="orders[${index}][quotation]" class="form-control form-control-sm"></td>
+
+                        <td><input name="orders[${index}][value]" class="form-control form-control-sm"
+                                   type="number" step="0.01"></td>
+
+                        <td>
+                            <select name="orders[${index}][status]" class="form-control form-control-sm">
+                                <option value="">--</option>
+                                <option value="In-hand">In-hand</option>
+                                <option value="Bidding">Bidding</option>
+                            </select>
+                        </td>
+
+                        <td>
+                            <select name="orders[${index}][forecast_criteria]" class="form-control form-control-sm">
+                                <option value="">--</option>
+                                <option value="A">A — Commercial matters agreed & MS approved</option>
+                                <option value="B">B — Commercial matters agreed OR MS approved</option>
+                                <option value="C">C — Neither commercial matters nor MS achieved</option>
+                                <option value="D">D — Project is in bidding stage</option>
+                            </select>
+                        </td>
+
+                        <td><input name="orders[${index}][remarks]" class="form-control form-control-sm"></td>
+                    </tr>
+                `;
+            }
+
+            function addRows(count) {
+                if (!tbody) return;
+
+                let nextIndex  = parseInt(tbody.dataset.nextIndex || '25', 10);
+                let nextSerial = parseInt(tbody.dataset.nextSerial || '26', 10);
+
+                const rows = [];
+                for (let i = 0; i < count; i++) {
+                    rows.push(buildRow(nextIndex, nextSerial));
+                    nextIndex++;
+                    nextSerial++;
+                }
+
+                tbody.insertAdjacentHTML('beforeend', rows.join(''));
+
+                tbody.dataset.nextIndex  = String(nextIndex);
+                tbody.dataset.nextSerial = String(nextSerial);
+            }
+
+            if (addBtn && tbody) {
+                addBtn.addEventListener('click', function () {
+                    addRows(10);
+                });
+            }
         });
     </script>
 @endsection

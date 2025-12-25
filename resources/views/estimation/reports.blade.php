@@ -462,6 +462,13 @@
                                         <option value="2">Rev 2</option>
                                         <option value="3">Rev 3</option>
                                         <option value="4">Rev 4</option>
+                                        <option value="5">Rev 5</option>
+                                        <option value="6">Rev 6</option>
+                                        <option value="7">Rev 7</option>
+                                        <option value="8">Rev 8</option>
+                                        <option value="9">Rev 9</option>
+                                        <option value="10">Rev 10</option>
+
                                     </select>
                                 </div>
 

@@ -10,26 +10,33 @@ class SalesOrdersYearExport implements WithMultipleSheets
 {
     use Exportable;
 
+    /** @var array<string> */
     protected array $regionsScope;
+
+    /** @var array<string> Normalized: ['Eastern','Central','Western'] */
     protected array $normalizedRegions;
+
     protected int $year;
 
     protected ?string $regionKey;
     protected ?string $from;
     protected ?string $to;
 
-    // ✅ NEW
     protected ?string $salesman;   // canonical e.g. SOHAIB (or null/ALL)
     protected ?string $factory;    // Jubail | Madinah (or null)
 
+    /** ✅ RBAC: allowed salesmen aliases (UPPER) e.g. ['ABDO','AHMED',...] */
+    protected array $salesmenScope;
+
     /**
-     * @param array       $regionsScope  e.g. ['eastern','central'] from coordinatorRegionScope()
-     * @param int         $year          selected year
-     * @param string|null $regionKey     'all' | 'eastern' | 'central' | 'western'
-     * @param string|null $from          optional from-date (Y-m-d)
-     * @param string|null $to            optional to-date   (Y-m-d)
-     * @param string|null $salesman      optional canonical salesman (SOHAIB/TARIQ/...)
-     * @param string|null $factory       optional factory (Jubail/Madinah)
+     * @param array       $regionsScope   e.g. ['eastern','central'] from coordinatorRegionScope()
+     * @param int         $year           selected year
+     * @param string|null $regionKey      'all' | 'eastern' | 'central' | 'western'
+     * @param string|null $from           optional from-date (Y-m-d)
+     * @param string|null $to             optional to-date   (Y-m-d)
+     * @param string|null $salesman       optional canonical salesman (SOHAIB/TARIQ/...)
+     * @param string|null $factory        optional factory (Jubail/Madinah)
+     * @param array       $salesmenScope  ✅ allowed salesmen (aliases), empty => no restriction
      */
     public function __construct(
         array $regionsScope,
@@ -38,41 +45,44 @@ class SalesOrdersYearExport implements WithMultipleSheets
         ?string $from = null,
         ?string $to = null,
         ?string $salesman = null,
-        ?string $factory = null
+        ?string $factory = null,
+        array $salesmenScope = []
     ) {
         $this->regionsScope      = $regionsScope;
-        $this->normalizedRegions = array_map(
-            fn ($r) => ucfirst(strtolower($r)),
-            $regionsScope
-        );
+        $this->normalizedRegions = array_map(fn ($r) => ucfirst(strtolower($r)), $regionsScope);
 
         $this->year      = $year;
-        $this->regionKey = $regionKey;
-        $this->from      = $from;
-        $this->to        = $to;
+        $this->regionKey = $regionKey ? strtolower(trim($regionKey)) : 'all';
+        $this->from      = $from ?: null;
+        $this->to        = $to ?: null;
 
         $this->salesman  = $salesman ? strtoupper(trim($salesman)) : null;
-        $this->factory   = $factory ? ucfirst(strtolower(trim($factory))) : null; // Jubail/Madinah
+        $this->factory   = $factory ? ucfirst(strtolower(trim($factory))) : null;
+
+        $this->salesmenScope = array_values(array_unique(array_filter(array_map(
+            fn ($v) => strtoupper(trim((string) $v)),
+            $salesmenScope
+        ))));
     }
 
     public function sheets(): array
     {
         $sheets = [];
 
-        $regionLabel = ($this->regionKey && strtolower($this->regionKey) !== 'all')
-            ? ucfirst(strtolower($this->regionKey)) . ' Region'
+        $regionLabel = ($this->regionKey && $this->regionKey !== 'all')
+            ? ucfirst($this->regionKey) . ' Region'
             : 'All Regions';
 
-        // Same alias map as monthly exportSalesOrders()
+        // Alias map (expand if needed)
         $salesmanAliasMap = [
             'SOHAIB' => ['SOHAIB', 'SOAHIB'],
             'TARIQ'  => ['TARIQ', 'TAREQ'],
             'JAMAL'  => ['JAMAL'],
-            'ABDO'   => ['ABDO'],
-            'AHMED'  => ['AHMED'],
+            'ABDO'   => ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF'],
+            'AHMED'  => ['AHMED', 'AHMED AMIN', 'AHMED AMEEN'],
         ];
 
-        // ✅ Factory → canonical salesmen mapping (same as frontend chips)
+        // Factory → canonical salesmen mapping
         $factoryMap = [
             'Jubail'  => ['SOHAIB', 'TARIQ', 'JAMAL'],
             'Madinah' => ['AHMED', 'ABDO'],
@@ -82,7 +92,8 @@ class SalesOrdersYearExport implements WithMultipleSheets
 
             $query = DB::table('salesorderlog')
                 ->whereNull('deleted_at')
-                ->whereIn('region', $this->normalizedRegions)
+                // ✅ IMPORTANT: scope by project_region (matches UI + export-month)
+                ->whereIn('project_region', $this->normalizedRegions)
                 ->selectRaw("
                     `Client Name`      AS client,
                     `project_region`   AS area,
@@ -107,27 +118,39 @@ class SalesOrdersYearExport implements WithMultipleSheets
                     `Remarks`          AS remarks
                 ");
 
-            // ✅ Region dropdown logic (same as monthly)
-            if ($this->regionKey && strtolower($this->regionKey) !== 'all') {
-                $query->where('project_region', ucfirst(strtolower($this->regionKey)));
+            // ✅ Region dropdown filter (still uses project_region)
+            if ($this->regionKey && $this->regionKey !== 'all') {
+                $query->where('project_region', ucfirst($this->regionKey));
             }
 
-            // ✅ Salesman filter (same as monthly)
-            // If a salesman is selected (not ALL), apply aliases
+            // ✅ RBAC salesman scope (cannot be bypassed)
+            if (!empty($this->salesmenScope)) {
+                $query->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $this->salesmenScope);
+            }
+
+            /**
+             * ✅ Optional salesman / factory filters
+             * MUST be intersection-safe with RBAC:
+             * - If salesman selected => apply aliases (still within RBAC due to above whereIn)
+             * - Else if factory selected => apply factory aliases (still within RBAC)
+             */
             if ($this->salesman && $this->salesman !== 'ALL') {
                 $aliases = $salesmanAliasMap[$this->salesman] ?? [$this->salesman];
-                $query->whereIn('Sales Source', $aliases);
-            }
-            // ✅ Else apply factory filter (only when salesman is ALL/empty)
-            elseif ($this->factory && isset($factoryMap[$this->factory])) {
+                $aliasesUpper = array_values(array_unique(array_map('strtoupper', $aliases)));
+
+                // apply case-insensitive
+                $query->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $aliasesUpper);
+            } elseif ($this->factory && isset($factoryMap[$this->factory])) {
                 $canonList = $factoryMap[$this->factory];
                 $aliases = [];
+
                 foreach ($canonList as $canon) {
                     $aliases = array_merge($aliases, $salesmanAliasMap[$canon] ?? [$canon]);
                 }
-                $aliases = array_values(array_unique($aliases));
-                if (!empty($aliases)) {
-                    $query->whereIn('Sales Source', $aliases);
+
+                $aliasesUpper = array_values(array_unique(array_map(fn($v)=>strtoupper(trim((string)$v)), $aliases)));
+                if (!empty($aliasesUpper)) {
+                    $query->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $aliasesUpper);
                 }
             }
 
@@ -136,12 +159,8 @@ class SalesOrdersYearExport implements WithMultipleSheets
                 ->whereMonth('date_rec', $month);
 
             // ✅ Optional global from/to inside each sheet query
-            if ($this->from) {
-                $query->whereDate('date_rec', '>=', $this->from);
-            }
-            if ($this->to) {
-                $query->whereDate('date_rec', '<=', $this->to);
-            }
+            if ($this->from) $query->whereDate('date_rec', '>=', $this->from);
+            if ($this->to)   $query->whereDate('date_rec', '<=', $this->to);
 
             $rows = collect($query->orderBy('date_rec')->get());
 
