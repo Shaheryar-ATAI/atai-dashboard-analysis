@@ -22,7 +22,7 @@ class SalesOrderManagerController extends Controller
     {
         return match ($regionNorm) {
             'eastern' => ['SOHAIB', 'SOAHIB'],
-            'central' => ['TARIQ', 'TAREQ', 'JAMAL'],                 // ← add JAMAL
+            'central' => ['TARIQ', 'TAREQ', 'JAMAL','ABUMERHI', 'MMERHI', 'MERHI', 'MABUMERHI','M.MERHI','M.Abu Merhi','M.Abu'],                 // ← add JAMAL
             'western' => ['ABDO', 'ABDUL', 'ABDOU', 'AHMED'],         // ← add AHMED
             default => [],
         };
@@ -40,7 +40,8 @@ class SalesOrderManagerController extends Controller
         // ✅ hardcoded canonical list (temporary)
         return response()->json([
             'SOHAIB',
-            'TARIQ',   // (covers TAREQ alias in your resolver)
+            'TAREQ',
+            'ABU MERHI',// (covers TAREQ alias in your resolver)
             'JAMAL',
             'ABDO',
             'AHMED',
@@ -59,6 +60,13 @@ class SalesOrderManagerController extends Controller
             'TARIQ' => 'central',
             'TAREQ' => 'central',
             'JAMAL' => 'central',          // ← add JAMAL
+            'ABU MERHI' => 'central',
+            'ABUMERHI'  => 'central',
+            'MMERHI'    => 'central',
+            'MERHI'     => 'central',
+            'MABUMERHI' => 'central',
+            'M.Abu Merhi'     => 'central',
+            'M.Abu' => 'central',
 
             // Western
             'ABDO' => 'western',
@@ -154,6 +162,12 @@ class SalesOrderManagerController extends Controller
             'ABDUL' => 'ABDO',
             'ABDOU' => 'ABDO',
             'AHMED' => 'AHMED',
+            'ABUMERHI'  => 'ABU MERHI',
+            'MABUMERHI' => 'ABU MERHI',
+            'MMERHI'    => 'ABU MERHI',
+            'MERHI'     => 'ABU MERHI',
+            'M.MERHI'    => 'ABU MERHI',
+            'M.Abu Merhi'     => 'ABU MERHI',
         ];
 
         if (isset($canonMap[$first])) return $canonMap[$first];
@@ -466,11 +480,11 @@ class SalesOrderManagerController extends Controller
          * A) SALES ORDER LOG (PO world) — salesperson + region(project_region)
          * ========================================================= */
 
-
-        $sum = DB::table('salesorderlog as s')
-            ->whereIn(DB::raw("REPLACE(UPPER(TRIM(s.`Sales Source`)),' ','')"), ['SOHAIB', 'SOAHIB'])
-            ->selectRaw("SUM(CAST(REPLACE(REPLACE(REPLACE(s.`PO Value`, 'SAR',''), ',', ''), ' ', '') AS DECIMAL(15,2))) AS t")
-            ->value('t');
+//
+//        $sum = DB::table('salesorderlog as s')
+//            ->whereIn(DB::raw("REPLACE(UPPER(TRIM(s.`Sales Source`)),' ','')"), ['SOHAIB', 'SOAHIB'])
+//            ->selectRaw("SUM(CAST(REPLACE(REPLACE(REPLACE(s.`PO Value`, 'SAR',''), ',', ''), ' ', '') AS DECIMAL(15,2))) AS t")
+//            ->value('t');
         $soDateExpr = "COALESCE(NULLIF(s.date_rec,'0000-00-00'), DATE(s.created_at))";
 
 
