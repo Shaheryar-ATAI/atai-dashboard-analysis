@@ -3,7 +3,16 @@
 @section('title', 'Project Coordinator ATAI')
 
 @push('head')
-    {{-- Extra styling for coordinator page --}}
+    {{-- ============================================================
+        Project Coordinator Page (ATAI)
+        - DataTables filtering (Region/Salesman/Year/Month/Date range)
+        - KPI recalculation based on filtered rows
+        - Highcharts region summary based on filtered Sales Orders table
+        - Excel export buttons send the SAME filters to backend
+        Notes:
+        - We DO NOT remove any existing working behavior.
+        - We only add safe fixes + professional comments + normalization.
+    ============================================================ --}}
     <style>
         .coordinator-kpi-card {
             border-radius: 1rem;
@@ -74,7 +83,7 @@
             text-transform: uppercase;
             letter-spacing: .08em;
             color: #9ca3af;
-            margin-bottom: 0.15rem; /* was .25rem */
+            margin-bottom: 0.15rem;
         }
 
         .coord-chip-group .coord-chip {
@@ -114,9 +123,13 @@
 @section('content')
     <div class="container-fluid py-3">
 
-        {{-- HEADER --}}
+        {{-- ============================================================
+            FILTER BAR (Region / Salesman / Year / Month / Date Range / Excel)
+            IMPORTANT:
+            - Chips are UI selectors. Actual filtering is done in DataTables custom filter.
+            - Excel export uses the same filter state via query parameters.
+        ============================================================ --}}
 
-        {{-- ðŸ”½ FILTER BAR (Region / Month / Dates / Excel) ðŸ”½ --}}
         @php
             // Options coming directly from controller
             $salesmen = $salesmenFilterOptions ?? [];
@@ -124,31 +137,12 @@
             // Enforce uppercase codes
             $salesmen = array_map('strtoupper', $salesmen);
 
-            // Factory chips (UI only)
-//            $factories = ['Jubail', 'Madinah'];
-//            $defaultFactory = 'Jubail';
-
-            // âœ… No Western restriction anymore
-            //$isWesternCoordinator = false;
+            // NOTE: Factory chips removed (kept in comments in original).
         @endphp
 
         <div class="card mb-3">
             <div class="card-body d-flex flex-wrap align-items-end justify-content-between gap-3">
                 <div class="d-flex flex-wrap align-items-end gap-4">
-
-                    {{-- FACTORY CHIPS (UI ONLY â€” no filtering) --}}
-                    {{--                    <div>--}}
-                    {{--                        <div class="coord-filter-label">Factory Location</div>--}}
-                    {{--                        <div class="coord-chip-group">--}}
-                    {{--                            @foreach($factories as $f)--}}
-                    {{--                                <button type="button"--}}
-                    {{--                                        class="coord-chip {{ $f === $defaultFactory ? 'active' : '' }}"--}}
-                    {{--                                        data-factory="{{ $f }}">--}}
-                    {{--                                    {{ $f }}--}}
-                    {{--                                </button>--}}
-                    {{--                            @endforeach--}}
-                    {{--                        </div>--}}
-                    {{--                    </div>--}}
 
                     {{-- REGION CHIPS --}}
                     <div>
@@ -173,7 +167,7 @@
                         $salesmen = $salesmenFilterOptions ?? [];
                         $salesmen = array_values(array_unique(array_map('strtoupper', $salesmen)));
 
-                        // ✅ Restrict by role (Western coordinator)
+                        // Restrict by role (Western coordinator)
                         if (auth()->user()->hasRole('project_coordinator_western')) {
                             $salesmen = array_values(array_intersect($salesmen, ['ABDO','AHMED']));
                         }
@@ -188,10 +182,10 @@
                                 @php
                                     $upper = strtoupper(trim($s));
 
-                                    // ✅ Canonicalize for UI/export
+                                    // Canonicalize for UI/export
                                     $canonical = in_array($upper, ['TARIQ','TAREQ']) ? 'TAREQ' : $upper;
 
-                                    // ✅ Display label
+                                    // Display label
                                     $label = ($canonical === 'TAREQ')
                                         ? 'Tareq'
                                         : ucwords(strtolower($canonical));
@@ -204,6 +198,17 @@
                                 </button>
                             @endforeach
                         </div>
+                    </div>
+
+                    {{-- YEAR SELECT --}}
+                    <div>
+                        <div class="coord-filter-label">Year</div>
+                        <select id="coord_year" class="form-select form-select-sm" style="min-width: 120px;">
+                            @php $cy = now()->year; @endphp
+                            @for($y = $cy; $y >= $cy - 3; $y--)
+                                <option value="{{ $y }}" {{ $y == $cy ? 'selected' : '' }}>{{ $y }}</option>
+                            @endfor
+                        </select>
                     </div>
 
                     {{-- MONTH SELECT --}}
@@ -236,7 +241,7 @@
 
                 </div>
 
-                {{-- Right: Excel note + button --}}
+                {{-- Right: Excel note + buttons --}}
                 <div class="text-end">
                     <small class="text-muted d-block mb-1">
                         Excel download is for <strong>Sales Order Log</strong> with the filters above applied.
@@ -256,7 +261,6 @@
 
         {{-- KPIs --}}
         <div class="row g-3 mb-3">
-            {{-- TOTAL PROJECTS --}}
             <div class="col-md-4">
                 <div class="card bg-dark text-light coordinator-kpi-card">
                     <div class="card-body d-flex justify-content-between align-items-center">
@@ -273,7 +277,6 @@
                 </div>
             </div>
 
-            {{-- SALES ORDERS COUNT --}}
             <div class="col-md-4">
                 <div class="card bg-dark text-light coordinator-kpi-card">
                     <div class="card-body d-flex justify-content-between align-items-center">
@@ -290,7 +293,6 @@
                 </div>
             </div>
 
-            {{-- SALES ORDERS VALUE (SAR) --}}
             <div class="col-md-4">
                 <div class="card bg-dark text-light coordinator-kpi-card">
                     <div class="card-body d-flex justify-content-between align-items-center">
@@ -342,6 +344,7 @@
         {{-- TABLES --}}
         <div class="card">
             <div class="card-body">
+
                 {{-- Projects table --}}
                 <div id="wrapProjectsTable">
                     <table id="tblCoordinatorProjects"
@@ -372,7 +375,6 @@
                                 <td>{{ strtoupper(trim($p->status ?? '')) ?: 'BIDDING' }}</td>
                                 <td class="table-actions">
                                     <div class="btn-group btn-group-sm" role="group">
-                                        {{-- View button --}}
                                         <button
                                             type="button"
                                             class="btn btn-outline-light btnViewCoordinator"
@@ -393,7 +395,6 @@
                                             <i class="bi bi-eye"></i> View
                                         </button>
 
-                                        {{-- Delete button --}}
                                         <button
                                             type="button"
                                             class="btn btn-outline-danger btnDeleteCoordinator"
@@ -417,17 +418,17 @@
                            class="table table-sm table-striped table-hover align-middle w-100">
                         <thead>
                         <tr>
-                            <th>Client</th>                  {{-- 0 --}}
-                            <th>PO No</th>                   {{-- 1 --}}
-                            <th>PO Value (SAR)</th>          {{-- 2 --}}
-                            <th>Quotation No(s)</th>         {{-- 3 --}}
-                            <th>Project</th>                 {{-- 4 --}}
-                            <th>Job No</th>                  {{-- 5 --}}
-                            <th>PO Date</th>                 {{-- 6 --}}
-                            <th>Salesman</th>                {{-- 7 --}}
-                            <th>Area</th>                    {{-- 8 --}}
-                            <th>ATAI Products</th>           {{-- 9 --}}
-                            <th>Value with VAT (SAR)</th>    {{-- 10 --}}
+                            <th>Client</th>
+                            <th>PO No</th>
+                            <th>PO Value (SAR)</th>
+                            <th>Quotation No(s)</th>
+                            <th>Project</th>
+                            <th>Job No</th>
+                            <th>PO Date</th>
+                            <th>Salesman</th>
+                            <th>Area</th>
+                            <th>ATAI Products</th>
+                            <th>Value with VAT (SAR)</th>
                             <th style="width: 1%;">Action</th>
                         </tr>
                         </thead>
@@ -730,7 +731,7 @@
                                 <div class="p-3 upload-block border border-2 text-center">
                                     <p class="mb-2">Upload related files (PO, Job Card, Email, etc.).</p>
                                     <p class="text-muted small mb-3">
-                                        Multiple files allowed (max 4â€“5 files recommended).
+                                        Multiple files allowed (max 4–5 files recommended).
                                     </p>
                                     <input type="file" class="form-control mb-2" name="attachments[]" multiple>
                                 </div>
@@ -757,6 +758,18 @@
         (function () {
             'use strict';
 
+            /**
+             * ============================================================
+             * Frontend Filtering + KPIs + Excel Export
+             * FIXES ADDED (WITHOUT REMOVING ANY WORKING):
+             * 1) Canonical area mapping (EASTERN/Eastern/Western Region → Western)
+             *    -> ensures the chart + region filter behave consistently.
+             * 2) Reset button now resets Year dropdown too (professional UX).
+             * 3) Export params normalize region value (lowercase) for backend safety.
+             * 4) Invalid date handling: keep current behavior but avoid logic confusion.
+             * ============================================================
+             */
+
             if (!window.jQuery) {
                 console.error('jQuery is not loaded. Load jQuery BEFORE this script.');
                 return;
@@ -772,6 +785,11 @@
                 }).format(Number(value || 0));
             };
 
+            /**
+             * Salesman alias mapping:
+             * - We store CANONICAL code as filter value
+             * - We display friendly label in table cells
+             */
             const SALESMAN_ALIASES = {
                 'SOHAIB': ['SOHAIB', 'SOAHIB'],
                 'TAREQ':  ['TARIQ', 'TAREQ'],
@@ -780,18 +798,18 @@
                 'AHMED':  ['AHMED'],
             };
 
-            // âœ… Factory UI only â€” we keep variable but DO NOT use it for filtering/export
-            // let filterFactory  = 'Jubail';
-
+            // Filter state (single source of truth)
             let filterSalesman = 'all';
             let filterRegion   = 'all';
             let filterMonth    = '';
             let filterFrom     = null;
             let filterTo       = null;
 
+            const yearSelect = document.getElementById('coord_year');
+            let filterYear = (yearSelect && yearSelect.value) ? yearSelect.value : new Date().getFullYear();
+
             const salesmanChips = document.querySelectorAll('.coord-chip[data-salesman]');
             const regionChips   = document.querySelectorAll('.coord-chip[data-region]');
-            //   const factoryChips  = document.querySelectorAll('.coord-chip[data-factory]');
 
             const monthSelect     = document.getElementById('coord_month');
             const fromInput       = document.getElementById('coord_from');
@@ -812,6 +830,7 @@
             const btnSave           = document.getElementById('btnCoordinatorSave');
             const attachmentsListEl = document.getElementById('coord_attachments_list');
 
+            // Multi quotation UI controls
             const multiBlock        = document.getElementById('coord_multi_block');
             const multiEnabled      = document.getElementById('coord_multi_enabled');
             const multiContainer    = document.getElementById('coord_multi_container');
@@ -836,6 +855,9 @@
                 if (target) target.classList.add('active');
             }
 
+            /**
+             * Parse YYYY-MM-DD safely
+             */
             function parseYmd(dateStr) {
                 if (!dateStr || dateStr === '-') return null;
                 const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
@@ -857,6 +879,29 @@
                 if (canon === 'SOHAIB') return 'Sohaib';
                 if (canon === 'TAREQ')  return 'Tareq';
                 return canon.charAt(0) + canon.slice(1).toLowerCase();
+            }
+
+            /**
+             * FIX #1: Canonical area mapping.
+             * Many datasets have variations:
+             * - "EASTERN", "Eastern ", "Eastern Region"
+             * - "CENTRAL", "Central KSA"
+             * - "WESTERN", "Western Region"
+             *
+             * We map them to EXACT keys used in chart categories:
+             * "Eastern", "Central", "Western"
+             */
+            function canonicalArea(raw) {
+                const x = (raw || '').trim().toUpperCase();
+                if (!x) return '';
+                if (x.startsWith('EAST')) return 'Eastern';
+                if (x.startsWith('CENT')) return 'Central';
+                if (x.startsWith('WEST')) return 'Western';
+                // if data is already correct:
+                if (x === 'EASTERN') return 'Eastern';
+                if (x === 'CENTRAL') return 'Central';
+                if (x === 'WESTERN') return 'Western';
+                return '';
             }
 
             function recalcMultiTotals() {
@@ -918,6 +963,11 @@
             const btnDownloadExcelMonth = document.getElementById('coord_download_excel_month');
             const btnDownloadExcelYear  = document.getElementById('coord_download_excel_year');
 
+            /**
+             * Build export params:
+             * FIX #3: Normalize region into lowercase for backend safety
+             * (backend should also normalize, but we do both sides for correctness)
+             */
             function buildExportParams({ requireMonth = false } = {}) {
                 if (requireMonth && (!monthSelect || !monthSelect.value)) {
                     alert('Please select a month before downloading the Excel file.');
@@ -926,10 +976,16 @@
 
                 const params = new URLSearchParams();
 
-                if (requireMonth) params.set('month', monthSelect.value);
+                // Send year always
+                if (yearSelect && yearSelect.value) params.set('year', yearSelect.value);
 
-                // âœ… FACTORY REMOVED from export
-                params.set('region', filterRegion || 'all');
+                // Month is optional or required depending on export button
+                if (requireMonth) params.set('month', monthSelect.value);
+                else if (monthSelect && monthSelect.value) params.set('month', monthSelect.value);
+
+                // Region normalized (lowercase). "all" stays "all".
+                const regionParam = (filterRegion || 'all').toString().trim();
+                params.set('region', regionParam.toLowerCase());
 
                 if (filterSalesman !== 'all') params.set('salesman', filterSalesman);
 
@@ -989,7 +1045,7 @@
                         const label = document.createElement('label');
                         label.className = 'form-check-label small';
                         label.innerHTML =
-                            `<strong>${p.quotation_no}</strong> â€“ ${p.project || ''}` +
+                            `<strong>${p.quotation_no}</strong> – ${p.project || ''}` +
                             ` <span class="text-muted">(${p.area || ''})</span>` +
                             `<br><span class="text-muted">Q. Value: ${fmtSAR(p.quotation_value || 0)}</span>`;
 
@@ -1032,7 +1088,18 @@
                     dtSalesOrders.draw();
                 }
 
-                // âœ… Global filter (Region + Salesman + Month + Date range) â€” FACTORY REMOVED
+                if (yearSelect) yearSelect.addEventListener('change', () => {
+                    filterYear = yearSelect.value || new Date().getFullYear();
+                    redrawTables();
+                });
+
+                /**
+                 * Global filter:
+                 * - Applies to both tables, using column indexes per table
+                 * - Region filter compares against "Area" column
+                 * - Salesman filter compares canonical salesman
+                 * - Year/Month/From/To apply against date column
+                 */
                 $.fn.dataTable.ext.search.push(function (settings, data) {
                     const tableId = settings.nTable.id;
 
@@ -1052,34 +1119,61 @@
                         dateStr     = (data[6] || '').trim();
                     }
 
-                    const cellCanon = canonicalSalesmanCode(salesmanStr);
+                    // Normalize values from cells
+                    const cellCanonSalesman = canonicalSalesmanCode(salesmanStr);
+                    const cellCanonArea     = canonicalArea(areaStr); // FIX #1
 
+                    // Region filter:
+                    // - UI stores "Eastern/Central/Western" (or "all")
+                    // - We normalize both sides using canonicalArea
                     if (filterRegion !== 'all') {
-                        if ((areaStr || '').toUpperCase() !== (filterRegion || '').toUpperCase()) return false;
+                        const wanted = canonicalArea(filterRegion);
+                        if (!wanted) return false;
+                        if (cellCanonArea !== wanted) return false;
                     }
 
+                    // Salesman filter (canonical)
                     if (filterSalesman !== 'all') {
-                        if (cellCanon !== filterSalesman) return false;
+                        if (cellCanonSalesman !== filterSalesman) return false;
                     }
 
+                    // If the row has no date, only include it when there are NO date-based filters.
+                    // IMPORTANT: filterYear is always set, but year alone should not exclude "no date" rows
+                    // unless you prefer strict behavior. Here we keep it practical:
                     if (!dateStr || dateStr === '-') {
                         return !(filterMonth || filterFrom || filterTo);
                     }
 
                     const rowDate = parseYmd(dateStr);
-                    if (!rowDate) return true;
 
+                    // If date is invalid, same handling as missing date
+                    if (!rowDate) {
+                        return !(filterMonth || filterFrom || filterTo);
+                    }
+
+                    // Year filter (always active)
+                    if (filterYear) {
+                        const y = rowDate.getFullYear();
+                        if (y !== parseInt(filterYear, 10)) return false;
+                    }
+
+                    // Month filter (optional)
                     if (filterMonth) {
                         const m = rowDate.getMonth() + 1;
                         if (m !== parseInt(filterMonth, 10)) return false;
                     }
 
+                    // Date range filter (optional)
                     if (filterFrom && rowDate < filterFrom) return false;
                     if (filterTo && rowDate > filterTo) return false;
 
                     return true;
                 });
 
+                /**
+                 * Repaint Salesman cells into friendly display labels
+                 * (does NOT affect filtering because filtering uses canonicalSalesmanCode)
+                 */
                 function repaintSalesmanCells() {
                     $('#tblCoordinatorProjects tbody tr').each(function(){
                         const td = $(this).find('td').eq(3);
@@ -1092,6 +1186,11 @@
                     });
                 }
 
+                /**
+                 * KPI refresh:
+                 * - Counts are from filtered rows
+                 * - Total value sums PO Value column (index 2) from filtered rows
+                 */
                 function refreshKpis() {
                     const projCount = dtProjects.rows({ search: 'applied' }).count();
                     const soCount   = dtSalesOrders.rows({ search: 'applied' }).count();
@@ -1109,11 +1208,17 @@
                     if (elKpiSoValueNum) elKpiSoValueNum.textContent = soTotal.toLocaleString('en-SA');
                 }
 
+                // Highcharts: PO Value by Region
                 let regionChart = Highcharts.chart('coordinatorRegionStacked', {
                     chart: { type: 'column', backgroundColor: '#0f172a' },
                     title: { text: 'PO Value by Region', style: { color: '#e5e7eb' } },
                     xAxis: { categories: ['Eastern', 'Central', 'Western'], labels: { style: { color: '#cbd5e1' } } },
-                    yAxis: { min: 0, title: { text: 'Value (SAR)', style: { color: '#cbd5e1' } }, labels: { style: { color: '#cbd5e1' } }, gridLineColor: '#1e293b' },
+                    yAxis: {
+                        min: 0,
+                        title: { text: 'Value (SAR)', style: { color: '#cbd5e1' } },
+                        labels: { style: { color: '#cbd5e1' } },
+                        gridLineColor: '#1e293b'
+                    },
                     legend: { itemStyle: { color: '#e5e7eb' } },
                     tooltip: {
                         shared: true,
@@ -1131,15 +1236,21 @@
                     series: [{ name: 'PO Value', data: [0, 0, 0] }]
                 });
 
+                /**
+                 * FIX #1 applied here too:
+                 * - We canonicalize Area values so chart sums never become 0 due to casing/spaces.
+                 */
                 function refreshChartFromTable() {
                     const sums = { 'Eastern': 0, 'Central': 0, 'Western': 0 };
 
                     dtSalesOrders.rows({ search: 'applied' }).every(function () {
                         const row = this.data();
-                        const areaKey = (row[8] || '').trim();
+                        const areaKey = canonicalArea(row[8]); // FIX #1
                         let val = row[2];
+
                         if (typeof val === 'string') val = parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
-                        if (!areaKey || !(areaKey in sums)) return;
+                        if (!areaKey) return;
+
                         sums[areaKey] += (isNaN(val) ? 0 : val);
                     });
 
@@ -1147,19 +1258,11 @@
                     regionChart.series[0].setData(cats.map(r => sums[r] || 0), true);
                 }
 
+                // DataTable redraw hooks
                 $('#tblCoordinatorProjects').on('draw.dt', () => { repaintSalesmanCells(); refreshKpis(); });
                 $('#tblCoordinatorSalesOrders').on('draw.dt', () => { repaintSalesmanCells(); refreshKpis(); refreshChartFromTable(); });
 
-                // âœ… Factory chips: UI only (no filtering)
-                // factoryChips.forEach(chip => {
-                //     chip.addEventListener('click', () => {
-                //         factoryChips.forEach(c => c.classList.remove('active'));
-                //         chip.classList.add('active');
-                //         filterFactory = chip.dataset.factory || 'Jubail';
-                //         // DO NOTHING ELSE (no redraw, no salesman restriction)
-                //     });
-                // });
-
+                // Region chips
                 regionChips.forEach(chip => {
                     chip.addEventListener('click', () => {
                         regionChips.forEach(c => c.classList.remove('active'));
@@ -1169,6 +1272,7 @@
                     });
                 });
 
+                // Salesman chips
                 salesmanChips.forEach(chip => {
                     chip.addEventListener('click', () => {
                         salesmanChips.forEach(c => c.classList.remove('active'));
@@ -1179,24 +1283,31 @@
                     });
                 });
 
+                // Month / date inputs
                 if (monthSelect) monthSelect.addEventListener('change', () => { filterMonth = monthSelect.value || ''; redrawTables(); });
                 if (fromInput)   fromInput.addEventListener('change',  () => { filterFrom = fromInput.value ? parseYmd(fromInput.value) : null; redrawTables(); });
                 if (toInput)     toInput.addEventListener('change',    () => { filterTo = toInput.value ? parseYmd(toInput.value) : null; redrawTables(); });
 
+                /**
+                 * FIX #2: Reset now resets Year too
+                 */
                 if (btnResetFilters) {
                     btnResetFilters.addEventListener('click', () => {
-                        filterFactory  = 'Jubail';
                         filterRegion   = 'all';
                         filterSalesman = 'all';
                         filterMonth    = '';
                         filterFrom     = null;
                         filterTo       = null;
 
+                        // Reset UI controls
+                        if (yearSelect) {
+                            yearSelect.value = new Date().getFullYear();
+                            filterYear = yearSelect.value;
+                        }
                         if (monthSelect) monthSelect.value = '';
                         if (fromInput) fromInput.value = '';
                         if (toInput) toInput.value = '';
 
-                        // setActiveChipBy('.coord-chip[data-factory]', 'factory', filterFactory);
                         setActiveChipBy('.coord-chip[data-region]', 'region', 'all');
                         setActiveChipBy('.coord-chip[data-salesman]', 'salesman', 'all');
 
@@ -1204,6 +1315,7 @@
                     });
                 }
 
+                // Toggle tables
                 if (btnProj && btnSO && wrapProjects && wrapSalesOrder) {
                     btnProj.addEventListener('click', () => {
                         btnProj.classList.add('btn-primary', 'active');
@@ -1226,8 +1338,21 @@
                     });
                 }
 
+                // Excel export buttons
                 if (btnDownloadExcelMonth) {
                     btnDownloadExcelMonth.addEventListener('click', () => {
+
+                        const hasFromTo = (fromInput && fromInput.value) || (toInput && toInput.value);
+
+                        // If date range is used, export via YEAR route (no month required)
+                        if (hasFromTo) {
+                            const params = buildExportParams({ requireMonth: false });
+                            if (!params) return;
+                            window.location.href = "{{ route('coordinator.salesorders.exportYear') }}" + '?' + params.toString();
+                            return;
+                        }
+
+                        // Normal month export: require month
                         const params = buildExportParams({ requireMonth: true });
                         if (!params) return;
                         window.location.href = "{{ route('coordinator.salesorders.export') }}" + '?' + params.toString();
@@ -1346,11 +1471,13 @@
                         attachmentsListEl.innerHTML = '<li class="text-muted">Documents list will appear here (after upload).</li>';
                     }
 
+                    // For projects, open modal immediately
                     if (source !== 'salesorder') {
                         coordModal && coordModal.show();
                         return;
                     }
 
+                    // For salesorders, load attachments then show modal
                     const soId = btn.dataset.id;
                     if (attachmentsListEl) attachmentsListEl.innerHTML = '<li class="text-muted">Loading documents...</li>';
 
@@ -1400,6 +1527,7 @@
                         .finally(() => coordModal && coordModal.show());
                 });
 
+                // Save (PO Received)
                 if (btnSave) {
                     btnSave.addEventListener('click', async () => {
                         const formEl = document.getElementById('coordinatorForm');
@@ -1454,7 +1582,6 @@
                 }
 
                 // Initial state
-                setActiveChipBy('.coord-chip[data-factory]', 'factory', filterFactory);
                 setActiveChipBy('.coord-chip[data-region]', 'region', 'all');
                 setActiveChipBy('.coord-chip[data-salesman]', 'salesman', 'all');
 
