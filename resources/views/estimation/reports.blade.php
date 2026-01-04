@@ -603,7 +603,7 @@
         }
 
         // global state
-        let PROJ_YEAR = '2025';
+        let PROJ_YEAR = '2026';
         let PROJ_REGION = '';
         let ATAI_ME = null;
         let CAN_VIEW_ALL = false;
@@ -1254,8 +1254,20 @@
             const dFrom = fromEl?.value || '';
             const dTo = toEl?.value || '';
 
-            if (!month && !dFrom && !dTo) {
-                alert('Please select a month or a date range (From / To).');
+            const year = yearEl?.value || '';
+
+            /**
+             * Allow:
+             * - Year only
+             * - Month + Year
+             * - Date range (From/To)
+             * - Nothing (All Years)
+             *
+             * Block only:
+             * - Month selected without Year
+             */
+            if (month && !year) {
+                alert('Please select a Year when filtering by Month.');
                 return;
             }
 
@@ -1290,8 +1302,8 @@
 
             const yearSel = document.getElementById('projYear');
             if (yearSel && !yearSel.value) {
-                const opt = [...yearSel.options].find(o => o.value === '2025');
-                if (opt) yearSel.value = '2025';
+                const opt = [...yearSel.options].find(o => o.value === '2026');
+                if (opt) yearSel.value = '2026';
             }
 
             dtAll = initProjectsTable('#tblAll', 'all');

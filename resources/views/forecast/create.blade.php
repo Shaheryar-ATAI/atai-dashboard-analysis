@@ -160,7 +160,15 @@
 @endpush
 @section('content')
 
-    @php $u = auth()->user(); @endphp
+    @php $u = auth()->user();
+     $defaultMonthTarget = match($region) {
+          'Eastern', 'Central' => 4200000,
+          'Western'            => 3000000,
+          default              => 0,
+  };
+
+
+ @endphp
 
 
     {{-- Toast (bottom-right) --}}
@@ -291,23 +299,32 @@
                         <div class="card-body">
                             <div class="mb-2">
                                 <label class="form-label small text-uppercase">Month Target</label>
-                                <input name="month_target" class="form-control form-control-sm" placeholder="SAR 0">
+                                <input name="month_target"
+                                       class="form-control form-control-sm"
+                                       value="{{ old('month_target', $defaultMonthTarget) }}"
+                                       placeholder="SAR 0">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small text-uppercase">Required Turn-over</label>
-                                <input name="required_turnover" class="form-control form-control-sm"
+                                <input name="required_turnover"
+                                       class="form-control form-control-sm"
+                                       value="{{ old('required_turnover') }}"
                                        placeholder="SAR 0">
                             </div>
                             <div class="mb-2">
                                 <label class="form-label small text-uppercase">Required Forecast</label>
-                                <input name="required_forecast" class="form-control form-control-sm"
+                                <input name="required_forecast"
+                                       class="form-control form-control-sm"
+                                       value="{{ old('required_forecast') }}"
                                        placeholder="SAR 0">
                             </div>
-                            <div class="">
-                                <label class="form-label small text-uppercase">Conversion Ratio</label>
-                                <input name="conversion_ratio" class="form-control form-control-sm"
-                                       placeholder="e.g. 20%">
-                            </div>
+{{--                            <div class="">--}}
+{{--                                <label class="form-label small text-uppercase">Conversion Ratio</label>--}}
+{{--                                <input name="conversion_ratio"--}}
+{{--                                       class="form-control form-control-sm"--}}
+{{--                                       value="{{ old('conversion_ratio') }}"--}}
+{{--                                       placeholder="e.g. 20%">--}}
+{{--                            </div>--}}
                         </div>
                     </div>
                 </div>

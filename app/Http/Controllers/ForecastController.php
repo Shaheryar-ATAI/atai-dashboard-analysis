@@ -496,7 +496,7 @@ HTML;
             'conversion_ratio' => $r->input('conversion_ratio'),
         ];
         if (empty($forecast['month_target'])) {
-            $defaults = ['Eastern' => 3000000, 'Central' => 3100000, 'Western' => 2500000];
+            $defaults = ['Eastern' => 4200000, 'Central' => 4200000, 'Western' => 3000000];
             if (isset($defaults[$region])) $forecast['month_target'] = $defaults[$region];
         }
 

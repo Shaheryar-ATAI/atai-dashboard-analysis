@@ -33,16 +33,17 @@ class BncProjectController extends Controller
         // --- KPIs for header cards ---
         $kpiQuery = clone $baseQuery;
         $totalUsd = (clone $kpiQuery)->sum('value_usd');
-        $totalSar=(clone $kpiQuery)->sum('value_usd')*3.75;
+        $totalSar = (clone $kpiQuery)->sum('value_usd') * 3.75;
         $totalValueUsd = self::compactUsd($totalUsd);
-        $totalValueSar=self::compactSar($totalSar);
+        $totalValueSar = self::compactSar($totalSar);
+
         $kpis = [
-            'total_projects'   => (clone $kpiQuery)->count(),
-            'total_value'      => $totalValueUsd,
-            'total_value_Sar'      =>$totalValueSar,
-            'approached'       => (clone $kpiQuery)->where('approached', true)->count(),
-            'qualified'        => (clone $kpiQuery)->whereIn('lead_qualified', ['Hot', 'Warm'])->count(),
-            'expected_close30' => (clone $kpiQuery)
+            'total_projects'    => (clone $kpiQuery)->count(),
+            'total_value'       => $totalValueUsd,
+            'total_value_Sar'   => $totalValueSar,
+            'approached'        => (clone $kpiQuery)->where('approached', true)->count(),
+            'qualified'         => (clone $kpiQuery)->whereIn('lead_qualified', ['Hot', 'Warm'])->count(),
+            'expected_close30'  => (clone $kpiQuery)
                 ->whereNotNull('expected_close_date')
                 ->whereBetween('expected_close_date', [now(), now()->addDays(30)])
                 ->count(),
@@ -66,21 +67,90 @@ class BncProjectController extends Controller
          * ---------------------------------------------------------------------- */
         $query = BncProject::query()
             ->leftJoin('projects as inquiries', function ($join) {
-                // City match with SAME collation on both sides
-                $join->on(
-                    DB::raw("LOWER(TRIM(inquiries.project_location)) COLLATE utf8mb4_unicode_ci"),
-                    '=',
-                    DB::raw("LOWER(TRIM(bnc_projects.city)) COLLATE utf8mb4_unicode_ci")
-                )
-                    // Project name: inquiry contains FULL BNC project name
-                    ->whereRaw("
-                LOWER(TRIM(inquiries.project_name)) COLLATE utf8mb4_unicode_ci
-                LIKE CONCAT(
-                    '%',
-                    LOWER(TRIM(bnc_projects.project_name)) COLLATE utf8mb4_unicode_ci,
-                    '%'
-                )
-            ");
+
+                /**
+                 * IMPORTANT:
+                 * We make matching ROBUST so that “Diriyah Gate” matches
+                 * even if:
+                 * - city/location differs slightly (Riyadh vs Riyadh City)
+                 * - area/region is null/empty on one side
+                 * - country is null/empty or “KSA” vs “Saudi Arabia”
+                 * - project_name has separators like '-' or extra spaces
+                 */
+
+                // ---------- Normalizers ----------
+                // Normalize text: lower + trim + collapse spaces + remove '-' to reduce false negatives
+                $norm = function ($expr) {
+                    // replace '-' with space, then collapse multiple spaces
+                    return "LOWER(TRIM(REGEXP_REPLACE(REPLACE($expr, '-', ' '), '[[:space:]]+', ' '))) COLLATE utf8mb4_unicode_ci";
+                };
+
+                // Normalize "Saudi Arabia" variants (saudi arabia / ksa / kingdom of saudi arabia)
+                $normCountry = function ($expr) use ($norm) {
+                    // COALESCE + NULLIF to avoid blocking on blanks
+                    $base = "COALESCE(NULLIF(TRIM($expr), ''), 'Saudi Arabia')";
+                    // map common variants
+                    return "CASE
+                        WHEN {$norm($base)} IN ('ksa', 'k.s.a', 'kingdom of saudi arabia', 'saudi', 'saudiarabia') THEN 'saudi arabia'
+                        ELSE {$norm($base)}
+                    END";
+                };
+
+                // ---------- 1) Project name match (must) ----------
+                // BOTH directions: inquiry contains bnc OR bnc contains inquiry
+                $bncName     = $norm("bnc_projects.project_name");
+                $inqName     = $norm("inquiries.project_name");
+
+                $join->whereRaw("
+                    (
+                        $inqName LIKE CONCAT('%', $bncName, '%')
+                        OR
+                        $bncName LIKE CONCAT('%', $inqName, '%')
+                    )
+                ");
+
+                // ---------- 2) City / Location match (loose) ----------
+                // Accept: exact OR contains (Riyadh vs Riyadh City) OR if either side empty -> don't block
+                $bncCity     = $norm("bnc_projects.city");
+                $inqLoc      = $norm("inquiries.project_location");
+
+                $join->whereRaw("
+                    (
+                        TRIM(COALESCE(inquiries.project_location,'')) = ''
+                        OR TRIM(COALESCE(bnc_projects.city,'')) = ''
+                        OR $inqLoc = $bncCity
+                        OR $inqLoc LIKE CONCAT('%', $bncCity, '%')
+                        OR $bncCity LIKE CONCAT('%', $inqLoc, '%')
+                    )
+                ");
+
+                // ---------- 3) Area/Region match (soft) ----------
+                // If both present -> enforce match
+                // If one side empty -> do not block
+                $inqArea   = $norm("inquiries.area");
+                $bncRegion = $norm("bnc_projects.region");
+
+                $join->whereRaw("
+                    (
+                        TRIM(COALESCE(inquiries.area,'')) = ''
+                        OR TRIM(COALESCE(bnc_projects.region,'')) = ''
+                        OR $inqArea = $bncRegion
+                    )
+                ");
+
+                // ---------- 4) Country match (soft but normalized) ----------
+                // If both present -> enforce after normalization
+                // If one side empty -> do not block
+                $inqCountry = $normCountry("inquiries.country");
+                $bncCountry = $normCountry("bnc_projects.country");
+
+                $join->whereRaw("
+                    (
+                        TRIM(COALESCE(inquiries.country,'')) = ''
+                        OR TRIM(COALESCE(bnc_projects.country,'')) = ''
+                        OR $inqCountry = $bncCountry
+                    )
+                ");
             })
             ->select([
                 'bnc_projects.id',
@@ -96,18 +166,18 @@ class BncProjectController extends Controller
                 'bnc_projects.expected_close_date',
 
                 DB::raw("
-                GROUP_CONCAT(
-                    DISTINCT CONCAT(
-                        inquiries.quotation_no, '||',
-                        COALESCE(inquiries.quotation_value, 0)
-                    )
-                    SEPARATOR '##'
-                ) AS inquiry_quotes_concat
-            "),
+                    GROUP_CONCAT(
+                        DISTINCT CONCAT(
+                            inquiries.quotation_no, '||',
+                            COALESCE(inquiries.quotation_value, 0)
+                        )
+                        SEPARATOR '##'
+                    ) AS inquiry_quotes_concat
+                "),
                 DB::raw("
-                SUM(COALESCE(inquiries.quotation_value, 0))
-                AS inquiry_quotation_total_value
-            "),
+                    SUM(COALESCE(inquiries.quotation_value, 0))
+                    AS inquiry_quotation_total_value
+                "),
             ])
             ->groupBy([
                 'bnc_projects.id',
@@ -368,31 +438,20 @@ class BncProjectController extends Controller
 
     protected static function compactUsd(float $value): string
     {
-        if ($value >= 1_000_000_000) {
-            return number_format($value / 1_000_000_000, 2) . ' B';
-        }
-        if ($value >= 1_000_000) {
-            return number_format($value / 1_000_000, 2) . ' M';
-        }
-        if ($value >= 1_000) {
-            return number_format($value / 1_000, 1) . ' K';
-        }
+        if ($value >= 1_000_000_000) return number_format($value / 1_000_000_000, 2) . ' B';
+        if ($value >= 1_000_000)     return number_format($value / 1_000_000, 2) . ' M';
+        if ($value >= 1_000)         return number_format($value / 1_000, 1) . ' K';
         return number_format($value, 0);
     }
 
     protected static function compactSar(float $value): string
     {
-        if ($value >= 1_000_000_000) {
-            return number_format($value / 1_000_000_000, 2) . ' B';
-        }
-        if ($value >= 1_000_000) {
-            return number_format($value / 1_000_000, 2) . ' M';
-        }
-        if ($value >= 1_000) {
-            return number_format($value / 1_000, 1) . ' K';
-        }
+        if ($value >= 1_000_000_000) return number_format($value / 1_000_000_000, 2) . ' B';
+        if ($value >= 1_000_000)     return number_format($value / 1_000_000, 2) . ' M';
+        if ($value >= 1_000)         return number_format($value / 1_000, 1) . ' K';
         return number_format($value, 0);
     }
+
     // GET /bnc/{id}
     public function show(BncProject $bncProject)
     {
@@ -421,10 +480,8 @@ class BncProjectController extends Controller
             'overview_info' => $bncProject->overview_info,
             'latest_news' => $bncProject->latest_news,
 
-            // ✅ structured details
             'raw_parties' => $bncProject->raw_parties ?: [],
 
-            // checkpoints
             'approached' => (bool) $bncProject->approached,
             'lead_qualified' => $bncProject->lead_qualified ?: 'Unknown',
             'penetration_percent' => (int) ($bncProject->penetration_percent ?? 0),
@@ -443,8 +500,7 @@ class BncProjectController extends Controller
         ]);
     }
 
-
-    // POST /bnc/{id} – update checkpoints from modal
+    // POST /bnc/{id}
     public function update(Request $request, BncProject $bncProject)
     {
         $this->authorizeRegion($bncProject);
@@ -470,9 +526,6 @@ class BncProjectController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    /**
-     * Simple region + role authorization for show/update.
-     */
     protected function authorizeRegion(BncProject $project): void
     {
         $user = auth()->user();
@@ -486,24 +539,15 @@ class BncProjectController extends Controller
         }
     }
 
-    /**
-     * Upload & import BNC CSV file.
-     * IMPORTANT: Excel must be saved as CSV first.
-     */
+    // Upload method unchanged...
     public function upload(Request $request)
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        // 1. Validate input
         $data = $request->validate([
             'region' => ['required', 'in:Eastern,Central,Western'],
-            'file'   => [
-                'required',
-                'file',
-                'mimes:csv,txt',   // we parse ONLY CSV
-                'max:20480',       // 20 MB
-            ],
+            'file'   => ['required', 'file', 'mimes:csv,txt', 'max:20480'],
         ], [
             'file.mimes' => 'Please export/save the BNC report as a CSV file and upload that CSV (not XLS/XLSX).',
         ]);
@@ -511,7 +555,6 @@ class BncProjectController extends Controller
         $region = $data['region'];
         $file   = $data['file'];
 
-        // 2. Read CSV into array of rows
         $path   = $file->getRealPath();
         $handle = fopen($path, 'r');
 
@@ -519,12 +562,9 @@ class BncProjectController extends Controller
             return back()->with('error', 'Unable to read the uploaded file.');
         }
 
-        // --- detect delimiter from first non-empty line ---
         $firstLine = '';
         while (($firstLine = fgets($handle)) !== false) {
-            if (trim($firstLine) !== '') {
-                break;
-            }
+            if (trim($firstLine) !== '') break;
         }
         if ($firstLine === '') {
             fclose($handle);
@@ -534,20 +574,16 @@ class BncProjectController extends Controller
         $delimiter = ',';
         if (substr_count($firstLine, "\t") > substr_count($firstLine, $delimiter)
             && substr_count($firstLine, "\t") >= substr_count($firstLine, ';')) {
-            $delimiter = "\t";         // tab-delimited
+            $delimiter = "\t";
         } elseif (substr_count($firstLine, ';') > substr_count($firstLine, $delimiter)) {
-            $delimiter = ';';          // semicolon-delimited
+            $delimiter = ';';
         }
 
-        // rewind pointer to beginning
         rewind($handle);
 
         $rows = [];
         while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
-            // Skip completely empty rows
-            if (count(array_filter($row, fn ($v) => trim((string) $v) !== '')) === 0) {
-                continue;
-            }
+            if (count(array_filter($row, fn ($v) => trim((string) $v) !== '')) === 0) continue;
             $rows[] = $row;
         }
         fclose($handle);
@@ -556,12 +592,11 @@ class BncProjectController extends Controller
             return back()->with('error', 'Uploaded file seems to be empty.');
         }
 
-        // 3. Detect header row (any cell containing "Reference Number")
         $headerIndex = null;
         foreach ($rows as $i => $row) {
             foreach ($row as $cell) {
                 $cell = trim((string) $cell);
-                $cell = preg_replace('/^\xEF\xBB\xBF/', '', $cell); // strip BOM
+                $cell = preg_replace('/^\xEF\xBB\xBF/', '', $cell);
                 if (stripos($cell, 'Reference Number') !== false) {
                     $headerIndex = $i;
                     break 2;
@@ -575,20 +610,17 @@ class BncProjectController extends Controller
 
         $header = $rows[$headerIndex];
 
-        // 3b. Map columns by header text (robust against order changes)
         $colMap = [
             'reference_no'     => null,
             'project_name'     => null,
             'city'             => null,
-            'region'           => null, // not used, we pass selected region
+            'region'           => null,
             'country'          => null,
             'stage'            => null,
             'industry'         => null,
             'value_usd'        => null,
             'award_date'       => null,
             'datasets'         => null,
-
-            // scraped fields
             'consultant'       => null,
             'main_contractor'  => null,
             'mep_contractor'   => null,
@@ -601,45 +633,32 @@ class BncProjectController extends Controller
 
             if (str_contains($labelNorm, 'reference number')) {
                 $colMap['reference_no'] = $idx;
-
             } elseif (str_contains($labelNorm, 'project name')) {
                 $colMap['project_name'] = $idx;
-
             } elseif ($labelNorm === 'city' || str_contains($labelNorm, 'city')) {
                 $colMap['city'] = $idx;
-
             } elseif (str_contains($labelNorm, 'country')) {
                 $colMap['country'] = $idx;
-
             } elseif (str_contains($labelNorm, 'stage')) {
                 $colMap['stage'] = $idx;
-
             } elseif (str_contains($labelNorm, 'industry')) {
                 $colMap['industry'] = $idx;
-
             } elseif (str_contains($labelNorm, 'value') && str_contains($labelNorm, 'usd')) {
                 $colMap['value_usd'] = $idx;
-
             } elseif (str_contains($labelNorm, 'award') && str_contains($labelNorm, 'date')) {
                 $colMap['award_date'] = $idx;
-
             } elseif (str_contains($labelNorm, 'dataset')) {
                 $colMap['datasets'] = $idx;
-
             } elseif (str_contains($labelNorm, 'mep') && str_contains($labelNorm, 'contractor')) {
                 $colMap['mep_contractor'] = $idx;
-
             } elseif (str_contains($labelNorm, 'consultant')) {
                 $colMap['consultant'] = $idx;
-
             } elseif (str_contains($labelNorm, 'contractor')) {
                 if ($colMap['main_contractor'] === null && ! str_contains($labelNorm, 'mep')) {
                     $colMap['main_contractor'] = $idx;
                 }
-
             } elseif (str_contains($labelNorm, 'overview') && str_contains($labelNorm, 'info')) {
                 $colMap['overview_info'] = $idx;
-
             } elseif (str_contains($labelNorm, 'latest') && str_contains($labelNorm, 'news')) {
                 $colMap['latest_news'] = $idx;
             }
@@ -649,34 +668,24 @@ class BncProjectController extends Controller
             return back()->with('error', 'Could not find "Reference Number" column in header.');
         }
 
-        // helper to safely read a column
         $getCol = function (array $row, ?int $idx): ?string {
-            if ($idx === null) {
-                return null;
-            }
+            if ($idx === null) return null;
             return isset($row[$idx]) ? trim((string) $row[$idx]) : null;
         };
 
-        // 4. Process data rows
         $created = 0;
         $updated = 0;
 
         DB::beginTransaction();
 
         try {
-            // Start from the row after header
             for ($i = $headerIndex + 1; $i < count($rows); $i++) {
                 $row = $rows[$i];
 
                 $reference = $getCol($row, $colMap['reference_no']);
-                if ($reference === null || $reference === '') {
-                    continue;
-                }
+                if ($reference === null || $reference === '') continue;
 
-                // Skip totals/footer rows: only process PRJ...
-                if (! Str::startsWith($reference, 'PRJ')) {
-                    continue;
-                }
+                if (! Str::startsWith($reference, 'PRJ')) continue;
 
                 $projectName     = $getCol($row, $colMap['project_name']) ?? '';
                 $city            = $getCol($row, $colMap['city']) ?? '';
@@ -685,19 +694,16 @@ class BncProjectController extends Controller
                 $industry        = $getCol($row, $colMap['industry']) ?? '';
                 $datasets        = $getCol($row, $colMap['datasets']);
 
-                // scraped columns (may be null if not present in CSV)
                 $consultant      = $getCol($row, $colMap['consultant']);
                 $mainContractor  = $getCol($row, $colMap['main_contractor']);
                 $mepContractor   = $getCol($row, $colMap['mep_contractor']);
                 $overviewInfo    = $getCol($row, $colMap['overview_info']);
                 $latestNews      = $getCol($row, $colMap['latest_news']);
 
-                // Value(USD) like "300,000,000"
                 $valueRaw = $getCol($row, $colMap['value_usd']) ?? '';
                 $valueRaw = str_replace([',', ' '], '', $valueRaw);
                 $valueUsd = is_numeric($valueRaw) ? (float) $valueRaw : null;
 
-                // Est. Award Date
                 $awardDate = null;
                 $awardCol  = $getCol($row, $colMap['award_date']);
                 if ($awardCol !== null && $awardCol !== '') {
@@ -707,7 +713,6 @@ class BncProjectController extends Controller
                     }
                 }
 
-                // Upsert by (reference_no + region)
                 $attributes = [
                     'reference_no' => $reference,
                     'region'       => $region,
@@ -732,7 +737,6 @@ class BncProjectController extends Controller
                     'latest_news'      => $latestNews,
                 ];
 
-                /** @var \App\Models\BncProject|null $model */
                 $model = BncProject::where($attributes)->first();
 
                 if ($model) {
