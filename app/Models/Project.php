@@ -138,20 +138,21 @@ class Project extends Model
      */
     public static function coordinatorBaseQuery(array $regionsScope, array $salesmenScope = []): Builder
     {
-        $normalizedRegions = array_map(fn($r) => strtoupper(trim($r)), $regionsScope);
+      //  $normalizedRegions = array_map(fn($r) => strtoupper(trim($r)), $regionsScope);
         $normalizedSalesmen = array_map(fn($s) => strtoupper(trim($s)), $salesmenScope);
 
         $query = static::query()
             ->whereNull('deleted_at')
-            ->where(function ($q) {
-                $q->whereNull('status_current')
-                    ->orWhereRaw("TRIM(status_current) = ''");
-            })
+//            ->where(function ($q) {
+//                $q->whereNull('status_current')
+//                    ->orWhereRaw("TRIM(status_current) = ''");
+//            })
 //            ->where(function ($q) {
 //                $q->whereNull('status')
 //                    ->orWhereRaw("TRIM(status) = ''");
 //            })
-            ->whereIn(DB::raw('UPPER(TRIM(area))'), $normalizedRegions);
+           // ->whereIn(DB::raw('UPPER(TRIM(area))'), $normalizedRegions)
+        ;
 
         // OPTIONAL salesman filter (enable when needed)
         $query->when(!empty($normalizedSalesmen), function ($q) use ($normalizedSalesmen) {

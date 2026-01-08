@@ -238,7 +238,7 @@ class SalesOrderLog extends Model
         return DB::table('salesorderlog as s')
             ->leftJoin('users as u', 'u.id', '=', 's.created_by_id')
             ->whereNull('s.deleted_at')
-            ->whereIn('s.project_region', $normalizedRegions)
+            //->whereIn('s.project_region', $normalizedRegions)
             ->selectRaw("
                 MIN(s.id) AS id,
                 s.`PO. No.` AS po_no,

@@ -9,6 +9,18 @@ use Illuminate\Support\Facades\DB;
 
 class ForecastController extends Controller
 {
+    // ✅ SALES SOURCE: Allowed dropdown values per region
+    protected function allowedSalesSources(string $region): array
+    {
+        $r = $this->norm($region);
+
+        return match ($r) {
+            'WESTERN' => ['ABDO', 'AHMED'],
+            'CENTRAL' => ['TAREQ', 'JAMAL'],
+            'EASTERN' => ['SOHAIB'],
+            default   => [],
+        };
+    }
 
     /* ---------------------- FORM ---------------------- */
     public function create()
@@ -108,6 +120,11 @@ class ForecastController extends Controller
 
                 $row = array_map(fn($v) => is_string($v) ? trim($v) : $v, $row);
 
+                // ✅ SALES SOURCE: normalize to uppercase (optional here; final validation later)
+                if (isset($row['sales_source'])) {
+                    $row['sales_source'] = strtoupper(trim((string)$row['sales_source']));
+                }
+
                 if (empty($row['customer_name']) && empty($row['products']) && empty($row['project_name']) && $val <= 0) {
                     return null;
                 }
@@ -118,6 +135,10 @@ class ForecastController extends Controller
                     'quotation_no'   => $row['quotation_no'] ?? null,
                     'products'       => $row['products'] ?? null,
                     'product_family' => $row['product_family'] ?? null,
+
+                    // ✅ SALES SOURCE: captured from UI
+                    'sales_source'   => $row['sales_source'] ?? null,
+
                     'percentage'     => $pct,
                     'value_sar'      => $val,
                     'remarks'        => $row['remarks'] ?? null,
@@ -135,26 +156,46 @@ class ForecastController extends Controller
         $quotes = $r->input("{$prefix}_quotation_no", []);
         $values = $r->input("{$prefix}_value_sar", []);
         $remarks = $r->input("{$prefix}_remarks", []);
-        $families = $r->input("{$prefix}_product_family", []); // this line is fine
+        $families = $r->input("{$prefix}_product_family", []);
         $pcts = $r->input("{$prefix}_percentage", []);
 
+        // ✅ SALES SOURCE: fallback array
+        $sources = $r->input("{$prefix}_sales_source", []);
+
         $rows = [];
-        $max = max(count($customers), count($products), count($projects), count($values), count($remarks), count($families), count($pcts));
+
+        // ✅ include sources count in max
+        $max = max(
+            count($customers),
+            count($products),
+            count($projects),
+            count($values),
+            count($remarks),
+            count($families),
+            count($pcts),
+            count($sources)
+        );
 
         for ($i = 0; $i < $max; $i++) {
             $row = [
                 'customer_name'  => trim((string)($customers[$i] ?? '')),
                 'products'       => trim((string)($products[$i] ?? '')),
                 'project_name'   => trim((string)($projects[$i] ?? '')),
+
                 'percentage'     => isset($pcts[$i]) && $pcts[$i] !== '' ? (float)$pcts[$i] : null,
                 'value_sar'      => (float)preg_replace('/[^\d.\-]/', '', (string)($values[$i] ?? '0')),
                 'quotation_no'   => trim((string)($quotes[$i] ?? '')),
                 'remarks'        => trim((string)($remarks[$i] ?? '')),
                 'product_family' => trim((string)($families[$i] ?? '')),
+
+                // ✅ SALES SOURCE
+                'sales_source'   => strtoupper(trim((string)($sources[$i] ?? ''))),
             ];
+
             $empty = $row['customer_name'] === '' && $row['products'] === '' && $row['project_name'] === '' && $row['value_sar'] <= 0;
             if (!$empty) $rows[] = $row;
         }
+
         return $rows;
     }
 
@@ -198,6 +239,20 @@ class ForecastController extends Controller
                 return;
             }
 
+            // ✅ SALES SOURCE: required + must match region allowed list
+            $allowed = $this->allowedSalesSources($region);
+            $srcRaw  = $row['sales_source'] ?? '';
+            $srcKey  = $this->norm($srcRaw);
+
+            if ($srcKey === '') {
+                $errors[$label][] = 'Sales Source is required.';
+                return;
+            }
+            if (!empty($allowed) && !in_array($srcKey, $allowed, true)) {
+                $errors[$label][] = 'Invalid Sales Source for your region.';
+                return;
+            }
+
             // --- Quotation format check (OPTIONAL, only if filled) ---
             $qtn = trim((string)($row['quotation_no'] ?? ''));
             if ($qtn !== '' && !preg_match(self::QTN_RE, $qtn)) {
@@ -212,9 +267,7 @@ class ForecastController extends Controller
             }
             $seenSubmission[$pkey] = true;
 
-            // --- Percentage: NOW OPTIONAL + NO MIN LIMIT ---
-            // If user leaves it blank → no error, no extra rule.
-            // If user fills it → must be numeric, but can be any number.
+            // --- Percentage: OPTIONAL ---
             $pctRaw = $row['percentage'] ?? null;
             $pct    = null;
             if ($pctRaw !== '' && $pctRaw !== null) {
@@ -223,10 +276,9 @@ class ForecastController extends Controller
                     return;
                 }
                 $pct = (float)$pctRaw;
-                // NOTE: no ">= 75%" rule anymore
             }
 
-            // --- Historical checks (NEW vs CARRY logic), but WITHOUT % comparisons ---
+            // --- Historical checks (NEW vs CARRY logic) ---
             $prior = $this->latestPriorForUser($salesman, $region, $custKey, $projKey, $year, $monthNo);
             $same  = $this->existsSameMonthForUser($salesman, $region, $custKey, $projKey, $year, $monthNo);
 
@@ -243,17 +295,7 @@ class ForecastController extends Controller
                     $errors[$label][] = 'This pair is already in New Orders in this submission. Keep it in New, not Carry.';
                     return;
                 }
-//                if (!$prior) {
-//                    $errors[$label][] = 'No previous forecast found for you. This looks NEW — put it in New Orders.';
-//                    return;
-//                }
-
-                // ⛔ OLD RULE REMOVED:
-                // $lastPct = (float)($prior->percentage ?? 0);
-                // if ($pct !== null && $pct <= $lastPct) {
-                //     $when = $this->monthLabel($prior);
-                //     $errors[$label][] = "Percentage must be greater than last time ({$lastPct}% in {$when}).";
-                // }
+                // (Your old carry rules are intentionally kept commented as you left them.)
             }
         };
 
@@ -266,8 +308,6 @@ class ForecastController extends Controller
 
         return $errors;
     }
-
-
 
     protected function replaceSheet(
         string $salesman, string $region, int $year, int $monthNo, string $month,
@@ -284,6 +324,10 @@ class ForecastController extends Controller
                 'quotation_no' => $row['quotation_no'] ?? null,
                 'products' => $row['products'] ?? null,
                 'product_family' => $row['product_family'] ?? null,
+
+                // ✅ SALES SOURCE: insert into DB
+                'sales_source' => $row['sales_source'] ?? null,
+
                 'value_sar' => (float)($row['value_sar'] ?? 0),
                 'percentage' => isset($row['percentage']) ? (int)$row['percentage'] : null,
                 'remarks' => $row['remarks'] ?? null,
@@ -328,8 +372,8 @@ class ForecastController extends Controller
         $month = (string)$r->input('month', now()->format('F'));
 
         // --- extract + filter out blank rows ------------------------------------
-        $rowsNewRaw = $this->extractRows($r, 'new');   // expect array of assoc rows
-        $rowsCarryRaw = $this->extractRows($r, 'carry'); // expect array of assoc rows
+        $rowsNewRaw = $this->extractRows($r, 'new');
+        $rowsCarryRaw = $this->extractRows($r, 'carry');
 
         $hasData = function (array $row): bool {
             $val = (float)preg_replace('/[^\d.\-]/', '', (string)($row['value_sar'] ?? '0'));
@@ -339,6 +383,10 @@ class ForecastController extends Controller
                 trim((string)($row['project_name'] ?? '')) !== '' ||
                 trim((string)($row['quotation_no'] ?? '')) !== '' ||
                 trim((string)($row['product_family'] ?? '')) !== '' ||
+
+                // ✅ SALES SOURCE: include in "hasData"
+                trim((string)($row['sales_source'] ?? '')) !== '' ||
+
                 trim((string)($row['remarks'] ?? '')) !== '' ||
                 (isset($row['percentage']) && $row['percentage'] !== '' && $row['percentage'] !== null) ||
                 $val > 0;
@@ -346,11 +394,17 @@ class ForecastController extends Controller
 
         $normalize = function (array $row): array {
             // Trim strings
-            foreach (['customer_name', 'products', 'project_name', 'quotation_no', 'product_family', 'remarks'] as $k) {
+            foreach (['customer_name', 'products', 'project_name', 'quotation_no', 'product_family', 'remarks', 'sales_source'] as $k) {
                 if (isset($row[$k])) {
                     $row[$k] = trim((string)$row[$k]);
                 }
             }
+
+            // ✅ SALES SOURCE normalize to uppercase
+            if (isset($row['sales_source'])) {
+                $row['sales_source'] = strtoupper(trim((string)$row['sales_source']));
+            }
+
             // Clean numbers
             if (isset($row['value_sar'])) {
                 $row['value_sar'] = (float)preg_replace('/[^\d.\-]/', '', (string)$row['value_sar']);
@@ -376,7 +430,7 @@ class ForecastController extends Controller
             ], 422);
         }
 
-        // --- validate (reuse your validator) ------------------------------------
+        // --- validate ------------------------------------------------------------
         $errors = $this->validateRows($rowsNew, $rowsCarry, $year, $monthNo, $salesman, $region, true);
         if (!empty($errors)) {
             return response()->json(['ok' => false, 'issues' => $this->packIssues($errors)], 422);
@@ -387,7 +441,6 @@ class ForecastController extends Controller
 
         return response()->json(['ok' => true, 'saved' => $saved]);
     }
-
 
     /* ---------------------- PDF (validate → save → render) ---------------------- */
     public function pdf(Request $r)
@@ -441,10 +494,9 @@ HTML;
         $rowsNewPosted = $this->extractRows($r, 'new');
         $rowsCarryPosted = $this->extractRows($r, 'carry');
 
-        // 3) Validate with the *posted* arrays (IMPORTANT: include salesman/region)
+        // 3) Validate with the posted arrays
         $errors = $this->validateRows($rowsNewPosted, $rowsCarryPosted, $year, $monthNo, $salesman, $region, true);
         if (!empty($errors)) {
-            // convert to UI-friendly list for the small error page
             $issues = $this->packIssues($errors);
             return $inlineError('Validation failed', $issues, 422);
         }
@@ -468,14 +520,19 @@ HTML;
         }
 
         $map = fn($row) => [
-            'customer' => $row->customer_name,
-            'product' => $row->products,
-            'project' => $row->project_name,
-            'quotation' => $row->quotation_no,
-            'value' => (float)$row->value_sar,
-            'percentage' => $row->percentage,
-            'remarks' => $row->remarks,
+            'customer'       => $row->customer_name,
+            'product'        => $row->products,
+            'project'        => $row->project_name,
+            'quotation'      => $row->quotation_no,
+
+            'percentage'     => $row->percentage,
+            'product_family' => $row->product_family,
+            'sales_source'   => $row->sales_source,
+
+            'value'          => (float)$row->value_sar,
+            'remarks'        => $row->remarks,
         ];
+
         $newOrders = $rows->where('type', 'new')->map($map)->values()->all();
         $carryOver = $rows->where('type', 'carry')->map($map)->values()->all();
 
@@ -533,7 +590,6 @@ HTML;
         return $pdf->stream($fileName);
     }
 
-
     protected function packIssues(array $errors): array
     {
         $issues = [];
@@ -551,7 +607,6 @@ HTML;
         }
         return $issues;
     }
-
 
 
 
@@ -582,95 +637,95 @@ HTML;
      * Canonical data builder for Targets 2026 (Portal + PDF).
      * Keeps defaults, but allows controller to override header + rows.
      */
-    public function buildTargets2026Data(Request $request, array $overrides = []): array
-    {
-        $user = $request->user();
-
-        // Base (from logged-in user)
-        $baseRegion = $user->region ?? 'All Regions';
-
-        // ✅ Allow override (manual form may pick region)
-        $region = $overrides['region'] ?? $baseRegion;
-
-        // ✅ Region-based annual target (adjust to your real numbers)
-        // You can replace this with DB/config later.
-        $annualTargetByRegion = [
-            'Eastern'     => 50_000_000,
-            'Central'     => 50_000_000,
-            'Western'     => 36_000_000,
-            'All Regions' => 50_000_000,
-        ];
-        $annualTarget = $annualTargetByRegion[$region] ?? 35_000_000;
-
-        // ✅ Rows coming from DB (portal view) - keep your real query later
-        $rowsA = []; // new orders
-        $rowsB = [];
-        $rowsC = [];
-        $rowsD = [];
-
-        // ✅ Merge overrides for rows if passed
-        if (array_key_exists('rowsA', $overrides)) $rowsA = (array) $overrides['rowsA'];
-        if (array_key_exists('rowsB', $overrides)) $rowsB = (array) $overrides['rowsB'];
-        if (array_key_exists('rowsC', $overrides)) $rowsC = (array) $overrides['rowsC'];
-        if (array_key_exists('rowsD', $overrides)) $rowsD = (array) $overrides['rowsD'];
-
-        // ✅ Criteria legend (used by PDF blade)
-        $criteriaLegend = [
-            'A' => 'Commercial matters agreed & MS approved',
-            'B' => 'Commercial matters agreed OR MS approved',
-            'C' => 'Neither commercial matters nor MS achieved',
-            'D' => 'Project is in bidding stage',
-        ];
-
-        return [
-            'year'           => $overrides['year']           ?? 2026,
-            'submissionDate' => $overrides['submissionDate'] ?? now()->format('Y-m-d'),
-            'region'         => $region,
-            'issuedBy'       => $overrides['issuedBy']       ?? ($user->name ?? ''),
-            'issuedDate'     => $overrides['issuedDate']     ?? now()->format('Y-m-d'),
-
-            'forecast' => array_merge([
-                'annual_target' => $annualTarget,
-            ], (array)($overrides['forecast'] ?? [])),
-
-            // ✅ Sections (your PDF blade already supports these)
-            'rowsA' => $rowsA,
-            'rowsB' => $rowsB,
-            'rowsC' => $rowsC,
-            'rowsD' => $rowsD,
-
-            // ✅ Make sure blade sees this name
-            'criteriaLegend' => $criteriaLegend,
-        ];
-    }
+//    public function buildTargets2026Data(Request $request, array $overrides = []): array
+//    {
+//        $user = $request->user();
+//
+//        // Base (from logged-in user)
+//        $baseRegion = $user->region ?? 'All Regions';
+//
+//        // ✅ Allow override (manual form may pick region)
+//        $region = $overrides['region'] ?? $baseRegion;
+//
+//        // ✅ Region-based annual target (adjust to your real numbers)
+//        // You can replace this with DB/config later.
+//        $annualTargetByRegion = [
+//            'Eastern'     => 50_000_000,
+//            'Central'     => 50_000_000,
+//            'Western'     => 36_000_000,
+//            'All Regions' => 50_000_000,
+//        ];
+//        $annualTarget = $annualTargetByRegion[$region] ?? 35_000_000;
+//
+//        // ✅ Rows coming from DB (portal view) - keep your real query later
+//        $rowsA = []; // new orders
+//        $rowsB = [];
+//        $rowsC = [];
+//        $rowsD = [];
+//
+//        // ✅ Merge overrides for rows if passed
+//        if (array_key_exists('rowsA', $overrides)) $rowsA = (array) $overrides['rowsA'];
+//        if (array_key_exists('rowsB', $overrides)) $rowsB = (array) $overrides['rowsB'];
+//        if (array_key_exists('rowsC', $overrides)) $rowsC = (array) $overrides['rowsC'];
+//        if (array_key_exists('rowsD', $overrides)) $rowsD = (array) $overrides['rowsD'];
+//
+//        // ✅ Criteria legend (used by PDF blade)
+//        $criteriaLegend = [
+//            'A' => 'Commercial matters agreed & MS approved',
+//            'B' => 'Commercial matters agreed OR MS approved',
+//            'C' => 'Neither commercial matters nor MS achieved',
+//            'D' => 'Project is in bidding stage',
+//        ];
+//
+//        return [
+//            'year'           => $overrides['year']           ?? 2026,
+//            'submissionDate' => $overrides['submissionDate'] ?? now()->format('Y-m-d'),
+//            'region'         => $region,
+//            'issuedBy'       => $overrides['issuedBy']       ?? ($user->name ?? ''),
+//            'issuedDate'     => $overrides['issuedDate']     ?? now()->format('Y-m-d'),
+//
+//            'forecast' => array_merge([
+//                'annual_target' => $annualTarget,
+//            ], (array)($overrides['forecast'] ?? [])),
+//
+//            // ✅ Sections (your PDF blade already supports these)
+//            'rowsA' => $rowsA,
+//            'rowsB' => $rowsB,
+//            'rowsC' => $rowsC,
+//            'rowsD' => $rowsD,
+//
+//            // ✅ Make sure blade sees this name
+//            'criteriaLegend' => $criteriaLegend,
+//        ];
+//    }
 
     /**
      * 1️⃣ Web page (HTML) – managers see the sheet and a Download button
      */
-    public function showTargets2026(Request $request)
-    {
-        $data = $this->buildTargets2026Data($request);
-
-        return view('forecast.targets_2026', $data + [
-                'showDownloadButton' => true,
-                'isPdf'              => false,
-            ]);
-    }
+//    public function showTargets2026(Request $request)
+//    {
+//        $data = $this->buildTargets2026Data($request);
+//
+//        return view('forecast.targets_2026', $data + [
+//                'showDownloadButton' => true,
+//                'isPdf'              => false,
+//            ]);
+//    }
 
     /**
      * 2️⃣ GET: show manual entry form (create)
      */
-    public function createTargets2026(Request $request)
-    {
-        $user = $request->user();
-
-        return view('forecast.targets_2026_create', [
-            'year'       => 2026,
-            'region'     => $user->region ?? 'All Regions',
-            'issuedBy'   => $user->name ?? '',
-            'issuedDate' => now()->format('Y-m-d'),
-        ]);
-    }
+//    public function createTargets2026(Request $request)
+//    {
+//        $user = $request->user();
+//
+//        return view('forecast.targets_2026_create', [
+//            'year'       => 2026,
+//            'region'     => $user->region ?? 'All Regions',
+//            'issuedBy'   => $user->name ?? '',
+//            'issuedDate' => now()->format('Y-m-d'),
+//        ]);
+//    }
 
     /**
      * 3️⃣ POST: Download PDF from manual form
@@ -679,95 +734,95 @@ HTML;
      * ✅ FIX: Do NOT collapse/renumber rows. Keep blank rows so PDF row numbers match the form.
      *       Only trim trailing empty rows after the last filled row.
      */
-    public function downloadTargets2026FromForm(Request $request)
-    {
-        $validated = $request->validate([
-            'year'           => 'required|integer',
-            'region'         => 'required|string',
-            'issuedBy'       => 'required|string',
-            'issuedDate'     => 'required|date',
-            'submissionDate' => 'nullable|date',
-            'annual_target'  => 'required|numeric',
-
-            'orders'                     => 'array',
-            'orders.*.customer'          => 'nullable|string',
-            'orders.*.product'           => 'nullable|string',
-            'orders.*.project'           => 'nullable|string',
-            'orders.*.quotation'         => 'nullable|string',
-            'orders.*.value'             => 'nullable|numeric',
-            'orders.*.status'            => 'nullable|in:In-hand,Bidding',
-            'orders.*.forecast_criteria' => 'nullable|in:A,B,C,D',
-            'orders.*.remarks'           => 'nullable|string',
-        ]);
-
-        // ✅ Normalize rows but KEEP index positions (do not ->filter()->values())
-        $rawOrders = $request->input('orders', []);
-
-        $normalized = collect($rawOrders)->map(function ($row) {
-            return [
-                'customer'          => trim((string)($row['customer'] ?? '')),
-                'product'           => trim((string)($row['product'] ?? '')),
-                'project'           => trim((string)($row['project'] ?? '')),
-                'quotation'         => trim((string)($row['quotation'] ?? '')),
-                'value'             => ($row['value'] ?? null) !== null && $row['value'] !== ''
-                    ? (float) $row['value']
-                    : null,
-                'status'            => trim((string)($row['status'] ?? '')),
-                'forecast_criteria' => trim((string)($row['forecast_criteria'] ?? '')),
-                'remarks'           => trim((string)($row['remarks'] ?? '')),
-            ];
-        });
-
-        // ✅ Find last non-empty row so we keep blanks in between but remove blanks after last entry
-        $lastFilledIndex = -1;
-
-        foreach ($normalized as $idx => $r) {
-            $hasAny =
-                ($r['customer'] !== '')
-                || ($r['product'] !== '')
-                || ($r['project'] !== '')
-                || ($r['quotation'] !== '')
-                || ($r['value'] !== null)
-                || ($r['status'] !== '')
-                || ($r['forecast_criteria'] !== '')
-                || ($r['remarks'] !== '');
-
-            if ($hasAny) {
-                $lastFilledIndex = $idx;
-            }
-        }
-
-        // ✅ Keep up to last filled (preserve row order), else empty
-        $rowsA = $lastFilledIndex >= 0
-            ? $normalized->slice(0, $lastFilledIndex + 1)->values()->all()
-            : [];
-
-        // ✅ Build canonical base + override from form
-        $data = $this->buildTargets2026Data($request, [
-            'year'           => (int) $validated['year'],
-            'region'         => $validated['region'],
-            'issuedBy'       => $validated['issuedBy'],
-            'issuedDate'     => $validated['issuedDate'],
-            'submissionDate' => $validated['submissionDate'] ?? now()->format('Y-m-d'),
-            'forecast'       => [
-                'annual_target' => (float) $validated['annual_target'],
-            ],
-            'rowsA'          => $rowsA,
-        ]);
-
-        // ✅ Pick PDF view if exists else fallback to same view
-        $view = view()->exists('forecast.targets_2026_pdf')
-            ? 'forecast.targets_2026_pdf'
-            : 'forecast.targets_2026';
-
-        $pdf = Pdf::loadView($view, $data + [
-                'showDownloadButton' => false,
-                'isPdf'              => true,
-            ])
-            ->setPaper('a4', 'landscape');
-
-        return $pdf->download('annual_targets_2026.pdf');
-    }
+//    public function downloadTargets2026FromForm(Request $request)
+//    {
+//        $validated = $request->validate([
+//            'year'           => 'required|integer',
+//            'region'         => 'required|string',
+//            'issuedBy'       => 'required|string',
+//            'issuedDate'     => 'required|date',
+//            'submissionDate' => 'nullable|date',
+//            'annual_target'  => 'required|numeric',
+//
+//            'orders'                     => 'array',
+//            'orders.*.customer'          => 'nullable|string',
+//            'orders.*.product'           => 'nullable|string',
+//            'orders.*.project'           => 'nullable|string',
+//            'orders.*.quotation'         => 'nullable|string',
+//            'orders.*.value'             => 'nullable|numeric',
+//            'orders.*.status'            => 'nullable|in:In-hand,Bidding',
+//            'orders.*.forecast_criteria' => 'nullable|in:A,B,C,D',
+//            'orders.*.remarks'           => 'nullable|string',
+//        ]);
+//
+//        // ✅ Normalize rows but KEEP index positions (do not ->filter()->values())
+//        $rawOrders = $request->input('orders', []);
+//
+//        $normalized = collect($rawOrders)->map(function ($row) {
+//            return [
+//                'customer'          => trim((string)($row['customer'] ?? '')),
+//                'product'           => trim((string)($row['product'] ?? '')),
+//                'project'           => trim((string)($row['project'] ?? '')),
+//                'quotation'         => trim((string)($row['quotation'] ?? '')),
+//                'value'             => ($row['value'] ?? null) !== null && $row['value'] !== ''
+//                    ? (float) $row['value']
+//                    : null,
+//                'status'            => trim((string)($row['status'] ?? '')),
+//                'forecast_criteria' => trim((string)($row['forecast_criteria'] ?? '')),
+//                'remarks'           => trim((string)($row['remarks'] ?? '')),
+//            ];
+//        });
+//
+//        // ✅ Find last non-empty row so we keep blanks in between but remove blanks after last entry
+//        $lastFilledIndex = -1;
+//
+//        foreach ($normalized as $idx => $r) {
+//            $hasAny =
+//                ($r['customer'] !== '')
+//                || ($r['product'] !== '')
+//                || ($r['project'] !== '')
+//                || ($r['quotation'] !== '')
+//                || ($r['value'] !== null)
+//                || ($r['status'] !== '')
+//                || ($r['forecast_criteria'] !== '')
+//                || ($r['remarks'] !== '');
+//
+//            if ($hasAny) {
+//                $lastFilledIndex = $idx;
+//            }
+//        }
+//
+//        // ✅ Keep up to last filled (preserve row order), else empty
+//        $rowsA = $lastFilledIndex >= 0
+//            ? $normalized->slice(0, $lastFilledIndex + 1)->values()->all()
+//            : [];
+//
+//        // ✅ Build canonical base + override from form
+//        $data = $this->buildTargets2026Data($request, [
+//            'year'           => (int) $validated['year'],
+//            'region'         => $validated['region'],
+//            'issuedBy'       => $validated['issuedBy'],
+//            'issuedDate'     => $validated['issuedDate'],
+//            'submissionDate' => $validated['submissionDate'] ?? now()->format('Y-m-d'),
+//            'forecast'       => [
+//                'annual_target' => (float) $validated['annual_target'],
+//            ],
+//            'rowsA'          => $rowsA,
+//        ]);
+//
+//        // ✅ Pick PDF view if exists else fallback to same view
+//        $view = view()->exists('forecast.targets_2026_pdf')
+//            ? 'forecast.targets_2026_pdf'
+//            : 'forecast.targets_2026';
+//
+//        $pdf = Pdf::loadView($view, $data + [
+//                'showDownloadButton' => false,
+//                'isPdf'              => true,
+//            ])
+//            ->setPaper('a4', 'landscape');
+//
+//        return $pdf->download('annual_targets_2026.pdf');
+//    }
 
 
 

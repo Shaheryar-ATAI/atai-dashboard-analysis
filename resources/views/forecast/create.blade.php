@@ -82,6 +82,19 @@
             color: inherit;
         }
 
+        /* ✅ Sales Source cell same rendering rules */
+        td.ss-cell .pf-wrap {
+            min-width: 150px;
+        }
+        td.ss-cell select.form-select {
+            display: block;
+            width: 100%;
+            min-height: calc(1.5em + .5rem + 2px);
+            appearance: auto;
+            background-color: inherit;
+            color: inherit;
+        }
+
         /* Header: keep a dark band with readable text */
         #tblA thead, #tblB thead {
             --bs-table-bg: #1f2636; /* dark slate */
@@ -139,37 +152,25 @@
             border-top: 2px solid rgba(0, 0, 0, .15); /* visible separator */
         }
 
-        /* (optional) subtle gray footer instead of white */
-        /*
-        #tblA tfoot th, #tblA tfoot td,
-        #tblB tfoot th, #tblB tfoot td {
-          background-color: #f7f7f8 !important;
-          color: #111 !important;
-          border-top: 2px solid rgba(0,0,0,.1);
-        }
-        */
-
         /* (optional) keep the footer “sticky” while scrolling inside the table */
         #tblA tfoot, #tblB tfoot {
             position: sticky;
             bottom: 0;
             z-index: 1;
         }
-
     </style>
 @endpush
+
 @section('content')
 
-    @php $u = auth()->user();
-     $defaultMonthTarget = match($region) {
-          'Eastern', 'Central' => 4200000,
-          'Western'            => 3000000,
-          default              => 0,
-  };
-
-
- @endphp
-
+    @php
+        $u = auth()->user();
+        $defaultMonthTarget = match($region) {
+            'Eastern', 'Central' => 4200000,
+            'Western'            => 3000000,
+            default              => 0,
+        };
+    @endphp
 
     {{-- Toast (bottom-right) --}}
     <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
@@ -318,13 +319,13 @@
                                        value="{{ old('required_forecast') }}"
                                        placeholder="SAR 0">
                             </div>
-{{--                            <div class="">--}}
-{{--                                <label class="form-label small text-uppercase">Conversion Ratio</label>--}}
-{{--                                <input name="conversion_ratio"--}}
-{{--                                       class="form-control form-control-sm"--}}
-{{--                                       value="{{ old('conversion_ratio') }}"--}}
-{{--                                       placeholder="e.g. 20%">--}}
-{{--                            </div>--}}
+                            {{--                            <div class="">--}}
+                            {{--                                <label class="form-label small text-uppercase">Conversion Ratio</label>--}}
+                            {{--                                <input name="conversion_ratio"--}}
+                            {{--                                       class="form-control form-control-sm"--}}
+                            {{--                                       value="{{ old('conversion_ratio') }}"--}}
+                            {{--                                       placeholder="e.g. 20%">--}}
+                            {{--                            </div>--}}
                         </div>
                     </div>
                 </div>
@@ -352,6 +353,10 @@
                                 <th style="width:110px;" class="text-center">% (optional)</th>
                                 <th class="text-end" style="width:140px;">Value (SAR)</th>
                                 <th style="width:160px;">Product Family</th>
+
+                                {{-- ✅ NEW COLUMN --}}
+                                <th style="width:160px;">Sales Source</th>
+
                                 <th style="width:220px;">Remarks</th>
                                 <th style="width:40px;"></th>
                             </tr>
@@ -367,7 +372,7 @@
                                     <span id="totalA" class="fw-bold">SAR 0</span>
                                     <input type="hidden" name="totals[a]" id="totalAHidden" value="0">
                                 </th>
-                                <th colspan="3"></th>
+                                <th colspan="4"></th>
                             </tr>
                             </tfoot>
                         </table>
@@ -397,6 +402,10 @@
                                 <th style="width:110px;" class="text-center">% (≥75)</th>
                                 <th class="text-end" style="width:140px;">Value (SAR)</th>
                                 <th style="width:160px;">Product Family</th>
+
+                                {{-- ✅ NEW COLUMN --}}
+                                <th style="width:160px;">Sales Source</th>
+
                                 <th style="width:220px;">Remarks</th>
                                 <th style="width:40px;"></th>
                             </tr>
@@ -410,7 +419,7 @@
                                     <span id="totalB" class="fw-bold">SAR 0</span>
                                     <input type="hidden" name="totals[b]" id="totalBHidden" value="0">
                                 </th>
-                                <th colspan="3"></th>
+                                <th colspan="4"></th>
                             </tr>
                             </tfoot>
                         </table>
@@ -423,8 +432,8 @@
                 class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-5">
                 <div class="small text-secondary">
                     <i class="bi bi-info-circle me-1"></i>
-                    Tip: paste from Excel directly into the table (Customer | Products | Project | % | Value | Family |
-                    Remarks).
+{{--                    Tip: paste from Excel directly into the table (Customer | Products | Project | % | Value | Family |--}}
+{{--                    Remarks).--}}
                 </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-success fw-semibold js-save" type="button">
@@ -440,7 +449,6 @@
         </form>
     </main>
 @endsection
-
 
 @push('scripts')
 
@@ -509,35 +517,70 @@
 
             function familySelect(name) {
                 return `
-      <div class="pf-wrap">
-        <select name="${name}" class="form-select form-select-sm text-center w-100" style="background:#f0f3f7!important;color:#000!important;border:1px solid #e1e3e5!important">
-          <option value="">Select Product</option>
-          <option value="Ductwork">Ductwork</option>
-          <option value="Dampers">Dampers</option>
-          <option value="Sound">Sound</option>
-          <option value="Accessories">Accessories</option>
-        </select>
-      </div>`;
+                  <div class="pf-wrap">
+                    <select name="${name}" class="form-select form-select-sm text-center w-100" style="background:#f0f3f7!important;color:#000!important;border:1px solid #e1e3e5!important">
+                      <option value="">Select Product</option>
+                      <option value="Ductwork">Ductwork</option>
+                      <option value="Dampers">Dampers</option>
+                      <option value="Sound">Sound</option>
+                      <option value="Accessories">Accessories</option>
+                    <option value="Ductwork-Accessories">Ductwork & Accessories</option>
+                    </select>
+                  </div>`;
+            }
+
+            // ✅ Region getter (radio)
+            function getSelectedRegion() {
+                const checked = document.querySelector('input[name="region"]:checked');
+                return checked ? checked.value : (document.getElementById('kpiRegion')?.textContent || '');
+            }
+
+            // ✅ Sales Source select (region-based options)
+            function salesSourceSelect(name, region) {
+                const r = String(region || '').toUpperCase().trim();
+
+                let opts = [];
+                if (r === 'WESTERN') opts = ['ABDO', 'AHMED'];
+                else if (r === 'CENTRAL') opts = ['TAREQ', 'JAMAL'];
+                else if (r === 'EASTERN') opts = ['SOHAIB'];
+
+                const optionsHtml = opts.map(v => `<option value="${v}">${v}</option>`).join('');
+
+                return `
+                  <div class="pf-wrap">
+                    <select name="${name}" class="form-select form-select-sm text-center w-100 sales-source" style="background:#f0f3f7!important;color:#000!important;border:1px solid #e1e3e5!important">
+                      <option value="">Select Sales Source</option>
+                      ${optionsHtml}
+                    </select>
+                  </div>`;
             }
 
             function makeRow(section, idx) {
                 const key = section === 'A' ? 'new_orders' : 'carry_over';
                 const tr = document.createElement('tr');
+
+                const region = getSelectedRegion();
+
                 tr.innerHTML = `
-      <td class="serial text-secondary">${idx + 1}</td>
-      <td><input name="${key}[${idx}][customer_name]" class="form-control form-control-sm"></td>
-      <td><input name="${key}[${idx}][products]" class="form-control form-control-sm"></td>
-      <td><input name="${key}[${idx}][project_name]" class="form-control form-control-sm"></td>
-      <td>
-        <input name="${key}[${idx}][quotation_no]" class="form-control form-control-sm qtn" placeholder="S.0000.0.0000.XX.R0">
-      </td>
-      <td class="text-center" style="max-width:110px;">
-        <input name="${key}[${idx}][percentage]" type="number" min="0" max="100" class="form-control form-control-sm text-center pct" placeholder="%">
-      </td>
-      <td class="text-end"><input name="${key}[${idx}][value_sar]" class="form-control form-control-sm text-end value"></td>
-      <td class="pf-cell">${familySelect(`${key}[${idx}][product_family]`)}</td>
-      <td><input name="${key}[${idx}][remarks]" class="form-control form-control-sm"></td>
-      <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger del"><i class="bi bi-x-lg"></i></button></td>`;
+                  <td class="serial text-secondary">${idx + 1}</td>
+                  <td><input name="${key}[${idx}][customer_name]" class="form-control form-control-sm"></td>
+                  <td><input name="${key}[${idx}][products]" class="form-control form-control-sm"></td>
+                  <td><input name="${key}[${idx}][project_name]" class="form-control form-control-sm"></td>
+                  <td>
+                    <input name="${key}[${idx}][quotation_no]" class="form-control form-control-sm qtn" placeholder="S.0000.0.0000.XX.R0">
+                  </td>
+                  <td class="text-center" style="max-width:110px;">
+                    <input name="${key}[${idx}][percentage]" type="number" min="0" max="100" class="form-control form-control-sm text-center pct" placeholder="%">
+                  </td>
+                  <td class="text-end"><input name="${key}[${idx}][value_sar]" class="form-control form-control-sm text-end value"></td>
+                  <td class="pf-cell">${familySelect(`${key}[${idx}][product_family]`)}</td>
+
+                  {{-- ✅ NEW CELL --}}
+                <td class="ss-cell">${salesSourceSelect(`${key}[${idx}][sales_source]`, region)}</td>
+
+                  <td><input name="${key}[${idx}][remarks]" class="form-control form-control-sm"></td>
+                  <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger del"><i class="bi bi-x-lg"></i></button></td>
+                `;
                 return tr;
             }
 
@@ -609,6 +652,40 @@
             wireQuotationValidation(tblA);
             wireQuotationValidation(tblB);
             recalc();
+
+            // ✅ If region changes: rebuild Sales Source dropdown options for ALL rows
+            function refreshSalesSourceOptions() {
+                const region = getSelectedRegion();
+                const rebuildOne = (tbody, section) => {
+                    if (!tbody) return;
+                    const key = section === 'A' ? 'new_orders' : 'carry_over';
+                    [...tbody.querySelectorAll('select.sales-source')].forEach((sel, i) => {
+                        const current = sel.value;
+                        // Replace only the options based on region
+                        let opts = [];
+                        const r = String(region || '').toUpperCase().trim();
+                        if (r === 'WESTERN') opts = ['ABDO', 'AHMED'];
+                        else if (r === 'CENTRAL') opts = ['TAREQ', 'JAMAL'];
+                        else if (r === 'EASTERN') opts = ['SOHAIB'];
+
+                        // Keep first placeholder option
+                        sel.innerHTML = `<option value="">Select Sales Source</option>` + opts.map(v => `<option value="${v}">${v}</option>`).join('');
+                        // restore value if still valid
+                        if (opts.includes(current)) sel.value = current;
+                        else sel.value = '';
+                        // ensure correct name in case of any mismatch
+                        sel.name = `${key}[${i}][sales_source]`;
+                    });
+                };
+                rebuildOne(tblA, 'A');
+                rebuildOne(tblB, 'B');
+            }
+
+            document.querySelectorAll('input[name="region"]').forEach(r => {
+                r.addEventListener('change', () => {
+                    refreshSalesSourceOptions();
+                });
+            });
 
             // ---------- Toast + Save/PDF gating ----------
             const form = document.getElementById('forecastForm');
@@ -716,8 +793,7 @@
                     let data = {};
                     try {
                         data = contentType.includes('application/json') ? await res.json() : {};
-                    } catch (e) {
-                    }
+                    } catch (e) {}
                     const issues = data.issues || data.errors || [];
                     showIssues(Array.isArray(issues) ? issues : []);
                     enablePdfButtons(false);
@@ -734,8 +810,8 @@
                             const html = await res.text();
                             msg += String(html).replace(/<[^>]+>/g, ' ').trim().slice(0, 400);
                         }
-                    } catch (_) {
-                    }
+                    } catch (_) {}
+
                     if (toast && toastBody) {
                         toastBody.textContent = msg;
                         toastEl.classList.remove('text-bg-success');
@@ -751,8 +827,7 @@
                 let data = {};
                 try {
                     data = contentType.includes('application/json') ? await res.json() : {};
-                } catch (e) {
-                }
+                } catch (e) {}
 
                 if (data.ok) {
                     enablePdfButtons(true);
@@ -798,6 +873,7 @@
                 pct: `input[name*="[percentage]"]`,
                 value: `input[name*="[value_sar]"]`,
                 family: `select[name*="[product_family]"]`,
+                sales_source: `select[name*="[sales_source]"]`, // ✅ NEW
                 remarks: `input[name*="[remarks]"]`,
             };
             const sel = (q) => tr.querySelector(q);
@@ -808,6 +884,7 @@
             sel(map.pct)?.setAttribute('name', `${key}[${i}][percentage]`);
             sel(map.value)?.setAttribute('name', `${key}[${i}][value_sar]`);
             sel(map.family)?.setAttribute('name', `${key}[${i}][product_family]`);
+            sel(map.sales_source)?.setAttribute('name', `${key}[${i}][sales_source]`); // ✅ NEW
             sel(map.remarks)?.setAttribute('name', `${key}[${i}][remarks]`);
         }
 

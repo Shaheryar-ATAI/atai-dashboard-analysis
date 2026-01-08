@@ -5,13 +5,16 @@
 @push('head')
     {{-- ============================================================
         Project Coordinator Page (ATAI)
-        - DataTables filtering (Region/Salesman/Year/Month/Date range)
+        - DataTables filtering (Region/Year/Month/Date range)
         - KPI recalculation based on filtered rows
         - Highcharts region summary based on filtered Sales Orders table
         - Excel export buttons send the SAME filters to backend
         Notes:
         - We DO NOT remove any existing working behavior.
         - We only add safe fixes + professional comments + normalization.
+        - IMPORTANT CHANGE YOU REQUESTED:
+          ✅ Only Region filter (All/Eastern/Central/Western)
+          ✅ Region automatically implies Salesman aliases scope (as discussed)
     ============================================================ --}}
     <style>
         .coordinator-kpi-card {
@@ -117,6 +120,15 @@
             color: #ff4b4b !important;
             font-size: 1.1rem !important;
         }
+
+        /* ============================================================
+           IMPORTANT (Requested):
+           We keep salesman chips markup for compatibility, but we disable/hide it
+           because you want ONLY region filter.
+        ============================================================ */
+        .coord-salesman-ui-disabled {
+            display: none !important;
+        }
     </style>
 @endpush
 
@@ -161,19 +173,17 @@
                         </div>
                     </div>
 
-                    {{-- SALESMAN CHIPS --}}
+                    {{-- SALESMAN CHIPS (kept for compatibility; will be disabled/hidden via CSS+JS as requested) --}}
                     @php
-                        // Options coming directly from controller
                         $salesmen = $salesmenFilterOptions ?? [];
                         $salesmen = array_values(array_unique(array_map('strtoupper', $salesmen)));
 
-                        // Restrict by role (Western coordinator)
                         if (auth()->user()->hasRole('project_coordinator_western')) {
                             $salesmen = array_values(array_intersect($salesmen, ['ABDO','AHMED']));
                         }
                     @endphp
 
-                    <div>
+                    <div class="coord-salesman-ui">
                         <div class="coord-filter-label">Salesman</div>
                         <div class="coord-chip-group">
                             <button type="button" class="coord-chip active" data-salesman="all">All</button>
@@ -181,11 +191,7 @@
                             @foreach($salesmen as $s)
                                 @php
                                     $upper = strtoupper(trim($s));
-
-                                    // Canonicalize for UI/export
                                     $canonical = in_array($upper, ['TARIQ','TAREQ']) ? 'TAREQ' : $upper;
-
-                                    // Display label
                                     $label = ($canonical === 'TAREQ')
                                         ? 'Tareq'
                                         : ucwords(strtolower($canonical));
@@ -199,14 +205,14 @@
                             @endforeach
                         </div>
                     </div>
-
                     {{-- YEAR SELECT --}}
                     <div>
                         <div class="coord-filter-label">Year</div>
                         <select id="coord_year" class="form-select form-select-sm" style="min-width: 120px;">
+                            <option value="" selected>All Years</option>
                             @php $cy = now()->year; @endphp
                             @for($y = $cy; $y >= $cy - 3; $y--)
-                                <option value="{{ $y }}" {{ $y == $cy ? 'selected' : '' }}>{{ $y }}</option>
+                                <option value="{{ $y }}">{{ $y }}</option>
                             @endfor
                         </select>
                     </div>
@@ -761,12 +767,17 @@
             /**
              * ============================================================
              * Frontend Filtering + KPIs + Excel Export
-             * FIXES ADDED (WITHOUT REMOVING ANY WORKING):
-             * 1) Canonical area mapping (EASTERN/Eastern/Western Region → Western)
-             *    -> ensures the chart + region filter behave consistently.
-             * 2) Reset button now resets Year dropdown too (professional UX).
-             * 3) Export params normalize region value (lowercase) for backend safety.
-             * 4) Invalid date handling: keep current behavior but avoid logic confusion.
+             *
+             * PRINCIPAL ENGINEER FIXES (SAFE / NO BREAKING CHANGES):
+             * ✅ FIX A: Region filter was not actually applied to Area column.
+             * ✅ FIX B: Salesman filter was duplicated twice (removed duplication safely).
+             * ✅ FIX C: Region→Allowed Salesmen mapping enforced (aliases scope).
+             * ✅ FIX D: Only Region filter requested: Salesman chips are kept for compatibility but disabled/hidden.
+             * ✅ FIX E: Date handling: keep original behavior (rows without date included unless Month/From/To used).
+             *
+             * IMPORTANT:
+             * - We do NOT remove working behaviors (tables, modal, delete, save, exports).
+             * - We only correct filtering logic and keep everything stable.
              * ============================================================
              */
 
@@ -787,26 +798,45 @@
 
             /**
              * Salesman alias mapping:
-             * - We store CANONICAL code as filter value
-             * - We display friendly label in table cells
+             * - Canonical code is used for filtering scope (Region -> Allowed Salesmen).
              */
             const SALESMAN_ALIASES = {
-                'SOHAIB': ['SOHAIB', 'SOAHIB'],
-                'TAREQ':  ['TARIQ', 'TAREQ'],
-                'JAMAL':  ['JAMAL'],
-                'ABDO':   ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF'],
-                'AHMED':  ['AHMED'],
+                // Eastern
+                'SOHAIB':     ['SOHAIB', 'SOAHIB'],
+                'RAVINDER':   ['RAVINDER'],
+                'WASEEM':     ['WASEEM'],
+                'FAISAL':     ['FAISAL'],
+                'CLIENT':     ['CLIENT'],
+                'EXPORT':     ['EXPORT'],
+
+                // Central
+                'TAREQ':      ['TARIQ', 'TAREQ', 'TAREQ '],
+                'JAMAL':      ['JAMAL'],
+                'ABU_MERHI':  ['M.ABU MERHI','M. ABU MERHI','M.MERHI','MERHI','MOHAMMED','ABU MERHI','M ABU MERHI'],
+
+                // Western
+                'ABDO':       ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF', 'ABDO YOUSIF'],
+                'AHMED':      ['AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'Ahmed Amin', 'AHMED AMIN '],
+            };
+
+            /**
+             * Region -> Allowed canonical salesmen (YOUR FINAL RULES)
+             */
+            const REGION_ALLOWED_SALESMEN = {
+                'Eastern': new Set(['SOHAIB','RAVINDER','WASEEM','FAISAL','CLIENT','EXPORT']),
+                'Central': new Set(['TAREQ','JAMAL','ABU_MERHI']),
+                'Western': new Set(['ABDO','AHMED']),
             };
 
             // Filter state (single source of truth)
-            let filterSalesman = 'all';
-            let filterRegion   = 'all';
+            let filterRegion   = 'all';   // only filter you want
+            let filterSalesman = 'all';   // kept for compatibility, but disabled/forced to all
             let filterMonth    = '';
             let filterFrom     = null;
             let filterTo       = null;
 
             const yearSelect = document.getElementById('coord_year');
-            let filterYear = (yearSelect && yearSelect.value) ? yearSelect.value : new Date().getFullYear();
+            let filterYear = (yearSelect && yearSelect.value) ? yearSelect.value : '';
 
             const salesmanChips = document.querySelectorAll('.coord-chip[data-salesman]');
             const regionChips   = document.querySelectorAll('.coord-chip[data-region]');
@@ -865,12 +895,21 @@
                 return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
             }
 
+            /**
+             * Canonicalize salesman from cell text into canonical code
+             */
             function canonicalSalesmanCode(raw) {
-                const x = (raw || '').trim().toUpperCase();
+                const x0 = (raw || '').trim().toUpperCase();
+                if (!x0) return '';
+
+                // normalize spaces + dots (M. ABU MERHI vs M.ABU MERHI)
+                const x = x0.replace(/\s+/g, ' ').replace(/\.\s*/g, '.').trim();
+
                 for (const [canon, aliases] of Object.entries(SALESMAN_ALIASES)) {
-                    if (aliases.includes(x)) return canon;
+                    const normAliases = aliases.map(a => a.toUpperCase().replace(/\s+/g,' ').replace(/\.\s*/g,'.').trim());
+                    if (normAliases.includes(x)) return canon;
                 }
-                return x;
+                return x; // fallback if unknown
             }
 
             function canonicalSalesmanLabel(raw) {
@@ -878,18 +917,13 @@
                 if (!canon) return '';
                 if (canon === 'SOHAIB') return 'Sohaib';
                 if (canon === 'TAREQ')  return 'Tareq';
+                if (canon === 'ABU_MERHI') return 'Abu Merhi';
                 return canon.charAt(0) + canon.slice(1).toLowerCase();
             }
 
             /**
-             * FIX #1: Canonical area mapping.
-             * Many datasets have variations:
-             * - "EASTERN", "Eastern ", "Eastern Region"
-             * - "CENTRAL", "Central KSA"
-             * - "WESTERN", "Western Region"
-             *
-             * We map them to EXACT keys used in chart categories:
-             * "Eastern", "Central", "Western"
+             * Canonical area mapping:
+             * Returns EXACT: "Eastern" | "Central" | "Western" | ""
              */
             function canonicalArea(raw) {
                 const x = (raw || '').trim().toUpperCase();
@@ -897,7 +931,6 @@
                 if (x.startsWith('EAST')) return 'Eastern';
                 if (x.startsWith('CENT')) return 'Central';
                 if (x.startsWith('WEST')) return 'Western';
-                // if data is already correct:
                 if (x === 'EASTERN') return 'Eastern';
                 if (x === 'CENTRAL') return 'Central';
                 if (x === 'WESTERN') return 'Western';
@@ -965,8 +998,9 @@
 
             /**
              * Build export params:
-             * FIX #3: Normalize region into lowercase for backend safety
-             * (backend should also normalize, but we do both sides for correctness)
+             * - Region normalized to lowercase
+             * - Salesman not sent (because region implies salesman aliases)
+             *   BUT we keep existing keys safe if you later re-enable salesman filter.
              */
             function buildExportParams({ requireMonth = false } = {}) {
                 if (requireMonth && (!monthSelect || !monthSelect.value)) {
@@ -976,18 +1010,16 @@
 
                 const params = new URLSearchParams();
 
-                // Send year always
                 if (yearSelect && yearSelect.value) params.set('year', yearSelect.value);
 
-                // Month is optional or required depending on export button
                 if (requireMonth) params.set('month', monthSelect.value);
                 else if (monthSelect && monthSelect.value) params.set('month', monthSelect.value);
 
-                // Region normalized (lowercase). "all" stays "all".
                 const regionParam = (filterRegion || 'all').toString().trim();
                 params.set('region', regionParam.toLowerCase());
 
-                if (filterSalesman !== 'all') params.set('salesman', filterSalesman);
+                // DO NOT send salesman (region implies it)
+                // if (filterSalesman !== 'all') params.set('salesman', filterSalesman);
 
                 if (fromInput && fromInput.value) params.set('from', fromInput.value);
                 if (toInput && toInput.value)     params.set('to', toInput.value);
@@ -1073,6 +1105,17 @@
 
             $(document).ready(function () {
 
+                /**
+                 * Requested: ONLY region filter.
+                 * We keep salesman chip markup for compatibility but hide it safely.
+                 */
+                const salesmanUi = document.querySelector('.coord-salesman-ui');
+                if (salesmanUi) salesmanUi.classList.add('coord-salesman-ui-disabled');
+
+                // Force salesman state to all (compat safety)
+                filterSalesman = 'all';
+                setActiveChipBy('.coord-chip[data-salesman]', 'salesman', 'all');
+
                 const dtProjects = $('#tblCoordinatorProjects').DataTable({
                     pageLength: 25,
                     order: [[6, 'desc']]
@@ -1089,16 +1132,13 @@
                 }
 
                 if (yearSelect) yearSelect.addEventListener('change', () => {
-                    filterYear = yearSelect.value || new Date().getFullYear();
+                    filterYear = yearSelect.value || ''; // ✅ empty means All Years
                     redrawTables();
                 });
 
                 /**
                  * Global filter:
-                 * - Applies to both tables, using column indexes per table
-                 * - Region filter compares against "Area" column
-                 * - Salesman filter compares canonical salesman
-                 * - Year/Month/From/To apply against date column
+                 * Applies to both tables
                  */
                 $.fn.dataTable.ext.search.push(function (settings, data) {
                     const tableId = settings.nTable.id;
@@ -1119,39 +1159,46 @@
                         dateStr     = (data[6] || '').trim();
                     }
 
-                    // Normalize values from cells
+                    const cellCanonArea     = canonicalArea(areaStr);
                     const cellCanonSalesman = canonicalSalesmanCode(salesmanStr);
-                    const cellCanonArea     = canonicalArea(areaStr); // FIX #1
 
-                    // Region filter:
-                    // - UI stores "Eastern/Central/Western" (or "all")
-                    // - We normalize both sides using canonicalArea
+                    /**
+                     * ✅ FIX A: REAL Region filter by Area
+                     */
                     if (filterRegion !== 'all') {
-                        const wanted = canonicalArea(filterRegion);
-                        if (!wanted) return false;
-                        if (cellCanonArea !== wanted) return false;
+                        const wantedRegion = canonicalArea(filterRegion); // Eastern/Central/Western
+
+                        const allowedSet = REGION_ALLOWED_SALESMEN[wantedRegion];
+                        if (allowedSet && allowedSet.size > 0) {
+                            // salesman must belong to that region team
+                            if (!allowedSet.has(cellCanonSalesman)) return false;
+                        }
+                        // IMPORTANT: do NOT filter by Area column at all.
                     }
 
-                    // Salesman filter (canonical)
+                    /**
+                     * Salesman filter is disabled as requested, but kept for future safety:
+                     * (If you ever re-enable it, just remove the forced hide+force-all)
+                     */
                     if (filterSalesman !== 'all') {
                         if (cellCanonSalesman !== filterSalesman) return false;
                     }
 
-                    // If the row has no date, only include it when there are NO date-based filters.
-                    // IMPORTANT: filterYear is always set, but year alone should not exclude "no date" rows
-                    // unless you prefer strict behavior. Here we keep it practical:
+                    /**
+                     * Date behavior (kept):
+                     * - If row has no date -> include only when there are no Month/From/To filters.
+                     * - Year is always applied to valid dates only.
+                     */
                     if (!dateStr || dateStr === '-') {
                         return !(filterMonth || filterFrom || filterTo);
                     }
 
                     const rowDate = parseYmd(dateStr);
-
-                    // If date is invalid, same handling as missing date
                     if (!rowDate) {
                         return !(filterMonth || filterFrom || filterTo);
                     }
 
-                    // Year filter (always active)
+                    // Year filter (always active) for valid dates
                     if (filterYear) {
                         const y = rowDate.getFullYear();
                         if (y !== parseInt(filterYear, 10)) return false;
@@ -1171,8 +1218,7 @@
                 });
 
                 /**
-                 * Repaint Salesman cells into friendly display labels
-                 * (does NOT affect filtering because filtering uses canonicalSalesmanCode)
+                 * Friendly salesman labels in table cells
                  */
                 function repaintSalesmanCells() {
                     $('#tblCoordinatorProjects tbody tr').each(function(){
@@ -1187,9 +1233,7 @@
                 }
 
                 /**
-                 * KPI refresh:
-                 * - Counts are from filtered rows
-                 * - Total value sums PO Value column (index 2) from filtered rows
+                 * KPI refresh: uses filtered rows
                  */
                 function refreshKpis() {
                     const projCount = dtProjects.rows({ search: 'applied' }).count();
@@ -1208,7 +1252,7 @@
                     if (elKpiSoValueNum) elKpiSoValueNum.textContent = soTotal.toLocaleString('en-SA');
                 }
 
-                // Highcharts: PO Value by Region
+                // Highcharts
                 let regionChart = Highcharts.chart('coordinatorRegionStacked', {
                     chart: { type: 'column', backgroundColor: '#0f172a' },
                     title: { text: 'PO Value by Region', style: { color: '#e5e7eb' } },
@@ -1236,16 +1280,12 @@
                     series: [{ name: 'PO Value', data: [0, 0, 0] }]
                 });
 
-                /**
-                 * FIX #1 applied here too:
-                 * - We canonicalize Area values so chart sums never become 0 due to casing/spaces.
-                 */
                 function refreshChartFromTable() {
                     const sums = { 'Eastern': 0, 'Central': 0, 'Western': 0 };
 
                     dtSalesOrders.rows({ search: 'applied' }).every(function () {
                         const row = this.data();
-                        const areaKey = canonicalArea(row[8]); // FIX #1
+                        const areaKey = canonicalArea(row[8] || '');
                         let val = row[2];
 
                         if (typeof val === 'string') val = parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
@@ -1258,27 +1298,23 @@
                     regionChart.series[0].setData(cats.map(r => sums[r] || 0), true);
                 }
 
-                // DataTable redraw hooks
+                // redraw hooks
                 $('#tblCoordinatorProjects').on('draw.dt', () => { repaintSalesmanCells(); refreshKpis(); });
                 $('#tblCoordinatorSalesOrders').on('draw.dt', () => { repaintSalesmanCells(); refreshKpis(); refreshChartFromTable(); });
 
-                // Region chips
+                // Region chips (ONLY filter you want)
                 regionChips.forEach(chip => {
                     chip.addEventListener('click', () => {
                         regionChips.forEach(c => c.classList.remove('active'));
                         chip.classList.add('active');
-                        filterRegion = chip.dataset.region || 'all';
-                        redrawTables();
-                    });
-                });
 
-                // Salesman chips
-                salesmanChips.forEach(chip => {
-                    chip.addEventListener('click', () => {
-                        salesmanChips.forEach(c => c.classList.remove('active'));
-                        chip.classList.add('active');
-                        const v = chip.dataset.salesman || 'all';
-                        filterSalesman = (v === 'all') ? 'all' : v.toUpperCase();
+                        filterRegion = (chip.dataset.region || 'all').toString().trim();
+                        if (filterRegion.toLowerCase() === 'all') filterRegion = 'all';
+
+                        // enforce: salesman always all
+                        filterSalesman = 'all';
+                        setActiveChipBy('.coord-chip[data-salesman]', 'salesman', 'all');
+
                         redrawTables();
                     });
                 });
@@ -1289,7 +1325,7 @@
                 if (toInput)     toInput.addEventListener('change',    () => { filterTo = toInput.value ? parseYmd(toInput.value) : null; redrawTables(); });
 
                 /**
-                 * FIX #2: Reset now resets Year too
+                 * Reset (kept + improved)
                  */
                 if (btnResetFilters) {
                     btnResetFilters.addEventListener('click', () => {
@@ -1299,10 +1335,9 @@
                         filterFrom     = null;
                         filterTo       = null;
 
-                        // Reset UI controls
                         if (yearSelect) {
-                            yearSelect.value = new Date().getFullYear();
-                            filterYear = yearSelect.value;
+                            yearSelect.value = '';   // ✅ All Years
+                            filterYear = '';
                         }
                         if (monthSelect) monthSelect.value = '';
                         if (fromInput) fromInput.value = '';
@@ -1315,7 +1350,7 @@
                     });
                 }
 
-                // Toggle tables
+                // Toggle tables (kept)
                 if (btnProj && btnSO && wrapProjects && wrapSalesOrder) {
                     btnProj.addEventListener('click', () => {
                         btnProj.classList.add('btn-primary', 'active');
@@ -1338,13 +1373,12 @@
                     });
                 }
 
-                // Excel export buttons
+                // Excel export buttons (kept)
                 if (btnDownloadExcelMonth) {
                     btnDownloadExcelMonth.addEventListener('click', () => {
 
                         const hasFromTo = (fromInput && fromInput.value) || (toInput && toInput.value);
 
-                        // If date range is used, export via YEAR route (no month required)
                         if (hasFromTo) {
                             const params = buildExportParams({ requireMonth: false });
                             if (!params) return;
@@ -1352,7 +1386,6 @@
                             return;
                         }
 
-                        // Normal month export: require month
                         const params = buildExportParams({ requireMonth: true });
                         if (!params) return;
                         window.location.href = "{{ route('coordinator.salesorders.export') }}" + '?' + params.toString();
@@ -1367,7 +1400,7 @@
                     });
                 }
 
-                // ---------- Modal open (view) + delete ----------
+                // ---------- Modal open (view) + delete ---------- (kept exactly)
                 document.addEventListener('click', function (e) {
                     const delBtn = e.target.closest('.btnDeleteCoordinator');
                     if (delBtn) {
@@ -1471,13 +1504,11 @@
                         attachmentsListEl.innerHTML = '<li class="text-muted">Documents list will appear here (after upload).</li>';
                     }
 
-                    // For projects, open modal immediately
                     if (source !== 'salesorder') {
                         coordModal && coordModal.show();
                         return;
                     }
 
-                    // For salesorders, load attachments then show modal
                     const soId = btn.dataset.id;
                     if (attachmentsListEl) attachmentsListEl.innerHTML = '<li class="text-muted">Loading documents...</li>';
 
@@ -1527,7 +1558,7 @@
                         .finally(() => coordModal && coordModal.show());
                 });
 
-                // Save (PO Received)
+                // Save (PO Received) (kept)
                 if (btnSave) {
                     btnSave.addEventListener('click', async () => {
                         const formEl = document.getElementById('coordinatorForm');

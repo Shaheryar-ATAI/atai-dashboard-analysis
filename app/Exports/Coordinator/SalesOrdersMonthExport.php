@@ -36,12 +36,12 @@ class SalesOrdersMonthExport implements
     protected int $month;
     protected string $regionLabel;
 
-    public function __construct(Collection $rows, int $year, int $month, string $regionLabel = 'All Regions')
+    public function __construct(Collection $rows, int $year, int $month)
     {
         $this->rows        = $rows;
         $this->year        = $year;
         $this->month       = $month;
-        $this->regionLabel = $regionLabel;
+     //   $this->regionLabel = $regionLabel;
     }
 
     public function title(): string

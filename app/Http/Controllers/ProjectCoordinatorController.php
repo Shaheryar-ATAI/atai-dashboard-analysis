@@ -2,58 +2,66 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use App\Models\Project;
-use App\Models\SalesOrderLog;
-use Illuminate\Http\Request;
-use App\Models\SalesOrderAttachment;
-use Illuminate\Support\Facades\DB;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\Coordinator\SalesOrdersMonthExport;
 use App\Exports\Coordinator\SalesOrdersYearExport;
+use App\Models\Project;
+use App\Models\SalesOrderAttachment;
+use App\Models\SalesOrderLog;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProjectCoordinatorController extends Controller
 {
     /* ============================================================
-     *  SCOPES
+     *  SCOPES (RBAC)
      * ============================================================ */
 
+    /**
+     * Returns a list of allowed salesman aliases for the logged-in user.
+     * Empty array means "no restriction" (GM/Admin/Eastern coordinator).
+     */
     private function coordinatorSalesmenScope($user): array
     {
         // GM/Admin (or permission) => all
-        if (method_exists($user, 'can') && $user->can('viewAllRegions')) {
-            return [];
-        }
-        if (method_exists($user, 'hasRole') && $user->hasRole('gm|admin')) {
+        if ((method_exists($user, 'can') && $user->can('viewAllRegions')) ||
+            (method_exists($user, 'hasRole') && $user->hasRole('gm|admin'))) {
             return [];
         }
 
-        // ✅ Eastern coordinator: ALL salesmen
+        // Eastern coordinator: ALL salesmen (no restriction)
         if (method_exists($user, 'hasRole') && $user->hasRole('project_coordinator_eastern')) {
             return [];
         }
 
-        // ✅ Western coordinator: ONLY ABDO + AHMED (with aliases)
+        // Western coordinator: ONLY ABDO + AHMED (with aliases)
         if (method_exists($user, 'hasRole') && $user->hasRole('project_coordinator_western')) {
             return [
-                'ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF',
-                'AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'Ahmed Amin'
+                'ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF', 'ABDO YOUSIF',
+                'AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'AHMED AMIN ', 'Ahmed Amin',
             ];
         }
 
-        // (Optional) Central coordinator: decide later
+        // Central coordinator: TAREQ + JAMAL + ABU MERHI (with aliases)
         if (method_exists($user, 'hasRole') && $user->hasRole('project_coordinator_central')) {
-            // If you want central to be like western, keep restricted.
-            // If you want central to be like eastern, return [].
-            return ['TARIQ', 'TAREQ', 'JAMAL'];
+            return [
+                'TAREQ', 'TARIQ', 'TAREQ ',
+                'JAMAL',
+                'M.ABU MERHI', 'M. ABU MERHI', 'M.MERHI', 'MERHI', 'ABU MERHI', 'M ABU MERHI', 'MOHAMMED',
+            ];
         }
 
-        return []; // default: no restriction
+        return [];
     }
 
+    /**
+     * Returns allowed region keys for the logged-in user.
+     * NOTE: As per your rule, project coordinators can see ALL regions.
+     */
     private function coordinatorRegionScope($user): array
     {
         // GM/Admin or permission => all
@@ -67,20 +75,46 @@ class ProjectCoordinatorController extends Controller
             return ['eastern', 'central', 'western'];
         }
 
-        // Fallback: use user.region if present
-        $r = strtolower((string) ($user->region ?? ''));
-        if (in_array($r, ['eastern','central','western'], true)) {
+        // fallback: use user.region if present
+        $r = strtolower((string)($user->region ?? ''));
+        if (in_array($r, ['eastern', 'central', 'western'], true)) {
             return [$r];
         }
 
-        // safest fallback
         return [];
     }
-
 
     /* ============================================================
      *  HELPERS
      * ============================================================ */
+
+    private function selectedSalesTeamRegion(Request $request): string
+    {
+        $r = strtolower(trim((string)$request->input('region', 'all')));
+        return in_array($r, ['eastern', 'central', 'western', 'all'], true) ? $r : 'all';
+    }
+
+    private function salesmanAliasMap(): array
+    {
+        // Canonical => accepted aliases (UPPERCASE preferred)
+        return [
+            'SOHAIB' => ['SOHAIB', 'SOAHIB', 'SOAIB', 'SOHIB'],
+            'TAREQ'  => ['TARIQ', 'TAREQ', 'TAREQ '],
+            'JAMAL'  => ['JAMAL'],
+            'ABU_MERHI' => ['M.ABU MERHI', 'M. ABU MERHI', 'M.MERHI', 'MERHI', 'ABU MERHI', 'M ABU MERHI', 'MOHAMMED'],
+            'ABDO'   => ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF', 'ABDO YOUSIF'],
+            'AHMED'  => ['AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'AHMED AMIN ', 'AHMED AMIN.', 'AHMED AMEEN.', 'Ahmed Amin'],
+        ];
+    }
+
+    private function regionSalesmenCanonicalMap(): array
+    {
+        return [
+            'eastern' => ['SOHAIB', 'RAVINDER', 'WASEEM', 'FAISAL', 'CLIENT', 'EXPORT'],
+            'central' => ['TAREQ', 'JAMAL', ],
+            'western' => ['ABDO', 'AHMED'],
+        ];
+    }
 
     private function normalizeSalesmenScope(array $salesmenScope): array
     {
@@ -89,11 +123,54 @@ class ProjectCoordinatorController extends Controller
         ));
     }
 
+    private function salesmenForRegionSelection(string $regionKey): array
+    {
+        if ($regionKey === 'all') return [];
+
+        $regionMap = $this->regionSalesmenCanonicalMap();
+        $aliasMap  = $this->salesmanAliasMap();
+
+        $canonicals = $regionMap[$regionKey] ?? [];
+
+        $names = [];
+        foreach ($canonicals as $c) {
+            $c = strtoupper(trim($c));
+            foreach (($aliasMap[$c] ?? [$c]) as $a) {
+                $names[] = strtoupper(trim((string)$a));
+            }
+        }
+
+        return array_values(array_unique(array_filter($names)));
+    }
+
+    /**
+     * Combine RBAC salesman scope + UI region selection:
+     * - If UI region selected -> apply that list
+     * - If RBAC list exists too -> INTERSECT
+     * - If UI = all -> RBAC only
+     */
+    private function buildEffectiveSalesmenScope(Request $request, array $rbacSalesmenScope): array
+    {
+        $rbac = $this->normalizeSalesmenScope($rbacSalesmenScope);
+
+        $regionKey = $this->selectedSalesTeamRegion($request);
+        $byRegion  = $this->salesmenForRegionSelection($regionKey); // [] if all
+
+        if (!empty($byRegion)) {
+            if (!empty($rbac)) {
+                $set = array_flip($rbac);
+                return array_values(array_filter($byRegion, fn($x) => isset($set[$x])));
+            }
+            return $byRegion;
+        }
+
+        return $rbac;
+    }
+
     private function applySalesmenScopeToSalesOrderQuery($query, array $salesmenScope)
     {
         $allowed = $this->normalizeSalesmenScope($salesmenScope);
         if (!empty($allowed)) {
-            // salesorderlog column is `Sales Source`
             $query->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $allowed);
         }
         return $query;
@@ -103,28 +180,47 @@ class ProjectCoordinatorController extends Controller
     {
         $allowed = $this->normalizeSalesmenScope($salesmenScope);
         if (!empty($allowed)) {
-            // projects might have salesman OR salesperson
             $query->whereIn(DB::raw('UPPER(TRIM(COALESCE(`salesman`,`salesperson`)))'), $allowed);
         }
         return $query;
     }
 
+    /**
+     * Hard enforcement for single sales order record access.
+     */
     private function enforceSalesOrderScopeOr403(Request $request, SalesOrderLog $salesorder): void
     {
         $user = $request->user();
         $regionsScope  = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
-        if (!in_array(strtolower($salesorder->area ?? ''), $regionsScope, true)) {
+        $soRegion = strtolower(trim((string)($salesorder->project_region ?? $salesorder->area ?? '')));
+        if ($soRegion !== '' && !in_array($soRegion, $regionsScope, true)) {
             abort(403, 'Not allowed (region).');
         }
 
         if (!empty($salesmenScope)) {
-            $sm = strtoupper(trim((string)($salesorder->salesman ?? $salesorder->{'Sales Source'} ?? '')));
+            $sm = strtoupper(trim((string)($salesorder->{'Sales Source'} ?? $salesorder->salesman ?? '')));
             if ($sm !== '' && !in_array($sm, $salesmenScope, true)) {
                 abort(403, 'Not allowed (salesman).');
             }
         }
+    }
+
+    /**
+     * OPTION B: Prevent duplicate PO numbers (case/space-insensitive trimming).
+     * If $ignoreId provided, it is excluded (used while updating existing SO).
+     */
+    private function poNumberExists(string $poNo, ?int $ignoreId = null): bool
+    {
+        $poNo = trim($poNo);
+        if ($poNo === '') return false;
+
+        return DB::table('salesorderlog')
+            ->whereNull('deleted_at')
+            ->when($ignoreId, fn($q) => $q->where('id', '<>', $ignoreId))
+            ->whereRaw('TRIM(`PO. No.`) = ?', [$poNo])
+            ->exists();
     }
 
     /* ============================================================
@@ -134,12 +230,16 @@ class ProjectCoordinatorController extends Controller
     public function index(Request $request)
     {
         $user         = $request->user();
-        $userRegion   = strtolower($user->region ?? '');
+        $userRegion   = strtolower((string)($user->region ?? ''));
         $regionsScope = $this->coordinatorRegionScope($user);
-        $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
-        // Canonical alias map (canonical keys should match UI)
-        $salesmanAliasMap = [
+        // Effective salesmen scope = RBAC + UI region selection (sales team filter)
+        $rbacSalesmenScope = $this->coordinatorSalesmenScope($user);
+        $salesmenScope     = $this->buildEffectiveSalesmenScope($request, $rbacSalesmenScope);
+
+        // NOTE: This alias map here is only for dropdown canonicalization.
+        // Keep minimal canonical keys (UI shows canonicals).
+        $dropdownCanonicalMap = [
             'SOHAIB' => ['SOHAIB', 'SOAHIB'],
             'TARIQ'  => ['TARIQ', 'TAREQ'],
             'JAMAL'  => ['JAMAL'],
@@ -147,19 +247,13 @@ class ProjectCoordinatorController extends Controller
             'AHMED'  => ['AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'Ahmed Amin'],
         ];
 
-        $normalizedRegions = array_map(fn ($r) => ucfirst(strtolower($r)), $regionsScope);
-
         // --------------------------
         // Salesmen dropdown options (scoped)
         // --------------------------
-        $projectsSalesmenQ = Project::query()
-            ->whereNull('deleted_at')
-            ->whereIn('area', $normalizedRegions);
+        $projectsSalesmenQ = Project::query()->whereNull('deleted_at');
         $this->applySalesmenScopeToProjectsQuery($projectsSalesmenQ, $salesmenScope);
 
-        $salesOrdersSalesmenQ = DB::table('salesorderlog')
-            ->whereNull('deleted_at')
-            ->whereIn('project_region', $normalizedRegions);
+        $salesOrdersSalesmenQ = DB::table('salesorderlog')->whereNull('deleted_at');
         $this->applySalesmenScopeToSalesOrderQuery($salesOrdersSalesmenQ, $salesmenScope);
 
         $salesmenRaw = collect()
@@ -167,13 +261,13 @@ class ProjectCoordinatorController extends Controller
             ->merge($projectsSalesmenQ->pluck('salesman'))
             ->merge($salesOrdersSalesmenQ->pluck('Sales Source'))
             ->filter()
-            ->map(fn ($v) => strtoupper(trim((string)$v)))
+            ->map(fn($v) => strtoupper(trim((string)$v)))
             ->unique()
             ->values();
 
         $salesmenFilterOptions = [];
         foreach ($salesmenRaw as $s) {
-            foreach ($salesmanAliasMap as $canonical => $aliases) {
+            foreach ($dropdownCanonicalMap as $canonical => $aliases) {
                 if (in_array($s, $aliases, true)) {
                     $salesmenFilterOptions[$canonical] = $canonical;
                     break;
@@ -182,12 +276,9 @@ class ProjectCoordinatorController extends Controller
         }
 
         if (empty($salesmenFilterOptions)) {
-            // if restricted, show only restricted names
-            if (!empty($salesmenScope)) {
-                $salesmenFilterOptions = $salesmenScope;
-            } else {
-                $salesmenFilterOptions = array_keys($salesmanAliasMap);
-            }
+            $salesmenFilterOptions = !empty($salesmenScope)
+                ? $salesmenScope
+                : array_keys($dropdownCanonicalMap);
         } else {
             $salesmenFilterOptions = array_values($salesmenFilterOptions);
         }
@@ -195,26 +286,25 @@ class ProjectCoordinatorController extends Controller
         // --------------------------
         // Projects + Sales Orders (scoped)
         // --------------------------
+        // NOTE: you intentionally commented-out status/status_current restrictions in model/controller.
+        // We keep your working behavior. The model query decides what shows.
         $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
-        $projects = (clone $projectsQuery)->orderByDesc('quotation_date')->get();
+        $projects      = (clone $projectsQuery)->orderByDesc('quotation_date')->get();
 
         $salesOrdersQuery = SalesOrderLog::coordinatorGroupedQuery($regionsScope);
         $this->applySalesmenScopeToSalesOrderQuery($salesOrdersQuery, $salesmenScope);
         $salesOrders = $salesOrdersQuery->orderByDesc('po_date')->get();
 
         // KPIs (scoped)
-        $kpiProjectsCount = (clone $projectsQuery)->count();
-        $kpiSalesOrdersCount = $salesOrders->count();
-        $kpiSalesOrdersValue = (float) $salesOrders->sum('total_po_value');
+        $kpiProjectsCount     = (clone $projectsQuery)->count();
+        $kpiSalesOrdersCount  = $salesOrders->count();
+        $kpiSalesOrdersValue  = (float)$salesOrders->sum('total_po_value');
 
         // --------------------------
-        // CHART DATA (IMPORTANT FIX)
-        // Do NOT reuse grouped query (it joins users => ambiguous "region")
-        // Use clean simple aggregate queries with explicit column.
+        // Chart Data (clean aggregates)
         // --------------------------
         $projectByRegion = DB::table('projects')
             ->whereNull('deleted_at')
-            ->whereIn('area', $normalizedRegions)
             ->when(!empty($salesmenScope), function ($q) use ($salesmenScope) {
                 $q->whereIn(DB::raw('UPPER(TRIM(COALESCE(`salesman`,`salesperson`)))'), $salesmenScope);
             })
@@ -225,7 +315,6 @@ class ProjectCoordinatorController extends Controller
 
         $poByRegion = DB::table('salesorderlog')
             ->whereNull('deleted_at')
-            ->whereIn('project_region', $normalizedRegions)
             ->when(!empty($salesmenScope), function ($q) use ($salesmenScope) {
                 $q->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $salesmenScope);
             })
@@ -236,32 +325,32 @@ class ProjectCoordinatorController extends Controller
 
         $regions = ['eastern', 'central', 'western'];
         $chartCategories = [];
-        $chartProjects = [];
-        $chartPOs = [];
+        $chartProjects   = [];
+        $chartPOs        = [];
 
         foreach ($regions as $r) {
             if (!in_array($r, $regionsScope, true)) continue;
             $chartCategories[] = ucfirst($r);
-            $chartProjects[]   = (float) ($projectByRegion[$r] ?? 0);
-            $chartPOs[]        = (float) ($poByRegion[$r] ?? 0);
+            $chartProjects[]   = (float)($projectByRegion[$r] ?? 0);
+            $chartPOs[]        = (float)($poByRegion[$r] ?? 0);
         }
 
         return view('coordinator.index', [
-            'userRegion' => $userRegion,
-            'regionsScope' => $regionsScope,
-            'salesmenScope' => $salesmenScope,
+            'userRegion'            => $userRegion,
+            'regionsScope'          => $regionsScope,
+            'salesmenScope'         => $salesmenScope,
             'salesmenFilterOptions' => $salesmenFilterOptions,
 
-            'kpiProjectsCount' => $kpiProjectsCount,
-            'kpiSalesOrdersCount' => $kpiSalesOrdersCount,
-            'kpiSalesOrdersValue' => $kpiSalesOrdersValue,
+            'kpiProjectsCount'      => $kpiProjectsCount,
+            'kpiSalesOrdersCount'   => $kpiSalesOrdersCount,
+            'kpiSalesOrdersValue'   => $kpiSalesOrdersValue,
 
-            'projects' => $projects,
-            'salesOrders' => $salesOrders,
+            'projects'              => $projects,
+            'salesOrders'           => $salesOrders,
 
-            'chartCategories' => $chartCategories,
-            'chartProjects' => $chartProjects,
-            'chartPOs' => $chartPOs,
+            'chartCategories'       => $chartCategories,
+            'chartProjects'         => $chartProjects,
+            'chartPOs'              => $chartPOs,
         ]);
     }
 
@@ -277,7 +366,7 @@ class ProjectCoordinatorController extends Controller
             'source'        => ['required', 'in:project,salesorder'],
             'record_id'     => ['required', 'integer'],
 
-            // LEFT SIDE
+            // LEFT SIDE (optional informational fields)
             'project'        => ['nullable', 'string', 'max:255'],
             'client'         => ['nullable', 'string', 'max:255'],
             'salesman'       => ['nullable', 'string', 'max:255'],
@@ -306,6 +395,11 @@ class ProjectCoordinatorController extends Controller
                 $regionsScope  = $this->coordinatorRegionScope($user);
                 $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
+                $poNo = trim((string)$data['po_no']);
+                if ($poNo === '') {
+                    return response()->json(['ok' => false, 'message' => 'PO number is required.'], 422);
+                }
+
                 /* ============================
                  * UPDATE EXISTING SALES ORDER
                  * ============================ */
@@ -313,25 +407,38 @@ class ProjectCoordinatorController extends Controller
                     /** @var \App\Models\SalesOrderLog $so */
                     $so = SalesOrderLog::findOrFail($data['record_id']);
 
-                    if (!in_array(strtolower($so->area ?? ''), $regionsScope, true)) {
+                    // OPTION B: block duplicate PO No (except current record)
+                    if ($this->poNumberExists($poNo, (int)$so->id)) {
+                        return response()->json([
+                            'ok' => false,
+                            'message' => "This PO number already exists in Sales Order Log.",
+                        ], 422);
+                    }
+
+                    // Scope enforcement (use project_region primarily)
+                    $soRegion = strtolower(trim((string)($so->project_region ?? $so->area ?? '')));
+                    if ($soRegion !== '' && !in_array($soRegion, $regionsScope, true)) {
                         return response()->json(['ok' => false, 'message' => 'Not allowed (region).'], 403);
                     }
 
                     if (!empty($salesmenScope)) {
-                        $sm = strtoupper(trim((string)($so->salesman ?? $so->{'Sales Source'} ?? '')));
+                        $sm = strtoupper(trim((string)($so->{'Sales Source'} ?? $so->salesman ?? '')));
                         if ($sm !== '' && !in_array($sm, $salesmenScope, true)) {
                             return response()->json(['ok' => false, 'message' => 'Not allowed (salesman).'], 403);
                         }
                     }
 
                     $poDate         = Carbon::parse($data['po_date'])->format('Y-m-d');
-                    $poValueWithVat = round($data['po_value'] * 1.15, 2);
+                    $poValueWithVat = round(((float)$data['po_value']) * 1.15, 2);
 
+                    // Prefer request fields if provided, fallback to existing model accessors
                     $client      = $data['client']        ?? $so->client;
                     $projectName = $data['project']       ?? $so->project;
                     $salesSource = $data['salesman']      ?? $so->salesman;
                     $location    = $data['location']      ?? $so->location;
-                    $area        = $data['area']          ?? $so->area;
+
+                    // IMPORTANT: map region fields to project_region / region
+                    $area        = $data['area']          ?? ($so->project_region ?? $so->area);
                     $quoteNo     = $data['quotation_no']  ?? $so->quotation_no;
                     $products    = $data['atai_products'] ?? $so->atai_products;
 
@@ -370,8 +477,8 @@ class ProjectCoordinatorController extends Controller
                         $products,
                         $quoteNo,
                         $poDate,
-                        $data['po_no'],
-                        $data['po_value'],
+                        $poNo,
+                        (float)$data['po_value'],
                         $poValueWithVat,
                         $data['payment_terms'] ?? null,
                         $data['oaa'] ?? null,
@@ -382,6 +489,7 @@ class ProjectCoordinatorController extends Controller
                         $so->id,
                     ]);
 
+                    // Attachments
                     if ($request->hasFile('attachments')) {
                         $files = $request->file('attachments');
                         if (!is_array($files)) $files = [$files];
@@ -407,13 +515,21 @@ class ProjectCoordinatorController extends Controller
                 }
 
                 /* ============================
-                 * CREATE NEW PO (FROM PROJECT)
+                 * CREATE NEW PO (FROM PROJECTS)
                  * ============================ */
+
+                // OPTION B: block duplicate PO No (global)
+                if ($this->poNumberExists($poNo)) {
+                    return response()->json([
+                        'ok' => false,
+                        'message' => "This PO number already exists in Sales Order Log.",
+                    ], 422);
+                }
 
                 $mainProject = Project::findOrFail($data['record_id']);
 
-                // region + salesman security
-                if (!in_array(strtolower($mainProject->area ?? ''), $regionsScope, true)) {
+                // Security: region + salesman
+                if (!in_array(strtolower((string)($mainProject->area ?? '')), $regionsScope, true)) {
                     return response()->json(['ok' => false, 'message' => 'Not allowed (region).'], 403);
                 }
                 if (!empty($salesmenScope)) {
@@ -436,7 +552,7 @@ class ProjectCoordinatorController extends Controller
 
                 // ensure all selected are within scope
                 foreach ($projects as $p) {
-                    if (!in_array(strtolower($p->area ?? ''), $regionsScope, true)) {
+                    if (!in_array(strtolower((string)($p->area ?? '')), $regionsScope, true)) {
                         return response()->json(['ok' => false, 'message' => 'One of selected quotations is out of your region scope.'], 403);
                     }
                     if (!empty($salesmenScope)) {
@@ -447,15 +563,11 @@ class ProjectCoordinatorController extends Controller
                     }
                 }
 
-                if ($projects->contains(fn(Project $p) => !is_null($p->status_current))) {
-                    return response()->json([
-                        'ok' => false,
-                        'message' => 'One or more selected quotations already have a PO. Please check Sales Order Log.',
-                    ], 422);
-                }
+                // ✅ REMOVED: status_current guard (you want to allow new PO even if status_current set)
+                // if ($projects->contains(fn(Project $p) => !is_null($p->status_current))) { ... }
 
-                $totalQuoted = (float) $projects->sum('quotation_value');
-                if ($totalQuoted <= 0) $totalQuoted = 0;
+                $totalQuoted = (float)$projects->sum('quotation_value');
+                if ($totalQuoted < 0) $totalQuoted = 0;
 
                 $attachments = [];
                 if ($request->hasFile('attachments')) {
@@ -468,7 +580,7 @@ class ProjectCoordinatorController extends Controller
                         ? max(0, (float)$project->quotation_value) / $totalQuoted
                         : (1 / max(1, $projects->count()));
 
-                    $poValue        = round($data['po_value'] * $ratio, 2);
+                    $poValue        = round(((float)$data['po_value']) * $ratio, 2);
                     $poValueWithVat = round($poValue * 1.15, 2);
 
                     DB::insert("
@@ -492,8 +604,8 @@ class ProjectCoordinatorController extends Controller
                         $project->area,
                         $project->area,
                         $project->project_location,
-                        $data['po_date'],
-                        $data['po_no'],
+                        Carbon::parse($data['po_date'])->format('Y-m-d'),
+                        $poNo,
                         $project->atai_products,
                         $project->atai_products,
                         $project->quotation_no,
@@ -512,13 +624,15 @@ class ProjectCoordinatorController extends Controller
                         $user->id,
                     ]);
 
-                    $soId = DB::getPdo()->lastInsertId();
+                    $soId = (int)DB::getPdo()->lastInsertId();
 
+                    // Status updates (keep your existing behavior)
                     $project->status = 'PO-RECEIVED';
                     $project->status_current = 'PO-RECEIVED';
                     $project->coordinator_updated_by_id = $user->id;
                     $project->save();
 
+                    // Attachments
                     foreach ($attachments as $file) {
                         if (!$file || !$file->isValid()) continue;
 
@@ -592,25 +706,17 @@ class ProjectCoordinatorController extends Controller
 
     public function exportSalesOrders(Request $request): BinaryFileResponse
     {
-        $month = (int) $request->input('month');
+        $month = (int)$request->input('month');
         if (!$month) abort(400, 'Month is required');
 
-        $year     = (int) ($request->input('year') ?: now()->year);
-        $region   = $request->input('region', 'all');
-        $salesman = strtoupper(trim((string)$request->input('salesman', 'all')));
-        $from     = $request->input('from');
-        $to       = $request->input('to');
+        $year   = (int)($request->input('year') ?: now()->year);
+        $from   = $request->input('from');
+        $to     = $request->input('to');
 
         $user = $request->user();
-        $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
-        $salesmanAliasMap = [
-            'SOHAIB' => ['SOHAIB', 'SOAHIB'],
-            'TARIQ'  => ['TARIQ', 'TAREQ'],
-            'JAMAL'  => ['JAMAL'],
-            'ABDO'   => ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF'],
-            'AHMED'  => ['AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'Ahmed Amin'],
-        ];
+        // Use effective scope (RBAC + UI region filter for sales team)
+        $salesmenScope = $this->buildEffectiveSalesmenScope($request, $this->coordinatorSalesmenScope($user));
 
         $query = DB::table('salesorderlog')
             ->whereNull('deleted_at')
@@ -633,11 +739,7 @@ class ProjectCoordinatorController extends Controller
                 `Remarks`          AS remarks
             ");
 
-        if ($region && strtolower($region) !== 'all') {
-            $query->where('project_region', ucfirst(strtolower($region)));
-        }
-
-        // ✅ ALWAYS apply coordinator restriction
+        // Apply enforced salesman scope once (no duplicates)
         if (!empty($salesmenScope)) {
             $query->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $salesmenScope);
         }
@@ -647,64 +749,54 @@ class ProjectCoordinatorController extends Controller
         if ($from) $query->whereDate('date_rec', '>=', $from);
         if ($to)   $query->whereDate('date_rec', '<=', $to);
 
-        if ($salesman !== '' && $salesman !== 'ALL' && $salesman !== 'all') {
-            $aliases = $salesmanAliasMap[$salesman] ?? [$salesman];
-            $query->whereIn('Sales Source', $aliases);
-        }
-
         $rows = collect($query->orderBy('date_rec')->get());
 
         $filename = sprintf('sales_orders_%d_%02d.xlsx', $year, $month);
 
-        $regionLabel = (strtolower($region) !== 'all')
-            ? ucfirst(strtolower($region)) . ' Region'
-            : 'All Regions';
-
         return Excel::download(
-            new SalesOrdersMonthExport($rows, $year, $month, $regionLabel),
+            new SalesOrdersMonthExport($rows, $year, $month),
             $filename
         );
     }
 
     public function exportSalesOrdersYear(Request $request): BinaryFileResponse
     {
-        $year     = (int) ($request->input('year') ?: now()->year);
-        $region   = strtolower((string) $request->input('region', 'all')); // 'all'|'eastern'|'central'|'western'
-        $salesman = trim((string) $request->input('salesman', 'all'));     // canonical like SOHAIB/TARIQ/...
+        $year     = (int)($request->input('year') ?: now()->year);
+        $region   = strtolower((string)$request->input('region', 'all')); // 'all'|'eastern'|'central'|'western'
+        $salesman = trim((string)$request->input('salesman', 'all'));
         $from     = $request->input('from');
         $to       = $request->input('to');
 
         $user = $request->user();
 
-        // ✅ Enforced RBAC scopes
-        $regionsScope  = $this->coordinatorRegionScope($user);                 // ['eastern','central'] etc
-        $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user)); // aliases allowed
+        $regionsScope  = $this->coordinatorRegionScope($user);
+        $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
         $filename = sprintf('sales_orders_%d_full_year.xlsx', $year);
 
-        // ✅ IMPORTANT: pass what the Export expects (array regionsScope FIRST)
         return Excel::download(
             new SalesOrdersYearExport(
-                $regionsScope,     // ✅ array, not Collection
+                $regionsScope,
                 $year,
-                $region,           // regionKey ('all' or specific)
+                $region,
                 $from,
                 $to,
                 $salesman !== '' ? strtoupper($salesman) : 'all',
-                null,              // factory (if you use it later)
-                $salesmenScope     // ✅ pass allowed salesmen too (if your export supports it)
+                null,
+                $salesmenScope
             ),
             $filename
         );
     }
 
-
     /* ============================================================
      *  ATTACHMENTS LIST
      * ============================================================ */
 
-    public function salesOrderAttachments(SalesOrderLog $salesorder)
+    public function salesOrderAttachments(Request $request, SalesOrderLog $salesorder)
     {
+        $this->enforceSalesOrderScopeOr403($request, $salesorder);
+
         $salesorder->load('attachments');
 
         $items = $salesorder->attachments->map(function ($a) {
@@ -730,7 +822,7 @@ class ProjectCoordinatorController extends Controller
         $regionsScope  = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
-        if (!in_array(strtolower($project->area ?? ''), $regionsScope, true)) {
+        if (!in_array(strtolower((string)($project->area ?? '')), $regionsScope, true)) {
             return response()->json(['ok' => false, 'message' => 'Not allowed (region mismatch).'], 403);
         }
 
@@ -752,12 +844,13 @@ class ProjectCoordinatorController extends Controller
         $regionsScope = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
-        if (!in_array(strtolower($salesorder->area ?? ''), $regionsScope, true)) {
+        $soRegion = strtolower(trim((string)($salesorder->project_region ?? $salesorder->area ?? '')));
+        if ($soRegion !== '' && !in_array($soRegion, $regionsScope, true)) {
             return response()->json(['ok' => false, 'message' => 'Not allowed (region mismatch).'], 403);
         }
 
         if (!empty($salesmenScope)) {
-            $sm = strtoupper(trim((string)($salesorder->salesman ?? $salesorder->{'Sales Source'} ?? '')));
+            $sm = strtoupper(trim((string)($salesorder->{'Sales Source'} ?? $salesorder->salesman ?? '')));
             if ($sm !== '' && !in_array($sm, $salesmenScope, true)) {
                 return response()->json(['ok' => false, 'message' => 'Not allowed (salesman mismatch).'], 403);
             }
@@ -790,8 +883,8 @@ class ProjectCoordinatorController extends Controller
 
     public function relatedQuotations(Request $request)
     {
-        $projectId   = (int) $request->input('project_id');
-        $quotationNo = trim((string) $request->input('quotation_no'));
+        $projectId   = (int)$request->input('project_id');
+        $quotationNo = trim((string)$request->input('quotation_no'));
 
         if (!$projectId || !$quotationNo) {
             return response()->json(['ok' => false, 'message' => 'Missing project_id or quotation_no.', 'projects' => []], 400);
@@ -800,7 +893,6 @@ class ProjectCoordinatorController extends Controller
         $user = $request->user();
         $regionsScope  = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
-        $normalizedRegions = array_map(fn($r) => ucfirst(strtolower($r)), $regionsScope);
 
         $base = Project::extractBaseCode($quotationNo);
         if (!$base) {
@@ -809,14 +901,14 @@ class ProjectCoordinatorController extends Controller
 
         $q = Project::query()
             ->whereNull('deleted_at')
-            ->whereIn('area', $normalizedRegions)
             ->where('id', '<>', $projectId)
             ->where('quotation_no', 'LIKE', $base . '%');
 
+        // salesman restriction
         $this->applySalesmenScopeToProjectsQuery($q, $salesmenScope);
 
         $projects = $q->orderBy('quotation_no')->get([
-            'id','project_name','client_name','quotation_no','area','quotation_value'
+            'id', 'project_name', 'client_name', 'quotation_no', 'area', 'quotation_value'
         ]);
 
         return response()->json([
@@ -829,7 +921,7 @@ class ProjectCoordinatorController extends Controller
                     'project' => $p->project_name,
                     'client' => $p->client_name,
                     'area' => $p->area,
-                    'quotation_value' => (float) $p->quotation_value,
+                    'quotation_value' => (float)$p->quotation_value,
                 ];
             })->values(),
         ]);
@@ -843,21 +935,19 @@ class ProjectCoordinatorController extends Controller
         }
 
         $user = $request->user();
-        $regionsScope  = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
-        $normalizedRegions = array_map(fn($r) => ucfirst(strtolower($r)), $regionsScope);
 
         $q = Project::query()
             ->whereNull('deleted_at')
-            ->whereNull('status')
-            ->whereNull('status_current')
-            ->whereIn('area', $normalizedRegions)
+            // You intentionally commented these to show all records (keep behavior)
+            // ->whereNull('status')
+            // ->whereNull('status_current')
             ->where('quotation_no', 'LIKE', '%' . $term . '%');
 
         $this->applySalesmenScopeToProjectsQuery($q, $salesmenScope);
 
         $projects = $q->orderBy('quotation_no')->limit(20)->get([
-            'id','project_name','client_name','quotation_no','area','quotation_value'
+            'id', 'project_name', 'client_name', 'quotation_no', 'area', 'quotation_value'
         ]);
 
         return response()->json([
