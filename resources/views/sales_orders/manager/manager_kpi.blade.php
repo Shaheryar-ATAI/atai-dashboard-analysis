@@ -314,13 +314,18 @@
             const FALLBACK_PRODUCTS = ['Ductwork', 'Dampers', 'Sound Attenuators', 'Accessories'];
 
             // ✅ default landing year
-            const DEFAULT_YEAR = '2025';
+            const DEFAULT_YEAR = '2026';
 // 👇 region-based annual target (matches backend)
-            const REGION_TARGETS = {
-                eastern: 35_000_000,
-                central: 37_000_000,
-                western: 30_000_000
+            const REGION_TARGETS_BY_YEAR = {
+                2025: { eastern: 35_000_000, central: 37_000_000, western: 30_000_000 },
+                2026: { eastern: 50_000_000, central: 50_000_000, western: 36_000_000 },
             };
+
+            function getUserMonthlyTarget(yearStr) {
+                const y = Number(yearStr) || new Date().getFullYear();
+                const annual = REGION_TARGETS_BY_YEAR[y]?.[USER_REGION] || 0;
+                return annual / 12;
+            }
 
             let currentFamily = '';
             let currentStatus = '';
@@ -384,14 +389,15 @@
 
 
 // compute monthly target for the logged-in region
-            const USER_TARGET_MONTHLY = (REGION_TARGETS[USER_REGION] || 0) / 12;
+//             const USER_TARGET_MONTHLY = (REGION_TARGETS[USER_REGION] || 0) / 12;
 
             async function loadKPIs() {
                 if (isLoading) return;           // 🔒 guard
                 isLoading = true;
-
+                const f = filters();                 // your existing filters()
+                const userMonthlyTarget = getUserMonthlyTarget(f.year);
                 try {
-                    const qs = new URLSearchParams(filters()).toString();
+                    const qs = new URLSearchParams(f).toString();
                     const res = await fetch(`{{ route('salesorders.manager.kpis') }}?${qs}`, {
                         headers: {'X-Requested-With': 'XMLHttpRequest'}
                     });
@@ -551,16 +557,17 @@
                             {type: 'column', name: 'Value (SAR)', data: vals},
                             {
                                 type: 'line',
-                                name: 'Target (' + USER_REGION.toUpperCase() + ')',
+                                name: `Target (${USER_REGION.toUpperCase()} - ${filters().year})`,
+
                                 color: '#22c55e',
                                 dashStyle: 'ShortDash',
-                                data: Array(vals.length).fill(USER_TARGET_MONTHLY)
+                                data: Array(vals.length).fill(userMonthlyTarget)
                             }
                         ]
                     });
 
                     document.getElementById('badgeTarget').textContent =
-                        'Monthly Target (' + USER_REGION.toUpperCase() + '): ' + fmtSAR(USER_TARGET_MONTHLY);
+                        'Monthly Target (' + USER_REGION.toUpperCase() + '): ' + fmtSAR(userMonthlyTarget);
 
                     // other renders
                     renderStatusMonthlyChart(payload.multiMonthly);

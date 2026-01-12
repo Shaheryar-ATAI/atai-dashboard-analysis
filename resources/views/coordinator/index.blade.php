@@ -470,11 +470,11 @@
                                             data-date-received="{{ $so->po_date }}"
                                             data-products="{{ $so->atai_products }}"
                                             data-price="{{ $so->total_po_value }}"
-                                            data-status=""
-                                            data-oaa=""
+                                            data-status="{{ $so->{'Status'} ?? '' }}"
                                             data-job-no="{{ $so->job_no }}"
-                                            data-payment-terms=""
-                                            data-remarks=""
+                                            data-payment-terms="{{ $so->{'Payment Terms'} ?? $so->{'Payment Terms'} ?? $so->payment_terms ?? '' }}"
+                                            data-remarks="{{ $so->{'Remarks'} ?? $so->{'remarks'} ?? $so->remarks ?? '' }}"
+                                            data-oaa="{{ $so->{'Sales OAA'} ?? $so->{'OAA'} ?? $so->oaa ?? '' }}"
                                             data-po-no="{{ $so->po_no }}"
                                             data-po-date="{{ $so->po_date }}"
                                             data-po-value="{{ $so->total_po_value }}"
@@ -637,7 +637,9 @@
                                 </div>
                                 <div class="mb-2">
                                     <div class="coordinator-label">PO Date</div>
-                                    <input type="date" name="po_date" id="coord_po_date"
+                                    <input type="date"
+                                           name="po_date"
+                                           id="coord_po_date"
                                            class="form-control form-control-sm">
                                 </div>
                                 <div class="mb-2">
@@ -1280,6 +1282,38 @@
                     series: [{ name: 'PO Value', data: [0, 0, 0] }]
                 });
 
+                function setSelectByValue(selectId, rawValue, normalizer = null) {
+                    const el = document.getElementById(selectId);
+                    if (!el) return;
+
+                    let v = (rawValue || '').toString().trim();
+                    if (normalizer) v = normalizer(v);
+
+                    if (!v) { el.value = ''; return; }
+
+                    // match ignoring case
+                    const opt = Array.from(el.options).find(o => (o.value || '').toLowerCase() === v.toLowerCase());
+                    el.value = opt ? opt.value : '';
+                }
+
+                function normalizeOAA(v) {
+                    const x = v.trim().toLowerCase().replace(/\s+/g, ' ');
+                    if (x === 'pre acceptance' || x === 'preacceptance' || x === 'pre-acceptance') return 'Pre-acceptance';
+                    if (x === 'acceptance') return 'Acceptance';
+                    if (x === 'rejected') return 'Rejected';
+                    if (x === 'waiting') return 'Waiting';
+                    return v; // fallback
+                }
+
+                function normalizePaymentTerms(v) {
+                    const x = v.trim().toLowerCase().replace(/\s+/g, ' ');
+                    if (x === '30days' || x === '30 days') return '30 Days';
+                    if (x === '60days' || x === '60 days') return '60 Days';
+                    if (x === '90days' || x === '90 days') return '90 Days';
+                    if (x === 'advance') return 'Advance';
+                    if (x === 'as per contract' || x === 'as per the contract') return 'As per contract';
+                    return v;
+                }
                 function refreshChartFromTable() {
                     const sums = { 'Eastern': 0, 'Central': 0, 'Western': 0 };
 
@@ -1486,11 +1520,17 @@
 
                     document.getElementById('coord_job_no').value        = btn.dataset.jobNo || '';
                     document.getElementById('coord_po_no').value         = btn.dataset.poNo || '';
-                    document.getElementById('coord_po_date').value       = btn.dataset.poDate || '';
+                    const poDateEl = document.getElementById('coord_po_date');
+                    if (poDateEl) {
+                        const ds = (btn.dataset.poDate || '').trim();
+                        poDateEl.value = ds ? ds : new Date().toISOString().slice(0, 10);
+                    }
                     document.getElementById('coord_po_value').value      = btn.dataset.poValue || '';
-                    document.getElementById('coord_payment_terms').value = btn.dataset.paymentTerms || '';
+                    //document.getElementById('coord_payment_terms').value = btn.dataset.paymentTerms || '';
                     document.getElementById('coord_remarks').value       = btn.dataset.remarks || '';
-                    document.getElementById('coord_oaa').value           = btn.dataset.oaa || '';
+                   // document.getElementById('coord_oaa').value           = btn.dataset.oaa || '';
+                    setSelectByValue('coord_payment_terms', btn.dataset.paymentTerms, normalizePaymentTerms);
+                    setSelectByValue('coord_oaa', btn.dataset.oaa, normalizeOAA);
 
                     if (multiBlock && multiContainer && multiEnabled) {
                         multiBlock.style.display = (source === 'project') ? 'block' : 'none';

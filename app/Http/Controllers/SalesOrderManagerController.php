@@ -486,7 +486,16 @@ class SalesOrderManagerController extends Controller
 //            ->selectRaw("SUM(CAST(REPLACE(REPLACE(REPLACE(s.`PO Value`, 'SAR',''), ',', ''), ' ', '') AS DECIMAL(15,2))) AS t")
 //            ->value('t');
         $soDateExpr = "COALESCE(NULLIF(s.date_rec,'0000-00-00'), DATE(s.created_at))";
-
+        $statusNormExpr = "
+CASE
+  WHEN LOWER(TRIM(s.`Status`)) IN ('accepted','acceptance') THEN 'Accepted'
+  WHEN LOWER(TRIM(s.`Status`)) IN ('pre-acceptance','pre acceptance','preacceptance') THEN 'Pre-Acceptance'
+  WHEN LOWER(TRIM(s.`Status`)) IN ('waiting','pending') THEN 'Waiting'
+  WHEN LOWER(TRIM(s.`Status`)) IN ('rejected','reject') THEN 'Rejected'
+  WHEN LOWER(TRIM(s.`Status`)) IN ('cancelled','canceled','cancel') THEN 'Cancelled'
+  ELSE 'Unknown'
+END
+";
 
         $solBase = DB::table('salesorderlog as s')
             ->whereNull('s.deleted_at')
@@ -527,8 +536,10 @@ class SalesOrderManagerController extends Controller
 
         // ------ Status pie (PO) ------
         $statusPieRows = (clone $solBase)
-            ->selectRaw("TRIM(COALESCE(s.`Status`,'Unknown')) AS status, COALESCE(SUM($poNumExpr),0) AS val")
-            ->groupBy('status')->get();
+            ->selectRaw("$statusNormExpr AS status, COALESCE(SUM($poNumExpr),0) AS val")
+            ->groupBy(DB::raw($statusNormExpr))
+            ->get();
+
         $statusPie = $statusPieRows->map(fn($r2) => ['name' => $r2->status, 'y' => (float)$r2->val])->values()->toArray();
 
         // ------ Projects region pie (% by project_region) ------
@@ -743,9 +754,10 @@ class SalesOrderManagerController extends Controller
         $rowsCluster = (clone $solBase)
             ->when(!empty($productCats), fn($q) => $q->whereIn(DB::raw("TRIM(COALESCE(s.`Products`,'Unknown'))"), $productCats))
             ->selectRaw("TRIM(COALESCE(s.`Products`,'Unknown')) AS product,
-                     TRIM(COALESCE(s.`Status`,'Unknown'))   AS status,
-                     COALESCE(SUM($poNumExpr),0) AS val")
-            ->groupBy('product', 'status')->get();
+             $statusNormExpr AS status,
+             COALESCE(SUM($poNumExpr),0) AS val")
+            ->groupBy('product', DB::raw($statusNormExpr))
+            ->get();
 
         $statusOrder = ['Accepted', 'Pre-Acceptance', 'Waiting', 'Rejected', 'Cancelled', 'Unknown'];
         $matrix = [];
@@ -763,9 +775,11 @@ class SalesOrderManagerController extends Controller
         // Monthly by status (PO)
         $monthlyStatus = (clone $solBase)
             ->selectRaw("DATE_FORMAT($soDateExpr, '%Y-%m') AS ym,
-                     TRIM(COALESCE(s.`Status`,'Unknown')) AS status,
-                     COALESCE(SUM($poNumExpr),0) AS val")
-            ->groupBy('ym', 'status')->orderBy('ym')->get();
+             $statusNormExpr AS status,
+             COALESCE(SUM($poNumExpr),0) AS val")
+            ->groupBy('ym', DB::raw($statusNormExpr))
+            ->orderBy('ym')
+            ->get();
         $monthsCol = $monthlyStatus->pluck('ym')->unique()->sort()->values();
         $monthsMM = array_values(array_filter(
             array_map(fn($x) => is_scalar($x) ? (string)$x : null, $monthsCol->all()),

@@ -1097,8 +1097,8 @@
             // ✅ default the dropdown to 2025 on first load if empty
             const yearSel = document.getElementById('projYear');
             if (yearSel && !yearSel.value) {
-                const opt = [...yearSel.options].find(o => o.value === '2025');
-                if (opt) yearSel.value = '2025';
+                const opt = [...yearSel.options].find(o => o.value === '2026');
+                if (opt) yearSel.value = '2026';
             }
 
             await loadKpis();

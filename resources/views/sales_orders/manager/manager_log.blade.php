@@ -328,7 +328,7 @@
         const $month = $('#fMonth');
         const $from = $('#fFrom');
         const $to = $('#fTo');
-        const DEFAULT_YEAR = '2025';
+        const DEFAULT_YEAR = '2026';
 
         function buildFilters() {
             return {
