@@ -399,6 +399,12 @@ Route::middleware('auth')->group(function () {
             Route::get('/salesman', [SalesmanPerformanceController::class, 'index'])->name('performance.salesman');
             Route::get('/salesman/data', [SalesmanPerformanceController::class, 'data'])->name('performance.salesman.data');
             Route::get('/salesman/kpis', [SalesmanPerformanceController::class, 'kpis'])->name('performance.salesman.kpis');
+
+            Route::get('/salesman/pdf', [SalesmanPerformanceController::class, 'pdf'])
+                ->name('performance.salesman.pdf');
+
+
+
         });
 
         // Product summary + data (singular)

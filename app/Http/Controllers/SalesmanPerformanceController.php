@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Str;
 
+use Carbon\Carbon;
 class SalesmanPerformanceController extends Controller
 {
     /**
@@ -27,25 +30,26 @@ class SalesmanPerformanceController extends Controller
      * - Match alias → canonical key (SOHAIB, TARIQ, ...)
      * - Else → uppercase trimmed original.
      */
-    private function normalizeSalesman(?string $name): string
+    private function normalizeSalesman($name): string
     {
-        if (!$name) {
-            return 'NOT MENTIONED';
-        }
+        $n = strtoupper(trim((string)$name));
+        $n = preg_replace('/\s+/', ' ', $n);
 
-        // Trim + collapse spaces, then uppercase.
-        $normalized = preg_replace('/\s+/', ' ', trim($name));
-        $upper      = strtoupper($normalized);
+        // common cleanup
+        $n = str_replace(['.', ',', '-', '_'], ' ', $n);
+        $n = preg_replace('/\s+/', ' ', $n);
 
-        foreach ($this->salesmanAliasMap as $canonical => $aliases) {
-            if (in_array($upper, $aliases, true)) {
-                return $canonical;
-            }
-        }
+        // ✅ HARD ALIAS FIXES
+        if (preg_match('/^AHMED(\s+AMIN)?$/', $n)) return 'AHMED';
+        if (preg_match('/^TA(RI|RE)Q$/', $n)) return 'TARIQ';
+        if (preg_match('/^SOHAIB$/', $n)) return 'SOHAIB';
+        if (preg_match('/^JAMAL$/', $n)) return 'JAMAL';
+        if (preg_match('/^ABDO$/', $n)) return 'ABDO';
 
-        // Not in alias map → just use the cleaned uppercase name
-        return $upper;
+        // fallback (keep cleaned value)
+        return $n ?: 'NOT MENTIONED';
     }
+
 
     private array $monthAliases = [
         1  => 'jan',
@@ -207,6 +211,10 @@ class SalesmanPerformanceController extends Controller
         $po = DB::table('salesorderlog as s')
             ->selectRaw("$poNorm AS norm,$poLabel AS label,SUM($amt) AS total")
             ->whereYear('s.date_rec', $year)
+            ->whereNull('s.deleted_at')
+            ->whereRaw('`s`.`PO. No.` IS NOT NULL')
+            ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
+            ->whereRaw($amt . ' > 0')
             ->groupByRaw("$poNorm,$poLabel")
             ->get();
 
@@ -245,5 +253,166 @@ class SalesmanPerformanceController extends Controller
             'sum_inquiries' => array_sum($inqSeries),
             'sum_pos'       => array_sum($poSeries),
         ]);
+    }
+
+
+
+    /**
+     * ✅ PDF Export: Salesman Summary (same template style as Area Summary)
+     * - One PDF
+     * - One page per salesman
+     * - Uses same alias normalization
+     */
+    public function pdf(Request $r)
+    {
+        $year  = (int)($r->query('year') ?? now()->year);
+        $today = Carbon::now()->format('d-m-Y');
+
+        // Disable strict grouping (same as your existing approach)
+        DB::statement("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
+
+        // Build pivot arrays (Jan..Dec + Total) using your existing alias normalization
+        $inquiriesBySalesman = $this->buildSalesmanPivotInquiries($year);
+        $posBySalesman       = $this->buildSalesmanPivotPOs($year);
+// ✅ Region grouping based on fixed salesmen mapping
+        $regionMap = [
+            'Eastern' => ['SOHAIB'],
+            'Central' => ['TARIQ', 'JAMAL'],
+            'Western' => ['ABDO', 'AHMED'],
+        ];
+
+// Build pivot arrays by region (same shape as other pivots: Jan..Dec + Total)
+        $inquiriesByRegion = $this->buildRegionPivotFromSalesmanPivot($inquiriesBySalesman, $regionMap);
+        $posByRegion       = $this->buildRegionPivotFromSalesmanPivot($posBySalesman, $regionMap);
+        $inqTotal = array_sum(array_map(fn($row) => (float) end($row), $inquiriesBySalesman));
+        $poTotal  = array_sum(array_map(fn($row) => (float) end($row), $posBySalesman));
+
+        $gapVal = $inqTotal - $poTotal;
+        $gapPct = ($inqTotal > 0) ? round(($poTotal / $inqTotal) * 100, 1) : 0;
+
+        $payload = [
+            'year' => $year,
+            'today' => $today,
+            'kpis' => [
+                'inquiries_total' => $inqTotal,
+                'pos_total'       => $poTotal,
+                'gap_value'       => $gapVal,
+                'gap_percent'     => $gapPct,
+            ],
+            'inquiriesBySalesman' => $inquiriesBySalesman,
+            'posBySalesman'       => $posBySalesman,
+            'inqByRegion' => $inquiriesByRegion,
+            'poByRegion'  => $posByRegion,
+        ];
+
+        return Pdf::loadView('reports.salesman-summary', $payload)
+            ->setPaper('a4', 'portrait')
+            ->download("ATAI_Salesman_Summary_{$year}.pdf");
+    }
+
+    /**
+     * Build inquiries pivot: [SALESMAN => [jan,feb,...,december,total]]
+     */
+    private function buildSalesmanPivotInquiries(int $year): array
+    {
+        // base grouped by raw label + month
+        $labelExpr = "COALESCE(NULLIF(p.salesman,''),NULLIF(p.salesperson,''),'Not Mentioned')";
+        $valExpr   = "COALESCE(p.quotation_value,0)";
+
+        $rows = DB::table('projects as p')
+            ->selectRaw("$labelExpr AS salesman, MONTH(p.quotation_date) AS m, SUM($valExpr) AS s")
+            ->whereYear('p.quotation_date', $year)
+            ->groupByRaw("$labelExpr, MONTH(p.quotation_date)")
+            ->get();
+
+        return $this->pivotNormalizeSalesmanRows($rows);
+    }
+
+    /**
+     * Build POs pivot: [SALESMAN => [jan,feb,...,december,total]]
+     */
+    private function buildSalesmanPivotPOs(int $year): array
+    {
+        $labelExpr = "COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
+        $amtExpr   = $this->poAmountExpr('s');
+
+        $rows = DB::table('salesorderlog as s')
+            ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, SUM($amtExpr) AS s")
+            ->whereYear('s.date_rec', $year)
+            ->whereNull('s.deleted_at')
+            ->whereRaw('`s`.`PO. No.` IS NOT NULL')
+            ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
+            ->whereRaw($amtExpr . ' > 0')
+            ->groupByRaw("$labelExpr, MONTH(s.date_rec)")
+            ->get();
+
+        return $this->pivotNormalizeSalesmanRows($rows);
+    }
+
+    /**
+     * Convert rows(salesman, m, s) into your standard pivot array:
+     * [CANONICAL => [jan..december,total]]
+     */
+    private function pivotNormalizeSalesmanRows($rows): array
+    {
+        $months = array_values($this->monthAliases); // jan..december
+
+        $out = [];
+        foreach ($rows as $r) {
+            $canon = $this->normalizeSalesman($r->salesman);
+            if (!isset($out[$canon])) {
+                $out[$canon] = array_fill_keys($months, 0.0);
+                $out[$canon]['total'] = 0.0;
+            }
+
+            $m = (int)$r->m;
+            if ($m >= 1 && $m <= 12) {
+                $key = $this->monthAliases[$m];
+                $out[$canon][$key] += (float)$r->s;
+            }
+        }
+
+        // compute totals and convert to numeric indexed array order [jan..december,total]
+        $final = [];
+        ksort($out, SORT_NATURAL);
+
+        foreach ($out as $salesman => $arr) {
+            $total = 0.0;
+            foreach ($months as $k) $total += (float)$arr[$k];
+            $arr['total'] = $total;
+
+            $final[$salesman] = [];
+            foreach ($months as $k) $final[$salesman][] = (float)$arr[$k];
+            $final[$salesman][] = (float)$arr['total']; // last col TOTAL
+        }
+
+        return $final;
+    }
+    /**
+     * Build Region pivot from an existing pivot (Salesman => [jan..dec,total])
+     * using a mapping like:
+     *  Eastern => [SOHAIB], Central => [TARIQ,JAMAL], Western => [ABDO,AHMED]
+     */
+    private function buildRegionPivotFromSalesmanPivot(array $pivot, array $regionMap): array
+    {
+        $out = [];
+
+        foreach ($regionMap as $region => $salesmen) {
+            // init row with 13 cols (Jan..Dec + Total)
+            $row = array_fill(0, 13, 0.0);
+
+            foreach ($salesmen as $s) {
+                if (!isset($pivot[$s])) continue;
+
+                // pivot[$s] is numeric array: [jan..dec,total]
+                foreach ($pivot[$s] as $i => $val) {
+                    $row[$i] += (float)$val;
+                }
+            }
+
+            $out[$region] = $row;
+        }
+
+        return $out;
     }
 }

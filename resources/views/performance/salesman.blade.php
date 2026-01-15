@@ -56,6 +56,13 @@
                                 @endfor
                             </select>
                         </div>
+                        <div class="mt-2">
+                            <a id="btnDownloadPdf"
+                               class="btn btn-sm btn-primary"
+                               href="{{ route('performance.salesman.pdf') }}?year={{ $year }}">
+                                <i class="bi bi-download me-1"></i> Download PDF
+                            </a>
+                        </div>
                     </div>
 
                     {{-- KPI cards (right, using global .kpi-card styles) --}}
@@ -192,6 +199,10 @@
             return data;
         };
 
+        document.getElementById('btnDownloadPdf')?.addEventListener('click', function (e) {
+            const y = document.getElementById('yearSelect')?.value || YEAR_INIT;
+            this.href = `{{ route('performance.salesman.pdf') }}?year=${encodeURIComponent(y)}`;
+        });
         function initTable(selector, kind, badgeSelector) {
             return $(selector).DataTable({
                 processing: true,
