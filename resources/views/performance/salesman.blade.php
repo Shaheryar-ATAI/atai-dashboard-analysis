@@ -1,31 +1,111 @@
 @extends('layouts.app')
 
-@section('title', 'ATAI Sales Orders — Live')
+@section('title', 'ATAI Salesman Summary — Performance')
 
 @push('head')
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Salesman Summary — Performance</title>
 
-    {{-- Only custom styles here – Bootstrap + DataTables come from layouts/app + atai-theme --}}
+    {{-- Only custom styles here – Bootstrap + Highcharts come from layouts/app + atai-theme --}}
     <style>
         .badge-total { font-weight: 600; }
 
-        .table-sticky thead th {
-            position: sticky;
-            top: 0;
-            z-index: 1;
+        /* ====== Section headings above each table ====== */
+        .sales-section-title{
+            text-align:center;
+            text-transform:uppercase;
+            letter-spacing:.15em;
+            font-weight:700;
+            font-size:.8rem;
+            margin-bottom:.85rem;
+            color: rgba(255,255,255,.92);
         }
 
-        /* Section headings above each table */
-        .sales-section-title {
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: .15em;
-            font-weight: 700;
-            font-size: .8rem;
-            margin-bottom: .85rem;
+        /* ====== DataTables sticky header (kept compatible even if you don't use DT) ====== */
+        .table-sticky thead th{
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: rgba(15,23,42,.92);
+            color: rgba(255,255,255,.92);
+            border-bottom: 1px solid rgba(255,255,255,.12);
         }
+
+        /* ====== Matrix tables (normal tables, rendered by JS) ====== */
+        .section-card{ margin-bottom: 1.25rem; }
+
+        .matrix-wrap{
+            overflow:auto;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,.08);
+            background: rgba(2,6,23,.35);
+            box-shadow: 0 10px 30px rgba(0,0,0,.25);
+        }
+
+        .matrix-table{
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 12px;
+            min-width: 1100px;
+            color: rgba(255,255,255,.88);
+        }
+
+        .matrix-table th,
+        .matrix-table td{
+            border-right: 1px solid rgba(255,255,255,.08);
+            border-bottom: 1px solid rgba(255,255,255,.08);
+            padding: 8px 10px;
+            white-space: nowrap;
+            vertical-align: middle;
+            background: transparent;
+        }
+
+        .matrix-table thead th{
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            background: rgba(15,23,42,.92);
+            color: rgba(255,255,255,.92);
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: .08em;
+            border-bottom: 1px solid rgba(255,255,255,.14);
+        }
+
+        .matrix-table tbody tr:hover td{
+            background: rgba(255,255,255,.03);
+        }
+
+        .matrix-table td.num,
+        .matrix-table td.pct{
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Sticky left columns */
+        .matrix-left-sticky{
+            position: sticky;
+            left: 0;
+            z-index: 4;
+            background: rgba(2,6,23,.75);
+            color: rgba(255,255,255,.92);
+            border-right: 1px solid rgba(255,255,255,.12);
+        }
+        .matrix-left-sticky-2{
+            position: sticky;
+            left: 160px; /* matches salesman column width below */
+            z-index: 4;
+            background: rgba(2,6,23,.70);
+            color: rgba(255,255,255,.92);
+            border-right: 1px solid rgba(255,255,255,.12);
+        }
+
+        .matrix-salesman{ width:160px; font-weight:700; }
+        .matrix-label{ width:210px; font-weight:600; }
+
+        /* Make Bootstrap "text-muted" readable in dark cards */
+        .text-muted { color: rgba(255,255,255,.55) !important; }
     </style>
 @endpush
 
@@ -45,7 +125,7 @@
                     <div class="col-md-4 d-flex flex-wrap align-items-center gap-2">
                         <div>
                             <div class="kpi-shell-label">Salesman Summary</div>
-                            <div class="small text-muted">Year-wise comparison</div>
+                            <div class="small text-muted">Web view matches PDF sections</div>
                         </div>
 
                         <div class="ms-md-3">
@@ -56,10 +136,21 @@
                                 @endfor
                             </select>
                         </div>
+
+                        <div class="ms-md-2">
+                            <div class="kpi-shell-label">Area</div>
+                            <select id="areaSelect" class="form-select form-select-sm">
+                                <option value="All">All</option>
+                                <option value="Eastern">Eastern</option>
+                                <option value="Central">Central</option>
+                                <option value="Western">Western</option>
+                            </select>
+                        </div>
+
                         <div class="mt-2">
                             <a id="btnDownloadPdf"
                                class="btn btn-sm btn-primary"
-                               href="{{ route('performance.salesman.pdf') }}?year={{ $year }}">
+                               href="{{ route('performance.salesman.pdf') }}?year={{ (int)$year }}&area=All">
                                 <i class="bi bi-download me-1"></i> Download PDF
                             </a>
                         </div>
@@ -68,40 +159,29 @@
                     {{-- KPI cards (right, using global .kpi-card styles) --}}
                     <div class="col-md-8">
                         <div class="row g-2 justify-content-md-end">
-                            {{-- Inquiries total --}}
+
                             <div class="col-12 col-sm-6 col-lg-3">
                                 <div class="kpi-card shadow-sm p-3 text-center h-100 d-flex flex-column justify-content-center">
                                     <div class="kpi-label">Inquiries Total</div>
-                                    <div id="badgeInq" class="kpi-value">
-                                        SAR 0
-                                    </div>
+                                    <div id="badgeInq" class="kpi-value">SAR 0</div>
                                 </div>
                             </div>
 
-                            {{-- POs total --}}
                             <div class="col-12 col-sm-6 col-lg-3">
                                 <div class="kpi-card shadow-sm p-3 text-center h-100 d-flex flex-column justify-content-center">
                                     <div class="kpi-label">POs Total</div>
-                                    <div id="badgePO" class="kpi-value">
-                                        SAR 0
-                                    </div>
+                                    <div id="badgePO" class="kpi-value">SAR 0</div>
                                 </div>
                             </div>
+
                             <div class="col-md-4">
                                 <div class="card bg-dark text-light coordinator-kpi-card">
                                     <div class="card-body text-center">
-                                        <div class="text-uppercase small text-secondary mb-1">
-                                            Gap Coverage
-                                        </div>
-
-                                        {{-- Gauge container --}}
+                                        <div class="text-uppercase small text-secondary mb-1">Gap Coverage</div>
                                         <div id="salesman_gap_gauge" style="height: 140px;"></div>
 
-                                        {{-- Gap text --}}
                                         <div class="mt-2 small">
-                                            <div id="salesman_gap_text" class="fw-semibold">
-                                                Gap: SAR 0
-                                            </div>
+                                            <div id="salesman_gap_text" class="fw-semibold">Gap: SAR 0</div>
                                             <div id="salesman_gap_note" class="text-uppercase mt-1"
                                                  style="letter-spacing: .12em; font-size: .75rem;">
                                                 POs vs Quotations
@@ -110,6 +190,7 @@
                                     </div>
                                 </div>
                             </div>
+
                         </div>
                     </div>
 
@@ -128,44 +209,116 @@
         </div>
 
         {{-- =======================
-             INQUIRIES TABLE
+             INQUIRIES (by Salesman) — NORMAL TABLE
            ======================= --}}
-        <div class="card mb-4">
+        <div class="card mb-4 section-card">
             <div class="card-body">
                 <h6 class="card-title sales-section-title">Inquiries (Quotations) — by Salesman</h6>
-                <div class="table-responsive">
-                    <table id="tblSalesInquiries" class="table table-striped table-sticky w-100">
+
+                <div class="matrix-wrap">
+                    <table class="matrix-table table-sticky" id="tblSalesInquiries">
                         <thead>
                         <tr>
-                            <th>Salesman</th>
-                            <th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>May</th><th>Jun</th>
-                            <th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th>
-                            <th>Total</th>
+                            <th class="matrix-left-sticky matrix-salesman">Salesman</th>
+                            @foreach(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Total'] as $m)
+                                <th class="text-end">{{ $m }}</th>
+                            @endforeach
                         </tr>
                         </thead>
+                        <tbody>
+                        <tr><td class="p-3 text-muted" colspan="14">Loading...</td></tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
         </div>
 
         {{-- =======================
-             POs TABLE
+             POs (by Salesman) — NORMAL TABLE
            ======================= --}}
-        <div class="card mb-4">
+        <div class="card mb-4 section-card">
             <div class="card-body">
                 <h6 class="card-title sales-section-title">POs received — by Salesman</h6>
-                <div class="table-responsive">
-                    <table id="tblSalesPOs" class="table table-striped table-sticky w-100">
+
+                <div class="matrix-wrap">
+                    <table class="matrix-table table-sticky" id="tblSalesPOs">
                         <thead>
                         <tr>
-                            <th>Salesman</th>
-                            <th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>May</th><th>Jun</th>
-                            <th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th>
-                            <th>Total</th>
+                            <th class="matrix-left-sticky matrix-salesman">Salesman</th>
+                            @foreach(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Total'] as $m)
+                                <th class="text-end">{{ $m }}</th>
+                            @endforeach
                         </tr>
                         </thead>
+                        <tbody>
+                        <tr><td class="p-3 text-muted" colspan="14">Loading...</td></tr>
+                        </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+
+        {{-- =======================
+             PERFORMANCE MATRIX (PDF MATCH)
+           ======================= --}}
+        <div class="card mb-4 section-card">
+            <div class="card-body">
+                <h6 class="card-title sales-section-title">Performance Matrix — Forecast / Target / Inquiries / POs / Conversion</h6>
+                <div class="matrix-wrap" id="perfMatrixWrap">
+                    <div class="p-3 text-muted">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        {{-- =======================
+             PRODUCT MATRIX — INQUIRIES
+           ======================= --}}
+        <div class="card mb-4 section-card">
+            <div class="card-body">
+                <h6 class="card-title sales-section-title">Product Matrix — Inquiries</h6>
+                <div class="matrix-wrap" id="inqProdWrap">
+                    <div class="p-3 text-muted">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        {{-- =======================
+             PRODUCT MATRIX — POs
+           ======================= --}}
+        <div class="card mb-4 section-card">
+            <div class="card-body">
+                <h6 class="card-title sales-section-title">Product Matrix — POs</h6>
+                <div class="matrix-wrap" id="poProdWrap">
+                    <div class="p-3 text-muted">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        {{-- =======================
+             ESTIMATORS + TOTALS (PDF MATCH)
+           ======================= --}}
+        <div class="card mb-4 section-card">
+            <div class="card-body">
+
+                <h6 class="card-title sales-section-title">Inquiries — By Estimator</h6>
+                <div class="matrix-wrap" id="estimatorWrap">
+                    <div class="p-3 text-muted">Loading...</div>
+                </div>
+
+                <hr class="my-3"/>
+
+                <h6 class="card-title sales-section-title">Total Inquiries — By Month</h6>
+                <div class="matrix-wrap" id="totalInqMonthWrap">
+                    <div class="p-3 text-muted">Loading...</div>
+                </div>
+
+                <hr class="my-3"/>
+
+                <h6 class="card-title sales-section-title">Total Inquiries — By Product</h6>
+                <div class="matrix-wrap" id="totalInqProductWrap">
+                    <div class="p-3 text-muted">Loading...</div>
+                </div>
+
             </div>
         </div>
 
@@ -174,136 +327,93 @@
 
 @push('scripts')
     <script>
-        const YEAR_INIT = {{ (int) $year }};
-        const DT_URL  = @json(route('performance.salesman.data'));
-        const KPI_URL = @json(route('performance.salesman.kpis'));
+        // =========================
+        // ROUTES
+        // =========================
+        const YEAR_INIT  = {{ (int) $year }};
+        const KPI_URL    = @json(route('performance.salesman.kpis'));
+        const MATRIX_URL = @json(route('performance.salesman.matrix')); // ✅ YOU MUST CREATE THIS ROUTE/ENDPOINT
 
-        const fmtSAR = n => new Intl.NumberFormat('en-SA', {
-            style: 'currency',
-            currency: 'SAR',
-            maximumFractionDigits: 0
-        }).format(Number(n || 0));
+        // =========================
+        // HELPERS
+        // =========================
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Total'];
 
-        // Common columns – server returns "december" for Dec
-        const columns = [
-            { data:'salesman', name:'salesman', orderable:false, searchable:false },
-            { data:'jan', name:'jan' }, { data:'feb', name:'feb' }, { data:'mar', name:'mar' },
-            { data:'apr', name:'apr' }, { data:'may', name:'may' }, { data:'jun', name:'jun' },
-            { data:'jul', name:'jul' }, { data:'aug', name:'aug' }, { data:'sep', name:'sep' },
-            { data:'oct', name:'oct' }, { data:'nov', name:'nov' }, { data:'december', name:'december' },
-            { data:'total', name:'total' }
-        ];
-
-        const currencyRender = function (data, type) {
-            if (type === 'display' || type === 'filter') return fmtSAR(data);
-            return data;
+        const money = (n) => {
+            n = Number(n || 0);
+            if (!n) return '–';
+            return 'SAR ' + n.toLocaleString('en-SA', { maximumFractionDigits: 0 });
+        };
+        const pct = (n) => {
+            n = Number(n || 0);
+            return n.toFixed(1) + '%';
         };
 
-        document.getElementById('btnDownloadPdf')?.addEventListener('click', function (e) {
-            const y = document.getElementById('yearSelect')?.value || YEAR_INIT;
-            this.href = `{{ route('performance.salesman.pdf') }}?year=${encodeURIComponent(y)}`;
-        });
-        function initTable(selector, kind, badgeSelector) {
-            return $(selector).DataTable({
-                processing: true,
-                serverSide: true,
-                searching: true,
-                order: [[0, 'asc']],
-                ajax: {
-                    url: DT_URL,
-                    data: d => {
-                        d.kind = kind;                  // 'inq' or 'po'
-                        d.year = $('#yearSelect').val();
-                    }
-                },
-                columns: columns,
-                columnDefs: [
-                    {
-                        targets: [1,2,3,4,5,6,7,8,9,10,11,12,13],
-                        render: currencyRender,
-                        className: 'text-end'
-                    }
-                ],
-                drawCallback: function () {
-                    const json = this.api().ajax.json() || {};
-                    if (badgeSelector && json.sum_total != null) {
-                        const label = (kind === 'inq' ? 'Inquiries: ' : 'POs: ');
-                        $(badgeSelector).text(label + fmtSAR(json.sum_total));
-                    }
-                }
-            });
+        function currentYear(){ return document.getElementById('yearSelect')?.value || YEAR_INIT; }
+        function currentArea(){ return document.getElementById('areaSelect')?.value || 'All'; }
+
+        // Always normalize arrays to 13 cells
+        function pad13(arr){
+            const a = Array.isArray(arr) ? arr.slice(0, 13) : [];
+            while (a.length < 13) a.push(0);
+            return a;
         }
 
-        const dtInq = initTable('#tblSalesInquiries', 'inq', '#badgeInq');
-        const dtPO  = initTable('#tblSalesPOs',       'po',  '#badgePO');
-
-        $('#yearSelect').on('change', function () {
-            dtInq.ajax.reload(null, false);
-            dtPO.ajax.reload(null, false);
-            loadChart();
+        // =========================
+        // PDF DOWNLOAD LINK (year+area)
+        // =========================
+        document.getElementById('btnDownloadPdf')?.addEventListener('click', function () {
+            const y = currentYear();
+            const a = currentArea();
+            this.href = `{{ route('performance.salesman.pdf') }}?year=${encodeURIComponent(y)}&area=${encodeURIComponent(a)}`;
         });
 
-        async function loadChart() {
-            const year = $('#yearSelect').val();
-            const res  = await fetch(`${KPI_URL}?year=${year}`, { credentials: 'same-origin' });
+        // =========================
+        // CHART + KPI + GAUGE
+        // =========================
+        async function loadTopKpisAndChart(){
+            const year = currentYear();
+            const area = currentArea();
+
+            const res  = await fetch(`${KPI_URL}?year=${encodeURIComponent(year)}&area=${encodeURIComponent(area)}`, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
             const data = await res.json();
 
+            // KPIs
+            const totalInq = Number(data.sum_inquiries || 0);
+            const totalPos = Number(data.sum_pos || 0);
+            document.getElementById('badgeInq').textContent = money(totalInq);
+            document.getElementById('badgePO').textContent  = money(totalPos);
+
+            // Column chart
             Highcharts.chart('chartSalesman', {
-                chart: {
-                    type: 'column',
-                    backgroundColor: 'transparent'  // fully match dark theme
-                },
+                chart: { type: 'column', backgroundColor: 'transparent' },
                 title: {
                     text: `Salesman Comparison — ${year}`,
-                    style: {
-                        color: '#ffffff',        // white title
-                        fontSize: '16px',
-                        fontWeight: '600'
-                    }
+                    style: { color: '#ffffff', fontSize: '16px', fontWeight: '600' }
                 },
                 xAxis: {
-                    categories: data.categories,
-                    labels: {
-                        style: {
-                            color: '#d0d0d0',    // white/light text
-                            fontSize: '12px',
-                            fontWeight: '500'
-                        }
-                    },
-                    lineColor: '#444',
-                    tickColor: '#444'
+                    categories: data.categories || [],
+                    labels: { style: { color: '#d0d0d0', fontSize: '12px', fontWeight: '500' } },
+                    lineColor: '#444', tickColor: '#444'
                 },
                 yAxis: {
                     min: 0,
-                    title: {
-                        text: 'SAR',
-                        style: {
-                            color: '#ffffff',    // white axis title
-                            fontWeight: '600'
-                        }
-                    },
-                    labels: {
-                        style: {
-                            color: '#d0d0d0',    // white/light labels
-                            fontSize: '11px'
-                        }
-                    },
-                    gridLineColor: '#333'        // subtle dark lines
+                    title: { text: 'SAR', style: { color: '#ffffff', fontWeight: '600' } },
+                    labels: { style: { color: '#d0d0d0', fontSize: '11px' } },
+                    gridLineColor: '#333'
                 },
-                legend: {
-                    itemStyle: {
-                        color: '#ffffff',        // white legend text
-                        fontWeight: '500'
-                    }
-                },
+                legend: { itemStyle: { color: '#ffffff', fontWeight: '500' } },
                 tooltip: {
                     shared: true,
-                    backgroundColor: '#1a1a1a',  // dark tooltip
+                    backgroundColor: '#1a1a1a',
                     borderColor: '#333',
                     style: { color: '#fff' },
                     formatter() {
                         const pts = this.points.map(p =>
-                            `<span style="color:${p.color}">\u25CF</span> ${p.series.name}: <b>${fmtSAR(p.y)}</b>`
+                            `<span style="color:${p.color}">\u25CF</span> ${p.series.name}: <b>${money(p.y)}</b>`
                         ).join('<br/>');
                         return `<b>${this.x}</b><br/>${pts}`;
                     }
@@ -315,153 +425,356 @@
                         borderRadius: 3,
                         dataLabels: {
                             enabled: true,
-                            inside: false,
-                            allowOverlap: false,
-                            style: {
-                                color: '#ffffff', // <-- perfect white labels
-                                fontSize: '11px',
-                                fontWeight: '600',
-                                textOutline: 'none'
-                            },
-                            formatter: function () {
-                                return fmtSAR(this.y);
-                            }
+                            style: { color: '#ffffff', fontSize: '11px', fontWeight: '600', textOutline: 'none' },
+                            formatter: function () { return money(this.y); }
                         }
                     }
                 },
                 series: [
-                    {
-                        name: 'Inquiries',
-                        data: data.inquiries,
-                        color: '#51a7ff'   // your blue color
-                    },
-                    {
-                        name: 'POs',
-                        data: data.pos,
-                        color: '#9a69e3'   // your purple color
-                    }
+                    { name: 'Inquiries', data: data.inquiries || [], color: '#51a7ff' },
+                    { name: 'POs',       data: data.pos || [],      color: '#9a69e3' }
                 ],
                 credits: { enabled: false }
             });
 
+            // Gauge
+            const coverage = totalInq > 0 ? (totalPos / totalInq) * 100 : 0;
+            const gap = totalInq - totalPos;
 
-            // Sync top KPI cards with chart sums
-            $('#badgeInq').text(fmtSAR(data.sum_inquiries));
-            $('#badgePO').text(fmtSAR(data.sum_pos));
-        }
-
-        // initial render
-        $(function () {
-            $('#yearSelect').val(YEAR_INIT);
-            loadChart();
-        });
-    </script>
-    <script>
-        (function () {
-            const fmtSAR = n => new Intl.NumberFormat('en-SA', {
-                maximumFractionDigits: 0
-            }).format(Number(n || 0));
-
-            // Call your kpis() endpoint
-            fetch("{{ route('performance.salesman.kpis') }}?year={{ $year }}", {
-                headers: { 'Accept': 'application/json' }
-            })
-                .then(r => r.json())
-                .then(data => {
-                    const totalInq = Number(data.sum_inquiries || 0);
-                    const totalPos = Number(data.sum_pos || 0);
-
-                    let coverage = 0;
-                    if (totalInq > 0) {
-                        coverage = (totalPos / totalInq) * 100;
+            Highcharts.chart('salesman_gap_gauge', {
+                chart: { type: 'solidgauge', backgroundColor: 'transparent' },
+                title: null,
+                pane: {
+                    center: ['50%', '80%'],
+                    size: '140%',
+                    startAngle: -90,
+                    endAngle: 90,
+                    background: {
+                        innerRadius: '60%',
+                        outerRadius: '100%',
+                        shape: 'arc',
+                        borderWidth: 0,
+                        backgroundColor: '#1f2937'
                     }
-
-                    const gap = totalInq - totalPos;   // +ve → more quoted than POs
-
-                    const gaugeEl = document.getElementById('salesman_gap_gauge');
-                    if (!gaugeEl) return;
-
-                    Highcharts.chart('salesman_gap_gauge', {
-                        chart: {
-                            type: 'solidgauge',
-                            backgroundColor: 'transparent'
-                        },
-                        title: null,
-                        pane: {
-                            center: ['50%', '80%'],
-                            size: '140%',
-                            startAngle: -90,
-                            endAngle: 90,
-                            background: {
-                                innerRadius: '60%',
-                                outerRadius: '100%',
-                                shape: 'arc',
-                                borderWidth: 0,
-                                backgroundColor: '#1f2937'
-                            }
-                        },
-                        tooltip: { enabled: false },
-                        yAxis: {
-                            min: 0,
-                            max: 100,
-                            lineWidth: 0,
-                            tickWidth: 0,
-                            tickAmount: 0,
-                            labels: { enabled: false },
-                            stops: [
-                                [0.25, '#ef4444'], // red
-                                [0.6,  '#facc15'], // amber
-                                [1.0,  '#22c55e']  // green
-                            ]
-                        },
-                        plotOptions: {
-                            solidgauge: {
-                                dataLabels: {
-                                    useHTML: true,
-                                    borderWidth: 0,
-                                    padding: 0,
-                                    y: -20,
-                                    style: { color: '#e5e7eb' },
-                                    format:
-                                        '<div style="text-align:center">' +
-                                        '<div style="font-size:22px;font-weight:600">{y:.0f}%</div>' +
-                                        '<div style="font-size:11px;">POs vs Quotations</div>' +
-                                        '</div>'
-                                }
-                            }
-                        },
-                        credits: { enabled: false },
-                        series: [{
-                            name: 'Coverage',
-                            data: [coverage]
-                        }]
-                    });
-
-                    // Text under gauge
-                    const gapText = document.getElementById('salesman_gap_text');
-                    const gapNote = document.getElementById('salesman_gap_note');
-
-                    const gapAbs = Math.abs(gap);
-                    const label = 'Gap: SAR ' + fmtSAR(gapAbs);
-
-                    if (gapText) {
-                        gapText.textContent = label;
-                        gapText.style.color = gap >= 0 ? '#22c55e' : '#f97316';
-                    }
-
-                    if (gapNote) {
-                        if (gap > 0) {
-                            gapNote.textContent = 'MORE QUOTED THAN POS';
-                        } else if (gap < 0) {
-                            gapNote.textContent = 'MORE POS THAN QUOTED';
-                        } else {
-                            gapNote.textContent = 'POs MATCH QUOTATIONS';
+                },
+                tooltip: { enabled: false },
+                yAxis: {
+                    min: 0,
+                    max: 100,
+                    lineWidth: 0,
+                    tickWidth: 0,
+                    tickAmount: 0,
+                    labels: { enabled: false },
+                    stops: [
+                        [0.25, '#ef4444'],
+                        [0.6,  '#facc15'],
+                        [1.0,  '#22c55e']
+                    ]
+                },
+                plotOptions: {
+                    solidgauge: {
+                        dataLabels: {
+                            useHTML: true,
+                            borderWidth: 0,
+                            padding: 0,
+                            y: -20,
+                            style: { color: '#e5e7eb' },
+                            format:
+                                '<div style="text-align:center">' +
+                                '<div style="font-size:22px;font-weight:600">{y:.0f}%</div>' +
+                                '<div style="font-size:11px;">POs vs Quotations</div>' +
+                                '</div>'
                         }
                     }
-                })
-                .catch(err => {
-                    console.error('Salesman KPI gauge error:', err);
+                },
+                credits: { enabled: false },
+                series: [{ name: 'Coverage', data: [coverage] }]
+            });
+
+            const gapText = document.getElementById('salesman_gap_text');
+            const gapNote = document.getElementById('salesman_gap_note');
+            const gapAbs  = Math.abs(gap);
+
+            if (gapText) {
+                gapText.textContent = 'Gap: ' + money(gapAbs);
+                gapText.style.color = gap >= 0 ? '#22c55e' : '#f97316';
+            }
+            if (gapNote) {
+                gapNote.textContent = gap > 0 ? 'MORE QUOTED THAN POS'
+                    : (gap < 0 ? 'MORE POS THAN QUOTED' : 'POS MATCH QUOTATIONS');
+            }
+        }
+
+        // =========================
+        // SIMPLE TABLE RENDER: Salesman monthly (inq/po)
+        // =========================
+        function renderSalesmanMonthTable(tableId, objBySalesman){
+            const tbody = document.querySelector(`#${tableId} tbody`);
+            if (!tbody) return;
+
+            const keys = Object.keys(objBySalesman || {}).sort();
+            if (!keys.length) {
+                tbody.innerHTML = `<tr><td class="p-3 text-muted" colspan="14">No data.</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            keys.forEach(s => {
+                const row = pad13(objBySalesman[s]);
+                html += `<tr>
+                    <td class="matrix-left-sticky matrix-salesman">${s}</td>
+                    ${row.map(v => `<td class="text-end">${money(v)}</td>`).join('')}
+                </tr>`;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // =========================
+        // MATRIX RENDERERS (PDF MATCH)
+        // =========================
+        function monthsHeaderHtml(){
+            return months.map(m => `<th class="text-end">${m}</th>`).join('');
+        }
+
+        function renderPerfMatrix(perf){
+            const obj = perf || {};
+            const salesmanKeys = Object.keys(obj).sort();
+
+            const metricOrder = [
+                ['FORECAST','Forecast', 'money'],
+                ['TARGET','Target', 'money'],
+                ['PERF', 'Performance', 'perfHtml'],   // optional (if you include in payload)
+                ['INQUIRIES','Inquiries', 'money'],
+                ['POS','Sales Orders', 'money'],
+                ['CONV_PCT','Conversion %', 'pct'],
+            ];
+
+            let html = `
+                <table class="matrix-table">
+                    <thead>
+                        <tr>
+                            <th class="matrix-left-sticky matrix-salesman">Salesman</th>
+                            <th class="matrix-left-sticky-2 matrix-label">Metric</th>
+                            ${monthsHeaderHtml()}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            if (!salesmanKeys.length) {
+                html += `<tr><td class="p-3 text-muted" colspan="15">No data.</td></tr>`;
+            } else {
+                salesmanKeys.forEach(s => {
+                    const m = obj[s] || {};
+                    metricOrder.forEach(([key, label, kind], idx) => {
+                        const row = pad13(m[key]);
+
+                        html += `<tr>
+                            <td class="matrix-left-sticky matrix-salesman">${idx===0 ? s : ''}</td>
+                            <td class="matrix-left-sticky-2 matrix-label">${label}</td>
+                        `;
+
+                        if (kind === 'pct') {
+                            html += row.map(v => `<td class="pct">${pct(v)}</td>`).join('');
+                        } else if (kind === 'perfHtml') {
+                            // if controller returns HTML pills per cell: [{html:"<span...>"}]
+                            html += row.map(cell => {
+                                const h = (cell && typeof cell === 'object' && cell.html) ? cell.html : '–';
+                                return `<td class="pct">${h}</td>`;
+                            }).join('');
+                        } else {
+                            html += row.map(v => `<td class="num">${money(v)}</td>`).join('');
+                        }
+
+                        html += `</tr>`;
+                    });
                 });
-        })();
+            }
+
+            html += `</tbody></table>`;
+            document.getElementById('perfMatrixWrap').innerHTML = html;
+        }
+
+        function renderProdMatrix(data, mountId){
+            const obj = data || {};
+
+            let html = `
+                <table class="matrix-table">
+                    <thead>
+                        <tr>
+                            <th class="matrix-left-sticky matrix-salesman">Salesman</th>
+                            <th class="matrix-left-sticky-2 matrix-label">Product</th>
+                            ${monthsHeaderHtml()}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            const salesmen = Object.keys(obj).sort();
+            if (!salesmen.length) {
+                html += `<tr><td class="p-3 text-muted" colspan="15">No data.</td></tr>`;
+            } else {
+                salesmen.forEach(s => {
+                    const products = obj[s] || {};
+                    const prodKeys = Object.keys(products).sort();
+                    if (!prodKeys.length) {
+                        html += `<tr>
+                            <td class="matrix-left-sticky matrix-salesman">${s}</td>
+                            <td class="matrix-left-sticky-2 matrix-label text-muted">No products</td>
+                            ${Array(13).fill(0).map(()=>`<td class="text-end">–</td>`).join('')}
+                        </tr>`;
+                        return;
+                    }
+                    prodKeys.forEach((p, i) => {
+                        const row = pad13(products[p]);
+                        html += `<tr>
+                            <td class="matrix-left-sticky matrix-salesman">${i===0 ? s : ''}</td>
+                            <td class="matrix-left-sticky-2 matrix-label">${p}</td>
+                            ${row.map(v => `<td class="num">${money(v)}</td>`).join('')}
+                        </tr>`;
+                    });
+                });
+            }
+
+            html += `</tbody></table>`;
+            document.getElementById(mountId).innerHTML = html;
+        }
+
+        function renderEstimatorTable(est){
+            const obj = est || {};
+            let html = `
+                <table class="matrix-table">
+                    <thead>
+                        <tr>
+                            <th class="matrix-left-sticky matrix-salesman">Estimator</th>
+                            ${monthsHeaderHtml()}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            const keys = Object.keys(obj).sort();
+            if (!keys.length) {
+                html += `<tr><td class="p-3 text-muted" colspan="14">No data.</td></tr>`;
+            } else {
+                keys.forEach(k => {
+                    const row = pad13(obj[k]);
+                    html += `<tr>
+                        <td class="matrix-left-sticky matrix-salesman">${k}</td>
+                        ${row.map(v => `<td class="num">${money(v)}</td>`).join('')}
+                    </tr>`;
+                });
+            }
+
+            html += `</tbody></table>`;
+            document.getElementById('estimatorWrap').innerHTML = html;
+        }
+
+        function renderTotalMonth(arr){
+            const row = pad13(arr);
+            const html = `
+                <table class="matrix-table">
+                    <thead>
+                        <tr>
+                            <th class="matrix-left-sticky matrix-salesman">TOTAL</th>
+                            ${monthsHeaderHtml()}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="matrix-left-sticky matrix-salesman">TOTAL</td>
+                            ${row.map(v => `<td class="num">${money(v)}</td>`).join('')}
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('totalInqMonthWrap').innerHTML = html;
+        }
+
+        function renderTotalProduct(obj){
+            const data = obj || {};
+            let html = `
+                <table class="matrix-table">
+                    <thead>
+                        <tr>
+                            <th class="matrix-left-sticky matrix-salesman">Product</th>
+                            ${monthsHeaderHtml()}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            const keys = Object.keys(data).sort();
+            if (!keys.length) {
+                html += `<tr><td class="p-3 text-muted" colspan="14">No data.</td></tr>`;
+            } else {
+                keys.forEach(p => {
+                    const row = pad13(data[p]);
+                    html += `<tr>
+                        <td class="matrix-left-sticky matrix-salesman">${p}</td>
+                        ${row.map(v => `<td class="num">${money(v)}</td>`).join('')}
+                    </tr>`;
+                });
+            }
+
+            html += `</tbody></table>`;
+            document.getElementById('totalInqProductWrap').innerHTML = html;
+        }
+
+        // =========================
+        // MAIN MATRIX LOADER (ONE CALL)
+        // Controller must return:
+        // - inquiriesBySalesman, posBySalesman
+        // - salesmanKpiMatrix, inqProductMatrix, poProductMatrix
+        // - inquiriesByEstimator, totalInquiriesByMonth, totalInquiriesByProduct
+        // =========================
+        async function loadAllTables(){
+            const year = currentYear();
+            const area = currentArea();
+
+            const url = `${MATRIX_URL}?year=${encodeURIComponent(year)}&area=${encodeURIComponent(area)}`;
+            const res = await fetch(url, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const payload = await res.json();
+
+            // Salesman monthly
+            renderSalesmanMonthTable('tblSalesInquiries', payload.inquiriesBySalesman || {});
+            renderSalesmanMonthTable('tblSalesPOs',       payload.posBySalesman       || {});
+
+            // Matrices (PDF match)
+            renderPerfMatrix(payload.salesmanKpiMatrix || {});
+            renderProdMatrix(payload.inqProductMatrix  || {}, 'inqProdWrap');
+            renderProdMatrix(payload.poProductMatrix   || {}, 'poProdWrap');
+
+            // Estimator + totals
+            renderEstimatorTable(payload.inquiriesByEstimator || {});
+            renderTotalMonth(payload.totalInquiriesByMonth || []);
+            renderTotalProduct(payload.totalInquiriesByProduct || {});
+        }
+
+        // =========================
+        // EVENTS
+        // =========================
+        document.getElementById('yearSelect')?.addEventListener('change', async () => {
+            await loadTopKpisAndChart();
+            await loadAllTables();
+        });
+
+        document.getElementById('areaSelect')?.addEventListener('change', async () => {
+            await loadTopKpisAndChart();
+            await loadAllTables();
+        });
+
+        // =========================
+        // INIT
+        // =========================
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('yearSelect').value = YEAR_INIT;
+            await loadTopKpisAndChart();
+            await loadAllTables();
+        });
     </script>
 @endpush

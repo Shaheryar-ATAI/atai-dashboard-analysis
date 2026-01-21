@@ -394,15 +394,52 @@ Route::middleware('auth')->group(function () {
             [PerformanceController::class, 'saveAreaChart']
         )->name('performance.area-chart.save');
 
-        // Salesman pages + data
+// Salesman pages + data
         Route::prefix('performance')->group(function () {
+
+            // existing
             Route::get('/salesman', [SalesmanPerformanceController::class, 'index'])->name('performance.salesman');
             Route::get('/salesman/data', [SalesmanPerformanceController::class, 'data'])->name('performance.salesman.data');
             Route::get('/salesman/kpis', [SalesmanPerformanceController::class, 'kpis'])->name('performance.salesman.kpis');
+            Route::get('/salesman/pdf', [SalesmanPerformanceController::class, 'pdf'])->name('performance.salesman.pdf');
 
-            Route::get('/salesman/pdf', [SalesmanPerformanceController::class, 'pdf'])
-                ->name('performance.salesman.pdf');
+            // ✅ NEW: Product monthly (Inquiries + POs)
+//            Route::get('/salesman/product/monthly', [SalesmanPerformanceController::class, 'productMonthlyData'])
+//                ->name('performance.salesman.productMonthlyData');
+//
+//            // ✅ NEW: Summary by product (count + total value)
+//            Route::get('/salesman/product/summary', [SalesmanPerformanceController::class, 'productSummaryData'])
+//                ->name('performance.salesman.productSummaryData');
+//
+//            // ✅ NEW: Summary by region (count + total value)
+//            Route::get('/salesman/region/summary', [SalesmanPerformanceController::class, 'regionSummaryData'])
+//                ->name('performance.salesman.regionSummaryData');
+//
+//            // ✅ NEW: Salesman × Product contribution (count + total value)
+//            Route::get('/salesman/contribution/salesman-product', [SalesmanPerformanceController::class, 'salesmanProductContribution'])
+//                ->name('performance.salesman.salesmanProductContribution');
 
+//            // ✅ NEW: Region × Product contribution (count + total value)
+//            Route::get('/salesman/contribution/region-product', [SalesmanPerformanceController::class, 'regionProductContribution'])
+//                ->name('performance.salesman.regionProductContribution');
+//
+//            // ✅ NEW: Estimators list (you already have method `estimators()`)
+//            Route::get('/salesman/estimators', [SalesmanPerformanceController::class, 'estimators'])
+//                ->name('performance.salesman.estimators');
+//
+//            // ✅ NEW: Estimator monthly (Jan..Dec + Total)
+//            Route::get('/salesman/estimators/monthly', [SalesmanPerformanceController::class, 'estimatorMonthlyData'])
+//                ->name('performance.salesman.estimatorMonthlyData');
+//
+//            // ✅ NEW: Estimator summary (count + total value)
+//            Route::get('/salesman/estimators/summary', [SalesmanPerformanceController::class, 'estimatorSummaryData'])
+//                ->name('performance.salesman.estimatorSummaryData');
+//
+//            // ✅ NEW: Estimator × Product contribution (count + total value)
+//            Route::get('/salesman/contribution/estimator-product', [SalesmanPerformanceController::class, 'estimatorProductContribution'])
+//                ->name('performance.salesman.estimatorProductContribution');
+            Route::get('/performance/salesman/matrix', [SalesmanPerformanceController::class, 'matrix'])
+                ->name('performance.salesman.matrix');
 
 
         });
