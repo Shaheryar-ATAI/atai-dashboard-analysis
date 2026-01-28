@@ -113,6 +113,10 @@
                             <i class="bi bi-x-lg"></i>
                         </button>
                     </div>
+                    <button type="button" class="btn btn-sm btn-outline-light"
+                            data-bs-toggle="modal" data-bs-target="#bncExportModal">
+                        <i class="bi bi-download me-1"></i> Download PDF
+                    </button>
                 </form>
             </div>
         </div>
@@ -129,16 +133,16 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-2">
-                <div class="card kpi-card">
-                    <div class="card-body py-2">
-                        <div class="text-white-50 small">Total Value (USD)</div>
-                        <div id="kpi_total_value" class="fs-5 fw-semibold text-white">
-                            {{ $kpis['total_value'] ?? '0' }}
-                        </div>
-                    </div>
-                </div>
-            </div>
+{{--            <div class="col-md-2">--}}
+{{--                <div class="card kpi-card">--}}
+{{--                    <div class="card-body py-2">--}}
+{{--                        <div class="text-white-50 small">Total Value (USD)</div>--}}
+{{--                        <div id="kpi_total_value" class="fs-5 fw-semibold text-white">--}}
+{{--                            {{ $kpis['total_value'] ?? '0' }}--}}
+{{--                        </div>--}}
+{{--                    </div>--}}
+{{--                </div>--}}
+{{--            </div>--}}
 
             <div class="col-md-2">
                 <div class="card kpi-card">
@@ -193,7 +197,7 @@
                         <th>City</th>
                         <th>Region</th>
                         <th>Stage</th>
-                        <th>Value (USD)</th>
+{{--                        <th>Value (USD)</th>--}}
                         <th>Value (SAR)</th>
                         <th>Quotes</th>                {{-- compact button --}}
                         <th>Quoted Value (SAR)</th>
@@ -381,6 +385,80 @@
         </div>
     </div>
     @endhasrole
+
+
+
+    <div class="modal fade modal-atai" id="bncExportModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Export BNC Projects (PDF)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+
+                <form method="GET" action="{{ route('bnc.export.pdf') }}" target="_blank">
+                    <div class="modal-body">
+                        @hasanyrole('admin|gm')
+                        <div class="mb-2">
+                            <label class="form-label form-label-sm">Region</label>
+                            <select name="region" class="form-select form-select-sm">
+                                <option value="">All</option>
+                                <option value="Eastern">Eastern</option>
+                                <option value="Central">Central</option>
+                                <option value="Western">Western</option>
+                            </select>
+                        </div>
+                        @endhasanyrole
+
+                        <div class="mb-2">
+                            <label class="form-label form-label-sm">Stage</label>
+                            <select name="stage" class="form-select form-select-sm">
+                                <option value="">All</option>
+                                <option value="Concept">Concept</option>
+                                <option value="Design">Design</option>
+                                <option value="Tender">Tender</option>
+                                <option value="Under Construction">Under Construction</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label form-label-sm">Minimum Value (SAR)</label>
+                            <input type="number" name="min_value_sar" class="form-control form-control-sm" value="0" min="0">
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label form-label-sm">Lead Status</label>
+                                <select name="lead_qualified" class="form-select form-select-sm">
+                                    <option value="">All</option>
+                                    <option value="Hot">Hot</option>
+                                    <option value="Warm">Warm</option>
+                                    <option value="Cold">Cold</option>
+                                    <option value="Unknown">Unknown</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label form-label-sm">Approached</label>
+                                <select name="approached" class="form-select form-select-sm">
+                                    <option value="">All</option>
+                                    <option value="1">Yes</option>
+                                    <option value="0">No</option>
+                                </select>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            Download PDF
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -393,7 +471,17 @@
                 const el = document.getElementById(id);
                 return el ? el.value : '';
             };
+            const quotesCache = new Map();
 
+            const fmtSAR = (n) => {
+                const num = Number(n || 0);
+                return num > 0 ? num.toLocaleString('en-US') : '—';
+            };
+
+            function quoteLabel(count){
+                if (!count || count <= 0) return 'Not quoted';
+                return count === 1 ? '1 quote' : `${count} quotes`;
+            }
             const formatDate = (val) => {
                 if (!val) return '';
                 const s = String(val);
@@ -424,7 +512,7 @@
                     { data: 'city',                name: 'city' },
                     { data: 'region',              name: 'region' },
                     { data: 'stage',               name: 'stage' },
-                    { data: 'value_usd',           name: 'value_usd',           className: 'text-end' },
+                    // { data: 'value_usd',           name: 'value_usd',           className: 'text-end' },
                     { data: 'value_sar',           name: 'value_sar',           className: 'text-end', orderable: false, searchable: false },
                     { data: 'quoted_status',       name: 'quoted_status',       orderable: false, searchable: false },
                     { data: 'quoted_value_sar',    name: 'quoted_value_sar',    className: 'text-end', orderable: false, searchable: false },
@@ -435,6 +523,34 @@
                     { data: 'expected_close_date', name: 'expected_close_date' },
                     { data: 'actions',             name: 'actions',             orderable: false, searchable: false, className: 'text-end' },
                 ],
+                drawCallback: function () {
+                    const api = this.api();
+
+                    api.rows({ page: 'current' }).every(function () {
+                        const d = this.data();
+                        if (!d || !d.id) return;
+
+                        const id = d.id;
+
+                        // if cached, just paint
+                        if (quotesCache.has(id)) {
+                            paintRow(id, quotesCache.get(id));
+                            return;
+                        }
+
+                        // fetch once per visible row
+                        fetch(@json(url('/bnc')) + '/' + id + '/quotes')
+                            .then(r => r.json())
+                            .then(json => {
+                                quotesCache.set(id, json);
+                                paintRow(id, json);
+                            })
+                            .catch(() => {
+                                // fail safe
+                                paintRow(id, { count: 0, total: 0, coverage_pct: 0, html: '' });
+                            });
+                    });
+                },
                 columnDefs: [
                     {
                         targets: 'quotes-detail',
@@ -458,21 +574,87 @@
             $('#tblBncProjects tbody').on('click', '.bnc-quotes-toggle', function () {
                 const tr  = $(this).closest('tr');
                 const row = table.row(tr);
-                const $btn = $(this);
-                const $icon = $btn.find('i.bi');
+                const id  = this.dataset.bncId;
 
-                if (row.child.isShown()) {
-                    row.child.hide();
-                    tr.removeClass('shown');
-                    $icon.removeClass('bi-chevron-up').addClass('bi-chevron-down');
-                } else {
-                    const data = row.data();
-                    const html = data.quotes_detail_html || '<div class="px-3 py-2 text-muted small">No quotations linked yet.</div>';
-                    row.child(html).show();
-                    tr.addClass('shown');
-                    $icon.removeClass('bi-chevron-down').addClass('bi-chevron-up');
-                }
+                const info = quotesCache.get(Number(id)) || quotesCache.get(id);
+
+                // if not loaded yet, fetch then open
+                const openRow = (json) => {
+                    if (Number(json.count || 0) <= 0) return; // ✅ no dropdown for Not quoted
+
+                    const html = json.html || '<div class="px-3 py-2 text-muted small">No quotations linked yet.</div>';
+
+                    const $icon = $(this).find('i.bi');
+
+                    if (row.child.isShown()) {
+                        row.child.hide();
+                        tr.removeClass('shown');
+                        $icon.removeClass('bi-chevron-up').addClass('bi-chevron-down');
+                    } else {
+                        row.child(html).show();
+                        tr.addClass('shown');
+                        $icon.removeClass('bi-chevron-down').addClass('bi-chevron-up');
+                    }
+                };
+
+                if (info) return openRow(info);
+
+                fetch(@json(url('/bnc')) + '/' + id + '/quotes')
+                    .then(r => r.json())
+                    .then(json => {
+                        quotesCache.set(Number(id), json);
+                        paintRow(Number(id), json);
+                        openRow(json);
+                    });
             });
+
+            function paintRow(id, info) {
+                const count = Number(info?.count || 0);
+                const total = Number(info?.total || 0);
+                const cov   = Number(info?.coverage_pct || 0);
+
+                // Update quoted total
+                document.querySelectorAll(`.bnc-quoted-total[data-bnc-id="${id}"]`)
+                    .forEach(el => el.textContent = count > 0 ? fmtSAR(total) : '—');
+
+                // Update coverage badge
+                document.querySelectorAll(`.bnc-coverage[data-bnc-id="${id}"]`)
+                    .forEach(el => {
+                        if (count <= 0) {
+                            el.textContent = '—';
+                            el.classList.remove('bg-success','bg-warning','bg-danger');
+                            el.classList.add('bg-secondary');
+                        } else {
+                            el.textContent = `${cov}%`;
+                            el.classList.remove('bg-secondary','bg-success','bg-warning','bg-danger');
+                            el.classList.add(cov >= 70 ? 'bg-success' : (cov >= 30 ? 'bg-warning' : 'bg-danger'));
+                        }
+                    });
+
+                // Update quotes button
+                document.querySelectorAll(`.bnc-quotes-toggle[data-bnc-id="${id}"]`)
+                    .forEach(btn => {
+                        const labelEl = btn.querySelector('.bnc-quotes-label');
+                        const iconEl  = btn.querySelector('i.bi');
+
+                        if (count <= 0) {
+                            btn.disabled = true;
+                            btn.classList.remove('btn-outline-light');
+                            btn.classList.add('btn-outline-danger');
+                            labelEl.textContent = 'Not quoted';
+                            iconEl?.classList.add('d-none');
+                        } else {
+                            btn.disabled = false;
+                            btn.classList.remove('btn-outline-danger');
+                            btn.classList.add('btn-outline-light');
+                            labelEl.textContent = quoteLabel(count);
+                            iconEl?.classList.remove('d-none');
+                        }
+
+                        // store payload on button for click handler
+                        btn.dataset.loaded = '1';
+                    });
+            }
 
             // View button -> JSON -> modal
             $(document).on('click', '.btn-bnc-view', function () {
@@ -544,7 +726,7 @@
                     `Stage: ${safe(p.stage)}`,
                     `Industry: ${safe(p.industry)}`,
                     `Client/Owner: ${safe(p.client)}`,
-                    `Value (USD): ${fmtNum(p.value_usd)}`,
+                    // `Value (USD): ${fmtNum(p.value_usd)}`,
                     `Award Date: ${formatDate(p.award_date)}`,
                     `Datasets: ${safe(p.datasets)}`,
                 ].filter(line => !line.endsWith(': '));

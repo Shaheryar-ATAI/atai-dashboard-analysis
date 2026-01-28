@@ -97,7 +97,7 @@
         <div class="collapse navbar-collapse show">
             <ul class="navbar-nav mx-lg-auto mb-2 mb-lg-0">
                 <li class="nav-item"><a class="nav-link" href="{{ route('projects.index') }}">Quotation KPI</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('inquiries.index') }}">Quotation Log</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ route('projects.inquiries_log') }}">Quotation Log</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.manager.kpi') }}">Sales Order Log
                         KPI</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.manager.index') }}">Sales Order

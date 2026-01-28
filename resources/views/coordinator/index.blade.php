@@ -502,7 +502,13 @@
             </div>
         </div>
     </div>
-
+    @php
+        $u = auth()->user();
+        $isNiyas = $u && (
+            strtolower(trim($u->name ?? '')) === 'niyas'
+            || $u->hasRole('project_coordinator_western')
+        );
+    @endphp
     {{-- MODAL --}}
     <div class="modal fade modal-atai" id="coordinatorModal" tabindex="-1" aria-labelledby="coordinatorModalLabel"
          data-bs-backdrop="static" aria-hidden="true">
@@ -598,12 +604,14 @@
                                 </div>
 
                                 <div class="mb-2">
-                                    <div class="coordinator-label">ATAI Products</div>
+                                    <div class="coordinator-label">ATAI Products old </div>
                                     <input type="text"
                                            class="form-control form-control-sm"
-                                           id="coord_products"
-                                           name="atai_products">
+                                           id="coord_products_left"
+                                           name="coord_products_left" readonly>
                                 </div>
+
+
 
                                 <div class="mb-2">
                                     <div class="coordinator-label">Price</div>
@@ -642,11 +650,67 @@
                                            id="coord_po_date"
                                            class="form-control form-control-sm">
                                 </div>
+
+
+
+                                @if($isNiyas)
+                                    <div class="mb-2">
+                                        <div class="coordinator-label">ATAI Products</div>
+
+                                        <select class="form-select form-select-sm"
+                                                id="coord_products_family"
+                                                name="atai_products_family">
+                                            <option value="">Select Product</option>
+                                            <option value="DUCTWORK">Ductwork</option>
+                                            <option value="DAMPERS">Dampers</option>
+                                            <option value="LOUVERS">Louvers</option>
+                                            <option value="SOUND_ATTENUATORS">Sound Attenuators</option>
+                                            <option value="ACCESSORIES">Accessories</option>
+                                        </select>
+
+                                        {{-- keep existing input for backward compatibility --}}
+                                        <input type="hidden" id="coord_products_hidden" name="atai_products">
+                                    </div>
+
+                                    <div class="mb-2" id="coord_subtype_block" style="display:none;">
+                                        <div class="coordinator-label">Subtype</div>
+                                        <select class="form-select form-select-sm"
+                                                id="coord_products_subtype"
+                                                name="products_subtype">
+                                            <option value="">Select subtype</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-2" id="coord_subtype_amount_block" style="display:none;">
+                                        <div class="coordinator-label">Subtype Amount (SAR)</div>
+                                        <input type="number" step="0.01"
+                                               class="form-control form-control-sm"
+                                               id="coord_products_subtype_amount"
+                                               name="products_subtype_amount"
+                                               placeholder="Enter amount for this subtype">
+                                        <div class="text-muted small mt-1">
+                                            If left blank, system will assume full PO value belongs to selected subtype.
+                                        </div>
+                                    </div>
+                                @else
+                                    {{-- Niyas only feature: keep old text field only --}}
+                                    <div class="mb-2">
+                                        <div class="coordinator-label">ATAI Products</div>
+                                        <input type="text"
+                                               class="form-control form-control-sm"
+                                               id="coord_products"
+                                               name="atai_products">
+                                    </div>
+                                @endif
+
                                 <div class="mb-2">
                                     <div class="coordinator-label">PO Value (SAR)</div>
                                     <input type="number" step="0.01" name="po_value" id="coord_po_value"
                                            class="form-control form-control-sm">
                                 </div>
+
+
+
 
                                 <div class="mb-2" id="coord_multi_block" style="display: none;">
                                     <div class="coordinator-label">Multiple Quotations</div>
@@ -819,6 +883,13 @@
                 // Western
                 'ABDO':       ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF', 'ABDO YOUSIF'],
                 'AHMED':      ['AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'Ahmed Amin', 'AHMED AMIN '],
+            };
+            const PRODUCT_SUBTYPES = {
+                'DUCTWORK': [
+                    'Pre-Insulated Ductwork',
+                    'Spiral Ductwork',
+                ],
+
             };
 
             /**
@@ -1488,7 +1559,7 @@
                     if (!btn) return;
 
                     const source = btn.dataset.source || '';
-
+                    resetSubtypeUI();
                     document.getElementById('coord_source').value    = source;
                     document.getElementById('coord_record_id').value = btn.dataset.id || '';
 
@@ -1514,7 +1585,33 @@
                     document.getElementById('coord_quotation_no').value   = btn.dataset.quotationNo || '';
                     document.getElementById('coord_quotation_date').value = btn.dataset.quotationDate || '';
                     document.getElementById('coord_date_received').value  = btn.dataset.dateReceived || '';
-                    document.getElementById('coord_products').value       = btn.dataset.products || '';
+
+                    const rawProd = (btn.dataset.products || '').toString().trim().toUpperCase();
+
+
+                    // ✅ QA: show original ATAI Products value (read-only reference)
+                    const prodLeft = document.getElementById('coord_products_left');
+                    if (prodLeft) prodLeft.value = (btn.dataset.products || '');
+
+
+                    let fam = '';
+                    if (rawProd.includes('DAMP')) fam = 'DAMPERS';
+                    else if (rawProd.includes('LOUVER')) fam = 'LOUVERS';
+                    else if (rawProd.includes('SOUND')) fam = 'SOUND_ATTENUATORS';
+                    else if (rawProd.includes('ACCESS')) fam = 'ACCESSORIES';
+                    else if (rawProd.includes('DUCT')) fam = 'DUCTWORK';
+
+                    const familySelNow = document.getElementById('coord_products_family');
+                    if (familySelNow) {
+                        familySelNow.value = fam;
+                        setSubtypesForFamily(fam);
+                    }
+            // keep old hidden
+                    const oldProd = document.getElementById('coord_products');
+                    if (oldProd) oldProd.value = rawProd;
+
+                    const hiddenProd = document.getElementById('coord_products_hidden');
+                    if (hiddenProd) hiddenProd.value = fam ? fam.replaceAll('_',' ') : rawProd;
                     document.getElementById('coord_price').value          = btn.dataset.price || '';
                     document.getElementById('coord_status').value         = btn.dataset.status || '';
 
@@ -1554,7 +1651,51 @@
 
                     const url = "{{ route('coordinator.salesorders.attachments', ['salesorder' => '__ID__']) }}"
                         .replace('__ID__', soId);
+                    const detailUrl = "{{ route('coordinator.salesorders.show', ['salesorder' => '__ID__']) }}"
+                        .replace('__ID__', soId);
 
+                    fetch(detailUrl, { headers: { 'Accept': 'application/json' } })
+                        .then(r => r.json())
+                        .then(res => {
+                            // res should include breakdown like:
+                            // res.breakdown = { family, subtype, amount }
+
+                            if (!res || !res.breakdown) {
+                                // clear if none
+                                const famEl = document.getElementById('coord_products_family');
+                                const subEl = document.getElementById('coord_products_subtype');
+                                const amtEl = document.getElementById('coord_products_subtype_amount');
+
+                                if (famEl) famEl.value = '';
+                                if (subEl) subEl.value = '';
+                                if (amtEl) amtEl.value = '';
+                                return;
+                            }
+
+                            const fam = (res.breakdown.family || '').toString().trim();
+                            const sub = (res.breakdown.subtype || '').toString().trim();
+                            const amt = res.breakdown.amount;
+
+                            // ✅ set family
+                            const famEl = document.getElementById('coord_products_family');
+                            if (famEl) {
+                                famEl.value = fam || '';
+                                setSubtypesForFamily(fam); // important: fill subtype dropdown options
+                            }
+
+                            // ✅ set subtype AFTER options exist
+                            const subEl = document.getElementById('coord_products_subtype');
+                            if (subEl) subEl.value = sub || '';
+
+                            // ✅ set subtype amount
+                            const amtEl = document.getElementById('coord_products_subtype_amount');
+                            if (amtEl) amtEl.value = (amt === null || amt === undefined) ? '' : amt;
+
+                            // ✅ keep hidden legacy field synced
+                            const hiddenProd = document.getElementById('coord_products_hidden');
+                            if (hiddenProd) hiddenProd.value = fam ? fam.replaceAll('_',' ') : '';
+                        })
+                        .catch(err => console.error('Detail fetch failed', err));
                     fetch(url)
                         .then(r => r.json())
                         .then(res => {
@@ -1602,7 +1743,24 @@
                 if (btnSave) {
                     btnSave.addEventListener('click', async () => {
                         const formEl = document.getElementById('coordinatorForm');
+
+
+                        // ✅ Niyas-only: if no subtype selected, clear subtype amount
+                        const famEl = document.getElementById('coord_products_family');
+                        const subEl = document.getElementById('coord_products_subtype');
+                        const subAmtEl = document.getElementById('coord_products_subtype_amount');
+
+                        const famVal = famEl ? (famEl.value || '') : '';
+                        const subVal = subEl ? (subEl.value || '') : '';
+
+                        if (famVal && !subVal && subAmtEl) {
+                            subAmtEl.value = ''; // family gets full PO value
+                        }
+
+
+
                         const fd = new FormData(formEl);
+
                         fd.append('record_id', document.getElementById('coord_record_id').value);
 
                         if (multiEnabled && multiEnabled.checked && multiContainer) {
@@ -1660,6 +1818,97 @@
                 repaintSalesmanCells();
                 refreshKpis();
                 refreshChartFromTable();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                // for product subtype
+
+
+                const familySel  = document.getElementById('coord_products_family');
+                const subtypeSel = document.getElementById('coord_products_subtype');
+                const subtypeBlock = document.getElementById('coord_subtype_block');
+                const subtypeAmtBlock = document.getElementById('coord_subtype_amount_block');
+                const hiddenProducts = document.getElementById('coord_products_hidden');
+
+                function setSubtypesForFamily(fam) {
+                    if (!subtypeSel || !subtypeBlock || !subtypeAmtBlock) return;
+
+                    const amtEl = document.getElementById('coord_products_subtype_amount');
+
+                    const list = PRODUCT_SUBTYPES[fam] || [];
+                    subtypeSel.innerHTML = '<option value="">Select subtype</option>';
+
+                    // ✅ always clear current values when family changes
+                    subtypeSel.value = '';
+                    if (amtEl) amtEl.value = '';
+
+                    if (!fam || list.length === 0) {
+                        subtypeBlock.style.display = 'none';
+                        subtypeAmtBlock.style.display = 'none';
+                        return;
+                    }
+
+                    list.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s;
+                        opt.textContent = s;
+                        subtypeSel.appendChild(opt);
+                    });
+
+                    subtypeBlock.style.display = '';
+                    subtypeAmtBlock.style.display = '';
+                }
+
+
+                function resetSubtypeUI() {
+                    const famEl = document.getElementById('coord_products_family');
+                    const subEl = document.getElementById('coord_products_subtype');
+                    const amtEl = document.getElementById('coord_products_subtype_amount');
+
+                    const subtypeBlock = document.getElementById('coord_subtype_block');
+                    const subtypeAmtBlock = document.getElementById('coord_subtype_amount_block');
+
+                    if (famEl) famEl.value = '';
+                    if (subEl) subEl.value = '';
+                    if (amtEl) amtEl.value = ''; // ✅ THIS is the key fix
+
+                    if (subtypeBlock) subtypeBlock.style.display = 'none';
+                    if (subtypeAmtBlock) subtypeAmtBlock.style.display = 'none';
+                }
+
+
+                if (familySel) {
+                    familySel.addEventListener('change', () => {
+                        const fam = familySel.value || '';
+                        setSubtypesForFamily(fam);
+
+                        // keep legacy atai_products stable
+                        if (hiddenProducts) hiddenProducts.value = fam ? fam.replaceAll('_',' ') : '';
+                    });
+                }
+
+
             });
 
         })();

@@ -127,14 +127,14 @@ class PageController extends Controller
     public function inquiriesLog(Request $r)
     {
         $user = Auth::user()?->name ?? 'User';
-
+        $authUser = Auth::user();
         $salesmen = User::whereNotNull('region')
             ->orderBy('name')
             ->get(['name']);
-
         return view('projects.inquiries_log', [
             'user' => $user,
             'salesmen' => $salesmen,
+            'authUser'     => $authUser,
         ]);
     }
 

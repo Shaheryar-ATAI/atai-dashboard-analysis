@@ -38,5 +38,8 @@ return [
     'powerbi' => [
         'token' => env('POWERBI_API_TOKEN'),
     ],
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+    ],
 
 ];

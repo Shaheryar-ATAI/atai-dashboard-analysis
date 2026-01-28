@@ -103,7 +103,7 @@ class ProjectApiController extends Controller
             if (!empty($aliases)) {
                 $q->where(function ($qq) use ($aliases) {
                     foreach ($aliases as $a) {
-                        $qq->orWhereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$a]);
+                        $qq->orWhereRaw("REPLACE(UPPER(TRIM(projects.salesperson)),' ','') = ?", [$a]);
                     }
                 });
             }
@@ -119,11 +119,11 @@ class ProjectApiController extends Controller
             if (!empty($aliases)) {
                 $q->where(function ($qq) use ($aliases) {
                     foreach ($aliases as $a) {
-                        $qq->orWhereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$a]);
+                        $qq->orWhereRaw("REPLACE(UPPER(TRIM(projects.salesperson)),' ','') = ?", [$a]);
                     }
                 });
             } elseif (!empty($first)) {
-                $q->whereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$first]);
+                $q->whereRaw("REPLACE(UPPER(TRIM(projects.salesperson)),' ','') = ?", [$first]);
             }
         }
 

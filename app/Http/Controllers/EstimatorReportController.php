@@ -12,6 +12,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Validation\Rule;
+
+
 
 class EstimatorReportController extends Controller
 {
@@ -31,61 +34,18 @@ class EstimatorReportController extends Controller
      * - Estimator can see *all* salesmen in their region
      * - GM/Admin can see all regions
      */
-//    protected function estimatorBaseQuery(Request $request): Builder
-//    {
-//        /** @var \App\Models\User $user */
-//        $user = $request->user();
-//
-//        $q = Project::query()
-//            ->whereNull('deleted_at');
-//
-//        // 🔐 Normal estimator: only their own inquiries (same as DataTable)
-//        if (!$user->hasRole('Admin') && !$user->hasRole('GM')) {
-//
-//            // Match region if user has one
-//            if ($user->region) {
-//                $q->where('area', strtoupper($user->region));
-//            }
-//
-//            // Match estimator_name exactly like DataTable
-//            $nameKey = strtoupper(trim($user->name));
-//            $q->whereRaw("UPPER(TRIM(estimator_name)) = ?", [$nameKey]);
-//        }
-//
-//        // 🧲 Product family filter (optional)
-//        if ($family = $request->input('family')) {
-//            if ($family !== 'all') {
-//                $q->where('atai_products', 'LIKE', "%{$family}%");
-//            }
-//        }
-//
-//        // 📅 Optional from/to date filters (same 'effective date' as listing/export)
-//        $dateExpr = DB::raw("COALESCE(DATE(quotation_date), DATE(date_rec))");
-//
-//// support both date_from/date_to and legacy from/to
-//        $from = $request->input('date_from') ?? $request->input('from');
-//        $to = $request->input('date_to') ?? $request->input('to');
-//
-//        if ($from) {
-//            $q->whereDate($dateExpr, '>=', $from);
-//        }
-//        if ($to) {
-//            $q->whereDate($dateExpr, '<=', $to);
-//        }
-//        return $q;
-//    }
+
     protected function estimatorBaseQuery(Request $request): Builder
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
 
         // Start from ALL non-deleted projects
-        $q = Project::query()
-            ->whereNull('deleted_at');
+        $q = Project::query()->whereNull('deleted_at');
 
         // 🔐 Normal estimator: only their own inquiries (by estimator_name)
         if (!$user->hasRole('Admin') && !$user->hasRole('GM')) {
-            $nameKey = strtoupper(trim($user->name));
+            $nameKey = strtoupper(trim((string)$user->name));
             $q->whereRaw('UPPER(TRIM(estimator_name)) = ?', [$nameKey]);
         }
 
@@ -96,23 +56,38 @@ class EstimatorReportController extends Controller
 
         // 🔹 Salesman filter (case-insensitive, uses `salesperson` column only)
         if ($salesman = $request->input('salesman')) {
-            $salesmanKey = strtoupper(trim($salesman));
+            $salesmanKey = strtoupper(trim((string)$salesman));
             if ($salesmanKey !== '') {
                 $q->whereRaw('UPPER(TRIM(salesperson)) = ?', [$salesmanKey]);
             }
         }
 
-        // 🧲 Product family filter (optional, same as UI)
-        if ($family = $request->input('family')) {
-            if ($family !== 'all') {
-                $q->where('atai_products', 'LIKE', "%{$family}%");
+        // ✅ Product family filter (match SAME behavior as DataTable)
+        if (($family = $request->input('family')) && $family !== 'all') {
+            $familyLc = strtolower(trim((string)$family));
+
+            if ($familyLc === 'ductwork') {
+                $q->where(function ($qq) {
+                    $qq->whereRaw("UPPER(atai_products) LIKE '%DUCTWORK%'")
+                        ->orWhereRaw("UPPER(atai_products) LIKE '%PRE-INSULATED%'")
+                        ->orWhereRaw("UPPER(atai_products) LIKE '%SPIRAL%'");
+                });
+            } elseif ($familyLc === 'sound') {
+                $q->whereRaw("UPPER(atai_products) LIKE '%SOUND%'");
+            } elseif ($familyLc === 'dampers') {
+                $q->whereRaw("UPPER(atai_products) LIKE '%DAMPER%'");
+            } elseif ($familyLc === 'accessories') {
+                $q->whereRaw("UPPER(atai_products) LIKE '%ACCESSORIES%'");
+            } else {
+                // fallback
+                $q->where('atai_products', 'LIKE', '%' . $family . '%');
             }
         }
 
         // ❌ No date filters here – exportMonthly/exportWeekly add them.
-
         return $q;
     }
+
 
 
     public function exportMonthly(Request $request)
@@ -278,57 +253,81 @@ class EstimatorReportController extends Controller
 
     public function store(Request $request)
     {
-
-
         /** @var \App\Models\User|null $user */
-        $user = Auth::user();   // 👈 define $user here
+        $user = Auth::user();
         $data = $request->validate([
-            'project' => 'required|string|max:255',
-            'client' => 'required|string|max:255',
-            'salesman' => 'required|string|max:100',
-            'location' => 'nullable|string|max:255',
-            'area' => 'required|in:Eastern,Central,Western',
-            'quotation_no' => 'required|string|max:255|unique:projects,quotation_no',
-            'quotation_date' => 'required|date',
-            'revision_no' => 'nullable|integer|min:0|max:9',
-            'date_received' => 'required|date',
-            'atai_products' => 'required|string|max:255',
-            'price' => 'required|numeric|min:0',
-            'status' => 'required|string|max:50',
-            'technical_base' => 'nullable|string|max:50',
-            'technical_submittal' => 'nullable|string|max:10',   // 👈 new
-            'contact_person' => 'nullable|string|max:255',
-            'contact_number' => 'nullable|string|max:50',
-            'contact_email' => 'nullable|email|max:255',
-            'company_address' => 'nullable|string|max:255',
+            'project'            => 'required|string|max:255',
+            'client'             => 'required|string|max:255',
+            'salesman'           => 'required|string|max:100',
+            'location'           => 'nullable|string|max:255',
+            'area'               => 'required|in:Eastern,Central,Western',
+            'quotation_no'       => 'required|string|max:255|unique:projects,quotation_no',
+            'quotation_date'     => 'required|date',
+            'revision_no'        => 'nullable|integer|min:0|max:10', // ✅ match UI (Rev 10)
+            'date_received'      => 'required|date',
+            'atai_products'      => 'required|string|max:255',
+            'price'              => 'required|numeric|min:0',
+            'status'             => 'required|string|max:50',
+            'technical_base'     => 'nullable|string|max:50',
+            'technical_submittal'=> 'nullable|string|max:10',
+            'contact_person'     => 'nullable|string|max:255',
+            'contact_number'     => 'nullable|string|max:50',
+            'contact_email'      => 'nullable|email|max:255',
+            'company_address'    => 'nullable|string|max:255',
         ]);
 
+        // ✅ Normalize values
+        $salesmanKey = strtoupper(trim((string)$data['salesman']));
+        $productKey  = strtoupper(trim((string)$data['atai_products']));
+
+        // ✅ STRICT RULE:
+        // Only Abdo/Ahmed can create Pre-Insulated / Spiral inquiries
+        $allowedSubForSpecial = ['PRE-INSULATED', 'PRE INSULATED', 'SPIRAL'];
+        $specialSalesmen      = ['ABDO', 'AHMED'];
+
+        if (in_array($productKey, $allowedSubForSpecial, true) && !in_array($salesmanKey, $specialSalesmen, true)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Pre-Insulated / Spiral can only be selected for Abdo or Ahmed.',
+            ], 422);
+        }
+
+        // Optional: unify naming (store pretty values)
+        $salesmanPretty = trim((string)$data['salesman']);
+        $productPretty  = trim((string)$data['atai_products']);
+
         $project = Project::create([
-            'project_name' => $data['project'],
-            'client_name' => $data['client'],
-            'project_location' => $data['location'],
-            'area' => $data['area'],
-            'salesman' => $data['salesman'],
-            'salesperson' => $data['salesman'],
-            'quotation_no' => $data['quotation_no'],
-            'revision_no'        => $data['revision_no'] ?? 0,
-            'quotation_date' => $data['quotation_date'],
-            'date_rec' => $data['date_received'],
-            'atai_products' => $data['atai_products'],
-            'quotation_value' => $data['price'],
-            'project_type' => strtoupper($data['status']),
-            'status' => $data['status'],
-            'technical_base' => $data['technical_base'] ?? null,
-            'technical_submittal' => $data['technical_submittal'] ?? null,  // 👈 save
-            'contact_person' => $data['contact_person'] ?? null,
-            'contact_number' => $data['contact_number'] ?? null,
-            'contact_email' => $data['contact_email'] ?? null,
-            'company_address' => $data['company_address'] ?? null,
-            'created_by_id' => $user?->id,
-            'estimator_name' => $user?->name,
-            'action1' => $user?->name,
-            'created_at' => now(),
-            'updated_at' => null,
+            'project_name'        => $data['project'],
+            'client_name'         => $data['client'],
+            'project_location'    => $data['location'] ?? null,
+            'area'                => $data['area'],
+
+            'salesman'            => $salesmanPretty,
+            'salesperson'         => $salesmanPretty,
+
+            'quotation_no'        => $data['quotation_no'],
+            'revision_no'         => $data['revision_no'] ?? 0,
+            'quotation_date'      => $data['quotation_date'],
+            'date_rec'            => $data['date_received'],
+
+            'atai_products'       => $productPretty,
+            'quotation_value'     => $data['price'],
+
+            // keep filters happy
+            'project_type'        => strtoupper((string)$data['status']),
+            'status'              => $data['status'],
+
+            'technical_base'      => $data['technical_base'] ?? null,
+            'technical_submittal' => $data['technical_submittal'] ?? null,
+
+            'contact_person'      => $data['contact_person'] ?? null,
+            'contact_number'      => $data['contact_number'] ?? null,
+            'contact_email'       => $data['contact_email'] ?? null,
+            'company_address'     => $data['company_address'] ?? null,
+
+            'created_by_id'       => $user?->id,
+            'estimator_name'      => $user?->name,
+            'action1'             => $user?->name,
         ]);
 
         return response()->json([
@@ -338,6 +337,76 @@ class EstimatorReportController extends Controller
         ]);
     }
 
+    public function update(Request $request, Project $inquiry)
+    {
+        $data = $request->validate([
+            'project'            => ['required', 'string', 'max:255'],
+            'client'             => ['required', 'string', 'max:255'],
+            'salesman'           => ['required', 'string', 'max:255'],
+            'area'               => ['required', 'in:Eastern,Central,Western'],
+            'technical_base'     => ['nullable', 'string', 'max:50'],
+            'technical_submittal'=> ['nullable', 'string', 'max:10'],
+            'location'           => ['nullable', 'string', 'max:255'],
+
+            // ✅ unique, but ignore current row
+            'quotation_no'       => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('projects', 'quotation_no')->ignore($inquiry->id),
+            ],
+
+            'revision_no'        => ['nullable', 'integer', 'min:0', 'max:10'], // ✅ Rev 10
+            'quotation_date'     => ['required', 'date'],
+            'date_received'      => ['required', 'date'],
+            'atai_products'      => ['required', 'string', 'max:255'],
+            'price'              => ['required', 'numeric', 'min:0'],
+            'status'             => ['required', 'string', 'max:50'],
+            'contact_person'     => ['nullable', 'string', 'max:255'],
+            'contact_number'     => ['nullable', 'string', 'max:255'],
+            'contact_email'      => ['nullable', 'email', 'max:255'],
+            'company_address'    => ['nullable', 'string', 'max:255'],
+        ]);
+
+        // ✅ SAME STRICT RULE as store()
+        $salesmanKey = strtoupper(trim((string)$data['salesman']));
+        $productKey  = strtoupper(trim((string)$data['atai_products']));
+
+        $allowedSubForSpecial = ['PRE-INSULATED', 'PRE INSULATED', 'SPIRAL'];
+        $specialSalesmen      = ['ABDO', 'AHMED'];
+
+        if (in_array($productKey, $allowedSubForSpecial, true) && !in_array($salesmanKey, $specialSalesmen, true)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Pre-Insulated / Spiral can only be selected for Abdo or Ahmed.',
+            ], 422);
+        }
+
+        $inquiry->fill([
+            'project_name'        => $data['project'],
+            'client_name'         => $data['client'],
+            'salesman'            => $data['salesman'],
+            'salesperson'         => $data['salesman'],
+            'area'                => $data['area'],
+            'technical_base'      => $data['technical_base'] ?? null,
+            'technical_submittal' => $data['technical_submittal'] ?? null,
+            'project_location'    => $data['location'] ?? null,
+            'quotation_no'        => $data['quotation_no'],
+            'revision_no'         => $data['revision_no'] ?? 0,
+            'quotation_date'      => $data['quotation_date'],
+            'date_rec'            => $data['date_received'],
+            'atai_products'       => $data['atai_products'],
+            'quotation_value'     => $data['price'],
+            'project_type'        => strtoupper((string)$data['status']), // keep filters happy
+            'status'              => $data['status'],
+            'contact_person'      => $data['contact_person'] ?? null,
+            'contact_number'      => $data['contact_number'] ?? null,
+            'contact_email'       => $data['contact_email'] ?? null,
+            'company_address'     => $data['company_address'] ?? null,
+        ])->save();
+
+        return response()->json(['ok' => true, 'message' => 'Inquiry updated successfully.']);
+    }
 
     // Used by Select2 for dynamic project / client lists
 
@@ -388,15 +457,13 @@ class EstimatorReportController extends Controller
         $length = (int) $req->input('length', 10);
 
         // Base query: all non–soft-deleted inquiries
-        $q = Project::query()
-            ->whereNull('deleted_at');
+        $q = Project::query()->whereNull('deleted_at');
 
         // Normal estimator: only their own inquiries (by estimator_name)
         if (!$user->hasRole('Admin') && !$user->hasRole('GM')) {
             $estimator = strtoupper(trim($user->name));
             $q->whereRaw("UPPER(TRIM(estimator_name)) = ?", [$estimator]);
         }
-
 
         // 🔹 Salesman filter (case-insensitive, uses `salesperson` column only)
         if ($salesman = $req->input('salesman')) {
@@ -405,18 +472,15 @@ class EstimatorReportController extends Controller
                 $q->whereRaw('UPPER(TRIM(salesperson)) = ?', [$salesmanKey]);
             }
         }
-        // 🔹 Region filter (from top dropdown)
-//        if ($area = $req->input('area')) {
-//            $q->where('area', $area);
-//        }
 
+        // ✅ Region filter (from top dropdown)  (YOU HAD THIS COMMENTED)
+        if ($area = $req->input('area')) {
+            $q->where('area', $area);
+        }
 
         // ----- Status tab (Bidding / In-Hand) -----
-        $statusNorm = (string)$req->input('status_norm', '');
-        $statusNormLc = strtolower($statusNorm);
-
-
-
+        $statusNorm   = (string) $req->input('status_norm', '');
+        $statusNormLc = strtolower(trim($statusNorm));
 
         if ($statusNormLc === 'bidding') {
             $q->whereRaw("UPPER(TRIM(project_type)) = 'BIDDING'");
@@ -428,35 +492,49 @@ class EstimatorReportController extends Controller
         $year  = $req->integer('year');
         $month = $req->integer('month');
 
-        $dateExpr  = DB::raw("COALESCE(DATE(quotation_date), DATE(date_rec))");
-        $dateFrom  = $req->input('date_from');
-        $dateTo    = $req->input('date_to');
+        $dateExpr = DB::raw("COALESCE(DATE(quotation_date), DATE(date_rec))");
+        $dateFrom = $req->input('date_from');
+        $dateTo   = $req->input('date_to');
 
         if ($dateFrom || $dateTo) {
-            // 🔁 If a date range is provided, ignore year/month and use the range only
-            if ($dateFrom) {
-                $q->whereDate($dateExpr, '>=', $dateFrom);
-            }
-            if ($dateTo) {
-                $q->whereDate($dateExpr, '<=', $dateTo);
-            }
+            if ($dateFrom) $q->whereDate($dateExpr, '>=', $dateFrom);
+            if ($dateTo)   $q->whereDate($dateExpr, '<=', $dateTo);
         } else {
-            // 🔁 No range → fall back to year / month filters
-            if ($year) {
-                $q->whereYear($dateExpr, $year);
-            }
-            if ($month) {
-                $q->whereMonth($dateExpr, $month);
-            }
+            if ($year)  $q->whereYear($dateExpr, $year);
+            if ($month) $q->whereMonth($dateExpr, $month);
         }
-        if ($family = $req->input('family')) {
-            if ($family !== 'all') {
+
+        // ✅ Family filter (IMPORTANT: DUCTWORK must include subtypes)
+        if (($family = $req->input('family')) && $family !== 'all') {
+            $familyLc = strtolower(trim((string)$family));
+
+            if ($familyLc === 'ductwork') {
+                // Ductwork chip should match:
+                // - Ductwork
+                // - Ductwork and Accessories
+                // - Pre-Insulated Ductwork
+                // - Spiral Ductwork
+                $q->where(function ($qq) {
+                    $qq->whereRaw("UPPER(atai_products) LIKE '%DUCTWORK%'")
+                        ->orWhereRaw("UPPER(atai_products) LIKE '%PRE-INSULATED%'")
+                        ->orWhereRaw("UPPER(atai_products) LIKE '%SPIRAL%'");
+                });
+            } elseif ($familyLc === 'sound') {
+                $q->whereRaw("UPPER(atai_products) LIKE '%SOUND%'");
+            } elseif ($familyLc === 'dampers') {
+                $q->whereRaw("UPPER(atai_products) LIKE '%DAMPER%'");
+            } elseif ($familyLc === 'accessories') {
+                $q->whereRaw("UPPER(atai_products) LIKE '%ACCESSORIES%'");
+            } else {
+                // fallback (if any other family arrives)
                 $q->where('atai_products', 'like', '%' . $family . '%');
             }
         }
 
         // ----- Optional Search -----
         $search = data_get($req->input('search'), 'value', '');
+        $qForCount = clone $q; // ✅ counts BEFORE applying search
+
         if ($search !== '') {
             $q->where(function ($qq) use ($search) {
                 $qq->where('project_name', 'like', "%$search%")
@@ -466,14 +544,13 @@ class EstimatorReportController extends Controller
         }
 
         // ----- Count & Sum for KPIs -----
-        $recordsTotal = (clone $q)->count();
-        $recordsFiltered = $recordsTotal;
-
-        $sumValue = (clone $q)->sum('quotation_value');
+        $recordsTotal    = (clone $qForCount)->count();        // ✅ before search
+        $recordsFiltered = (clone $q)->count();                // ✅ after search
+        $sumValue        = (clone $q)->sum('quotation_value'); // ✅ sum respects filters + search
 
         // ----- Ordering -----
-        $orderColIndex = (int)data_get($req->input('order'), '0.column', 0);
-        $orderDir = data_get($req->input('order'), '0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
+        $orderColIndex = (int) data_get($req->input('order'), '0.column', 0);
+        $orderDir      = data_get($req->input('order'), '0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
 
         $columns = [
             0  => 'id',
@@ -483,14 +560,14 @@ class EstimatorReportController extends Controller
             4  => 'project_location',
             5  => 'area',
             6  => 'quotation_no',
-            7  => 'revision_no',      // 👈 NEW position
+            7  => 'revision_no',
             8  => 'atai_products',
             9  => 'quotation_value',
             10 => 'project_type',
             11 => 'quotation_date',
             12 => 'date_rec',
             13 => 'created_at',
-            14 => 'id',               // actions
+            14 => 'id',
         ];
 
         $orderCol = $columns[$orderColIndex] ?? 'id';
@@ -519,22 +596,21 @@ class EstimatorReportController extends Controller
         $data = $rows->map(function (Project $p) use ($fmtSar, $areaBadge, $statusBadge) {
             $status = $p->project_type ?: $p->status;
 
-            // 🔹 Action buttons HTML
             $actionsHtml = '
-            <div class="btn-group btn-group-sm" role="group">
-                <button type="button"
-                        class="btn btn-outline-primary"
-                        data-action="edit"
-                        data-id="' . $p->id . '">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button type="button"
-                        class="btn btn-outline-danger"
-                        data-action="delete"
-                        data-id="' . $p->id . '">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </div>';
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button"
+                    class="btn btn-outline-primary"
+                    data-action="edit"
+                    data-id="' . $p->id . '">
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button type="button"
+                    class="btn btn-outline-danger"
+                    data-action="delete"
+                    data-id="' . $p->id . '">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>';
 
             return [
                 'id'                  => $p->id,
@@ -544,7 +620,7 @@ class EstimatorReportController extends Controller
                 'location'            => $p->project_location,
                 'area_badge'          => $areaBadge($p->area),
                 'quotation_no'        => $p->quotation_no,
-                'revision_no'         => (int) ($p->revision_no ?? 0),   // 👈 NEW
+                'revision_no'         => (int) ($p->revision_no ?? 0),
                 'quotation_date'      => optional($p->quotation_date)->format('Y-m-d'),
                 'date_rec'            => optional($p->date_rec)->format('Y-m-d'),
                 'atai_products'       => $p->atai_products,
@@ -566,8 +642,30 @@ class EstimatorReportController extends Controller
         ]);
     }
 
+
     public function show(Project $inquiry)
     {
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
+
+        // Estimator can only view their own inquiries (Admin/GM can view all)
+        if ($user && !$user->hasRole('Admin') && !$user->hasRole('GM')) {
+            $nameKey = strtoupper(trim((string)$user->name));
+            $rowKey  = strtoupper(trim((string)$inquiry->estimator_name));
+            if ($rowKey !== $nameKey) {
+                return response()->json(['ok' => false, 'message' => 'Forbidden'], 403);
+            }
+        }
+
+        $fmtDate = function ($v) {
+            if (!$v) return null;
+            try {
+                return Carbon::parse($v)->format('Y-m-d');
+            } catch (\Throwable $e) {
+                return null;
+            }
+        };
+
         $technical = $inquiry->technical_submittal
             ? strtolower(trim($inquiry->technical_submittal))
             : null;
@@ -575,78 +673,31 @@ class EstimatorReportController extends Controller
         return response()->json([
             'ok' => true,
             'data' => [
-                'id' => $inquiry->id,
-                'project' => $inquiry->project_name ?? $inquiry->name,
-                'client' => $inquiry->client_name,
-                'salesman' => $inquiry->salesperson ?? $inquiry->salesman,
-                'area' => $inquiry->area,
-                'technical_base' => $inquiry->technical_base,
-                'technical_submittal' => $technical,
-                'location' => $inquiry->project_location,
-                'quotation_no' => $inquiry->quotation_no,
-                'revision_no'       => (int) ($inquiry->revision_no ?? 0),
-                'quotation_date' => optional($inquiry->quotation_date)->format('Y-m-d'),
-                'date_received' => optional($inquiry->date_rec)->format('Y-m-d'),
-                'atai_products' => $inquiry->atai_products,
-                'price' => $inquiry->quotation_value,
-                'status' => $inquiry->status_norm ?? $inquiry->project_type ?? $inquiry->status,
-                'contact_person' => $inquiry->contact_person,
-                'contact_number' => $inquiry->contact_number,
-                'contact_email' => $inquiry->contact_email,
-                'company_address' => $inquiry->company_address,
+                'id'                 => $inquiry->id,
+                'project'            => $inquiry->project_name,
+                'client'             => $inquiry->client_name,
+                'salesman'           => $inquiry->salesperson ?? $inquiry->salesman,
+                'area'               => $inquiry->area,
+                'technical_base'     => $inquiry->technical_base,
+                'technical_submittal'=> $technical,
+                'location'           => $inquiry->project_location,
+                'quotation_no'       => $inquiry->quotation_no,
+                'revision_no'        => (int)($inquiry->revision_no ?? 0),
+                'quotation_date'     => $fmtDate($inquiry->quotation_date),
+                'date_received'      => $fmtDate($inquiry->date_rec),
+                'atai_products'      => $inquiry->atai_products,
+                'price'              => (float)($inquiry->quotation_value ?? 0),
+                'status'             => $inquiry->project_type ?? $inquiry->status,
+                'contact_person'     => $inquiry->contact_person,
+                'contact_number'     => $inquiry->contact_number,
+                'contact_email'      => $inquiry->contact_email,
+                'company_address'    => $inquiry->company_address,
             ],
         ]);
     }
 
 
-    public function update(Request $request, Project $inquiry)
-    {
-        $data = $request->validate([
-            'project' => ['required', 'string', 'max:255'],
-            'client' => ['required', 'string', 'max:255'],
-            'salesman' => ['required', 'string', 'max:255'],
-            'area' => ['required', 'string', 'max:50'],
-            'technical_base' => ['nullable', 'string', 'max:50'],
-            'technical_submittal' => ['nullable', 'string', 'max:10'],
-            'location' => ['nullable', 'string', 'max:255'],
-            'quotation_no' => ['required', 'string', 'max:255'],
-            'revision_no' => ['nullable', 'integer', 'min:0', 'max:9'],
-            'quotation_date' => ['required', 'date'],
-            'date_received' => ['required', 'date'],
-            'atai_products' => ['required', 'string', 'max:100'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'status' => ['required', 'string', 'max:50'],
-            'contact_person' => ['nullable', 'string', 'max:255'],
-            'contact_number' => ['nullable', 'string', 'max:255'],
-            'contact_email' => ['nullable', 'email', 'max:255'],
-            'company_address' => ['nullable', 'string', 'max:255'],
-        ]);
 
-        $inquiry->fill([
-            'project_name' => $data['project'],
-            'client_name' => $data['client'],
-            'salesman' => $data['salesman'],
-            'salesperson' => $data['salesman'],
-            'area' => $data['area'],
-            'technical_base' => $data['technical_base'] ?? null,
-            'technical_submittal' => $data['technical_submittal'] ?? null,
-            'project_location' => $data['location'] ?? null,
-            'quotation_no' => $data['quotation_no'],
-            'revision_no'        => $data['revision_no'] ?? 0,
-            'quotation_date' => $data['quotation_date'],
-            'date_rec' => $data['date_received'],
-            'atai_products' => $data['atai_products'],
-            'quotation_value' => $data['price'],
-            'project_type' => strtoupper($data['status']),   // keep filters happy
-            'status' => $data['status'],
-            'contact_person' => $data['contact_person'] ?? null,
-            'contact_number' => $data['contact_number'] ?? null,
-            'contact_email' => $data['contact_email'] ?? null,
-            'company_address' => $data['company_address'] ?? null,
-        ])->save();
-
-        return response()->json(['ok' => true, 'message' => 'Inquiry updated successfully.']);
-    }
 
     public function destroy(Project $inquiry)
     {

@@ -149,7 +149,7 @@ Route::middleware('auth')->group(function () {
 
 
     Route::get('/projectslog', [PageController::class, 'inquiriesLog'])
-        ->name('inquiries.index');
+        ->name('projects.inquiries_log');
 
     // Create new inquiry
 //        Route::post('/projects', [\App\Http\Controllers\EstimatorReportController::class, 'store'])
@@ -235,9 +235,7 @@ Route::middleware('auth')->group(function () {
         // Name: estimator.projects.index
         Route::prefix('estimator')->name('estimator.')->group(function () {
 
-            // page with tabs + Add Inquiry modal
-//                Route::get('/estimatorLog', [EstimatorReportController::class, 'index'])
-//                    ->name('estimatorLog.index');
+
 
             // create inquiry (AJAX)
             Route::post('/inquiries', [EstimatorReportController::class, 'store'])
@@ -368,6 +366,10 @@ Route::middleware('auth')->group(function () {
         // Update checkpoints from modal
         Route::post('/bnc/{bncProject}', [BncProjectController::class, 'update'])
             ->name('bnc.update');
+        Route::get('/bnc/export/pdf', [BncProjectController::class, 'exportPdf'])
+            ->name('bnc.export.pdf');
+        Route::get('/bnc-projects/{id}/quotes', [BncProjectController::class, 'quotesForBnc'])
+            ->name('bnc.quotes');
     });
 
 
@@ -402,7 +404,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/salesman/data', [SalesmanPerformanceController::class, 'data'])->name('performance.salesman.data');
             Route::get('/salesman/kpis', [SalesmanPerformanceController::class, 'kpis'])->name('performance.salesman.kpis');
             Route::get('/salesman/pdf', [SalesmanPerformanceController::class, 'pdf'])->name('performance.salesman.pdf');
-
+            Route::post('/salesman/insights', [SalesmanPerformanceController::class, 'insights'])
+                ->name('performance.salesman.insights');
             // ✅ NEW: Product monthly (Inquiries + POs)
 //            Route::get('/salesman/product/monthly', [SalesmanPerformanceController::class, 'productMonthlyData'])
 //                ->name('performance.salesman.productMonthlyData');
@@ -491,6 +494,9 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/bnc/manage', [BncProjectController::class, 'manage'])
             ->name('bnc.manage'); // optional manager page
+
+        Route::get('/bnc/{id}/quotes', [BncProjectController::class, 'quotesForBnc'])->name('bnc.quotes');
+
     });
 
 
@@ -500,3 +506,30 @@ Route::middleware('auth')->group(function () {
 Route::middleware('powerbi') ->get('/powerbi/projects', [PowerBiApiController::class, 'projects']);
 Route::middleware('powerbi')->get('/powerbi/salesorders', [PowerBiApiController::class, 'salesOrders']);
 Route::middleware('powerbi')->get('/powerbi/forecast', [PowerBiApiController::class, 'forecast']);
+
+
+// routes/web.php
+Route::get('/debug/ai-ping', function () {
+    $apiKey = config('services.openai.key'); // IMPORTANT: config, not env()
+    if (!$apiKey) {
+        return response()->json(['ok'=>false,'reason'=>'missing services.openai.key'], 500);
+    }
+
+    $resp = \Illuminate\Support\Facades\Http::timeout(20)
+        ->withToken($apiKey)
+        ->post('https://api.openai.com/v1/chat/completions', [
+            'model' => config('services.openai.model', 'gpt-4.1-mini'),
+            'messages' => [
+                ['role'=>'system','content'=>'Return JSON only.'],
+                ['role'=>'user','content'=>json_encode(['ping'=>true])]
+            ],
+            'response_format' => ['type'=>'json_object'],
+            'temperature' => 0.2,
+        ]);
+
+    return response()->json([
+        'ok' => $resp->ok(),
+        'status' => $resp->status(),
+        'body' => $resp->json(),
+    ], $resp->ok() ? 200 : 500);
+});

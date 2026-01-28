@@ -389,7 +389,7 @@
 
                                 <div class="col-md-6">
                                     <label class="form-label">Sales Man</label>
-                                    <select name="salesman" class="form-select form-select-sm" required>
+                                    <select id="salesmanSelect" name="salesman" class="form-select form-select-sm" required>
                                         <option value="">Select...</option>
                                         @foreach($salesmen as $sm)
                                             <option value="{{ $sm->name }}">{{ $sm->name }}</option>
@@ -486,7 +486,7 @@
 
                                 <div class="col-md-6">
                                     <label class="form-label">ATAI Products</label>
-                                    <select name="atai_products" class="form-select form-select-sm" required>
+                                    <select id="ataiProductsSelect" name="atai_products" class="form-select form-select-sm" required>
                                         <option value="">Select Product</option>
                                         <option value="Ductwork">Ductwork</option>
                                         <option value="Ductwork and Accessories">Ductwork and Accessories</option>
@@ -710,6 +710,58 @@
          * ============================================================================= */
         $(function () {
 
+
+            function applyProductsBySalesman(keepValue = true) {
+                const sm = String($('#salesmanSelect').val() || '').trim().toUpperCase();
+                const isWesternSpecial = (sm === 'ABDO' || sm === 'AHMED');
+
+                const $p = $('#ataiProductsSelect');
+                const current = String($p.val() || '').trim().toUpperCase();
+
+                // Base options (everyone)
+                const base = [
+                    { v: '', t: 'Select Product' },
+                    { v: 'DUCTWORK', t: 'DUCTWORK' },
+                    { v: 'DAMPERS', t: 'DAMPERS' },
+                    { v: 'LOUVERS', t: 'LOUVERS' },
+                    { v: 'SOUND ATTENUATORS', t: 'SOUND ATTENUATORS' },
+                    { v: 'ACCESSORIES', t: 'ACCESSORIES' },
+                ];
+
+                // Extra options (ONLY ABDO + AHMED)
+                const extra = [
+                    { v: 'PRE-INSULATED DUCTWORK', t: 'PRE-INSULATED DUCTWORK' },
+                    { v: 'SPIRAL DUCTWORK', t: 'SPIRAL DUCTWORK' },
+                ];
+
+                const list = isWesternSpecial ? base.concat(extra) : base;
+
+                // rebuild options
+                $p.empty();
+                list.forEach(o => $p.append(new Option(o.t, o.v)));
+
+                // strict: if not allowed anymore, reset to blank
+                const allowed = new Set(list.map(x => x.v));
+                if (keepValue && allowed.has(current)) {
+                    $p.val(current);
+                } else {
+                    $p.val('');
+                }
+
+                $p.trigger('change');
+            }
+
+        // When salesman changes → update products list
+            $(document).on('change', '#salesmanSelect', function () {
+                applyProductsBySalesman(true);
+            });
+
+        // When opening modal (Add)
+            $('#btnAddInquiry').on('click', function () {
+                setTimeout(() => applyProductsBySalesman(false), 0);
+            });
+
+
             // Open modal
             $('#btnAddInquiry').on('click', function () {
                 CURRENT_INQUIRY_ID = null;
@@ -864,11 +916,15 @@
                     $('select[name="revision_no"]').val(d.revision_no ?? 0).trigger('change');
 
                     // Selects (normal)
-                    $('select[name="salesman"]').val(d.salesman).trigger('change');
+                    $('#salesmanSelect').val(d.salesman).trigger('change');
+
                     $('select[name="area"]').val(d.area).trigger('change');
                     $('select[name="technical_base"]').val(d.technical_base || '').trigger('change');
                     $('select[name="technical_submittal"]').val(d.technical_submittal || '').trigger('change');
-                    $('select[name="atai_products"]').val(d.atai_products).trigger('change');
+                    // after salesman applies list, then set product
+                    setTimeout(() => {
+                        $('#ataiProductsSelect').val(String(d.atai_products || '').toUpperCase()).trigger('change');
+                    }, 0);
                     $('select[name="status"]').val(d.status).trigger('change');
 
                     // For area → locations, repopulate then set location input

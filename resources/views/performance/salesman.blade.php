@@ -148,13 +148,23 @@
                         </div>
 
                         <div class="mt-2">
-                            <a id="btnDownloadPdf"
+                            <a id="btnDownloadPdfAi"
                                class="btn btn-sm btn-primary"
-                               href="{{ route('performance.salesman.pdf') }}?year={{ (int)$year }}&area=All">
-                                <i class="bi bi-download me-1"></i> Download PDF
+                               href="{{ route('performance.salesman.pdf') }}?year={{ (int)$year }}&area=All&ai=1">
+                                <i class="bi bi-download me-1"></i> Download PDF (AI)
                             </a>
                         </div>
+{{--                        <div id="pdfLoader" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:9999; align-items:center; justify-content:center;">--}}
+{{--                            <div style="background:#fff; padding:18px 22px; border-radius:12px; width:320px; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,.25);">--}}
+{{--                                <div style="font-weight:800; margin-bottom:6px;">Preparing report…</div>--}}
+{{--                                <div style="font-size:12px; color:#6b7280; margin-bottom:12px;">Generating insights and charts</div>--}}
+{{--                                <img src="/images/loader.gif" style="width:42px; height:42px;" alt="Loading">--}}
+{{--                                <div style="font-size:11px; color:#6b7280; margin-top:10px;">Please wait</div>--}}
+{{--                            </div>--}}
+{{--                        </div>--}}
                     </div>
+
+
 
                     {{-- KPI cards (right, using global .kpi-card styles) --}}
                     <div class="col-md-8">
@@ -362,11 +372,76 @@
         // =========================
         // PDF DOWNLOAD LINK (year+area)
         // =========================
-        document.getElementById('btnDownloadPdf')?.addEventListener('click', function () {
-            const y = currentYear();
-            const a = currentArea();
-            this.href = `{{ route('performance.salesman.pdf') }}?year=${encodeURIComponent(y)}&area=${encodeURIComponent(a)}`;
+        {{--document.getElementById('btnDownloadPdf')?.addEventListener('click', function () {--}}
+        {{--    const y = currentYear();--}}
+        {{--    const a = currentArea();--}}
+        {{--    this.href = `{{ route('performance.salesman.pdf') }}?year=${encodeURIComponent(y)}&area=${encodeURIComponent(a)}`;--}}
+        {{--});--}}
+
+
+
+        document.getElementById('btnDownloadPdfAi').addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const btn = e.currentTarget;
+           // const loader = document.getElementById('pdfLoader');
+
+            const year = document.getElementById('yearSelect').value;
+            const area = document.getElementById('areaSelect').value;
+
+            // show loader + disable button
+           // loader.style.display = 'flex';
+            btn.classList.add('disabled');
+            btn.setAttribute('aria-disabled', 'true');
+
+            // client-side timeout so “pending forever” stops
+            const controller = new AbortController();
+            const t = setTimeout(() => controller.abort(), 90000); // 90s
+
+            try {
+                const res = await fetch("{{ route('performance.salesman.insights') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                        "X-CSRF-TOKEN": "{{ csrf_token() }}"
+                    },
+                    body: JSON.stringify({ year, area, ai: 1 }),
+                    signal: controller.signal
+                });
+
+                const j = await res.json().catch(() => ({}));
+
+                if (!res.ok || !j.ok || !j.token) {
+                    const msg = (j && j.message) ? j.message : "Insights generation failed.";
+                    alert(msg);
+                    return;
+                }
+
+                // download PDF with token
+                const url =
+                    "{{ route('performance.salesman.pdf') }}" +
+                    `?year=${encodeURIComponent(year)}` +
+                    `&area=${encodeURIComponent(area)}` +
+                    `&token=${encodeURIComponent(j.token)}` +
+                    `&debug=${encodeURIComponent(0)}`;
+
+                window.location.href = url;
+
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    alert("Taking too long (timeout). Please try again, or generate without enhanced review.");
+                } else {
+                    alert("Network/server error while generating insights.");
+                }
+            } finally {
+                clearTimeout(t);
+              //  loader.style.display = 'none';
+                btn.classList.remove('disabled');
+                btn.removeAttribute('aria-disabled');
+            }
         });
+
 
         // =========================
         // CHART + KPI + GAUGE

@@ -870,9 +870,16 @@
             document.body.classList.remove('modal-open');
             document.body.style.removeProperty('padding-right');
         }
+        window.ME = {
+            name: @json($user ?? null),
+            region: @json($userRegion ?? null),
+            canViewAll: @json($canViewAll ?? false),
+        };
 
+        console.log("ME:", window.ME);
+        console.log("Salesmen list:", @json($salesmen->pluck('name') ?? []));
         // global state
-        let PROJ_YEAR = '2025';
+        let PROJ_YEAR = '2026';
         let PROJ_REGION = '';
         let ATAI_ME = null;
         let CAN_VIEW_ALL = false;

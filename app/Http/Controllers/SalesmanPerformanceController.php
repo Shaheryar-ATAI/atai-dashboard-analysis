@@ -7,8 +7,11 @@ use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
-
+use Illuminate\Support\Facades\Cache;
+use App\Services\Reports\SalesmanSummaryInsightService;
+use App\Services\Reports\SalesmanSummaryLlmService;
 use Carbon\Carbon;
+
 class SalesmanPerformanceController extends Controller
 {
     /**
@@ -16,12 +19,12 @@ class SalesmanPerformanceController extends Controller
      */
     private array $salesmanAliasMap = [
         'SOHAIB' => ['SOHAIB', 'SOAHIB'],
-        'TARIQ'  => ['TARIQ', 'TAREQ'],
-        'JAMAL'  => ['JAMAL'],
-        'ABDO'   => ['ABDO','ABDO YOUSEF'],
-        'AHMED'  => ['AHMED'],
-        'ABU MERHI'   => ['M.ABU MERHI','M.MERHI','MERHI','MOHAMMED','ABU MERHI','M. ABU MERHI'],
-        'ATAI'  => ['AHMED','CLIENT','EXPORT','WASEEM','FAISAL','MAEN'],
+        'TARIQ' => ['TARIQ', 'TAREQ'],
+        'JAMAL' => ['JAMAL'],
+        'ABDO' => ['ABDO', 'ABDO YOUSEF'],
+        'AHMED' => ['AHMED'],
+        'ABU MERHI' => ['M.ABU MERHI', 'M.MERHI', 'MERHI', 'MOHAMMED', 'ABU MERHI', 'M. ABU MERHI'],
+        'ATAI' => ['AHMED', 'CLIENT', 'EXPORT', 'WASEEM', 'FAISAL', 'MAEN'],
     ];
 
     /**
@@ -52,15 +55,15 @@ class SalesmanPerformanceController extends Controller
 
 
     private array $monthAliases = [
-        1  => 'jan',
-        2  => 'feb',
-        3  => 'mar',
-        4  => 'apr',
-        5  => 'may',
-        6  => 'jun',
-        7  => 'jul',
-        8  => 'aug',
-        9  => 'sep',
+        1 => 'jan',
+        2 => 'feb',
+        3 => 'mar',
+        4 => 'apr',
+        5 => 'may',
+        6 => 'jun',
+        7 => 'jul',
+        8 => 'aug',
+        9 => 'sep',
         10 => 'oct',
         11 => 'nov',
         12 => 'december',
@@ -88,6 +91,7 @@ class SalesmanPerformanceController extends Controller
 
         return $this->salesmanToRegion($canonSalesman) === $area;
     }
+
     private function monthlySums(string $dateCol, string $valExpr): string
     {
         $parts = [];
@@ -123,16 +127,21 @@ class SalesmanPerformanceController extends Controller
         return view('performance.salesman', ['year' => $year]);
     }
 
+    private function relaxGroupBy(): void
+    {
+        DB::statement("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
+    }
+
     public function data(Request $r)
     {
         $kind = $r->query('kind', 'inq');
         $year = (int)$r->query('year', now()->year);
-        $area = (string) $r->query('area', 'All');
+        $area = (string)$r->query('area', 'All');
         if ($kind === 'po') {
             // ---------- Sales Order Log ----------
             $labelExpr = "COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
-            $amount    = $this->poAmountExpr('s');
-            $monthly   = $this->monthlySums('s.date_rec', $amount);
+            $amount = $this->poAmountExpr('s');
+            $monthly = $this->monthlySums('s.date_rec', $amount);
 
             // base rows: one row per *raw* label
             $baseQuery = DB::table('salesorderlog as s')
@@ -144,7 +153,7 @@ class SalesmanPerformanceController extends Controller
                 ->whereRaw($amount . ' > 0')
                 ->groupByRaw($labelExpr);
 
-            $sum = (float) DB::table('salesorderlog as s')
+            $sum = (float)DB::table('salesorderlog as s')
                 ->whereYear('s.date_rec', $year)
                 ->whereNull('s.deleted_at')
                 ->whereRaw('`s`.`PO. No.` IS NOT NULL')
@@ -155,8 +164,8 @@ class SalesmanPerformanceController extends Controller
         } else {
             // ---------- Projects / Inquiries ----------
             $labelExpr = "COALESCE(NULLIF(p.salesman,''),NULLIF(p.salesperson,''),'Not Mentioned')";
-            $val       = 'COALESCE(p.quotation_value,0)';
-            $monthly   = $this->monthlySums('p.quotation_date', $val);
+            $val = 'COALESCE(p.quotation_value,0)';
+            $monthly = $this->monthlySums('p.quotation_date', $val);
 
             $baseQuery = DB::table('projects as p')
                 ->selectRaw("$labelExpr AS salesman,$monthly")
@@ -170,11 +179,10 @@ class SalesmanPerformanceController extends Controller
         }
 
         // (optional) loosen ONLY_FULL_GROUP_BY, safe to keep
-        DB::statement("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
-
+        $this->relaxGroupBy();
         // --------- PHP-side aggregation by alias ----------
-        $rows   = $baseQuery->get();
-        $agg    = [];
+        $rows = $baseQuery->get();
+        $agg = [];
         $months = array_values($this->monthAliases);   // ['jan','feb',...,'december']
 
         foreach ($rows as $row) {
@@ -206,8 +214,7 @@ class SalesmanPerformanceController extends Controller
         $collection = collect(array_values($agg));
 
         return DataTables::of($collection)
-            ->editColumn('salesman', fn($row) =>
-                '<span class="badge text-bg-secondary">' . e($row->salesman) . '</span>'
+            ->editColumn('salesman', fn($row) => '<span class="badge text-bg-secondary">' . e($row->salesman) . '</span>'
             )
             ->rawColumns(['salesman'])
             ->with(['sum_total' => $sumFiltered])
@@ -217,13 +224,13 @@ class SalesmanPerformanceController extends Controller
     public function kpis(Request $r)
     {
         $year = (int)$r->query('year', now()->year);
-        $area = (string) $r->query('area', 'All');
+        $area = (string)$r->query('area', 'All');
         // disable strict grouping
-        DB::statement("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
+        $this->relaxGroupBy();
 
         // --- Inquiries ---
         $projLabel = "COALESCE(NULLIF(p.salesman,''),NULLIF(p.salesperson,''),'Not Mentioned')";
-        $projNorm  = $this->norm($projLabel);
+        $projNorm = $this->norm($projLabel);
 
         $inq = DB::table('projects as p')
             ->selectRaw("$projNorm AS norm,$projLabel AS label,SUM(COALESCE(p.quotation_value,0)) AS total")
@@ -233,8 +240,8 @@ class SalesmanPerformanceController extends Controller
 
         // --- POs (using PO Value, no Status filter) ---
         $poLabel = "COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
-        $poNorm  = $this->norm($poLabel);
-        $amt     = $this->poAmountExpr('s');
+        $poNorm = $this->norm($poLabel);
+        $amt = $this->poAmountExpr('s');
 
         $po = DB::table('salesorderlog as s')
             ->selectRaw("$poNorm AS norm,$poLabel AS label,SUM($amt) AS total")
@@ -248,7 +255,7 @@ class SalesmanPerformanceController extends Controller
 
         // --- Merge by alias (SOHAIB, SOAHIB -> SOHAIB etc.) ---
         $inqAgg = [];
-        $poAgg  = [];
+        $poAgg = [];
 
         foreach ($inq as $row) {
             $label = $this->normalizeSalesman($row->label);
@@ -268,26 +275,23 @@ class SalesmanPerformanceController extends Controller
         sort($allLabels, SORT_NATURAL);
 
         $categories = [];
-        $inqSeries  = [];
-        $poSeries   = [];
+        $inqSeries = [];
+        $poSeries = [];
 
         foreach ($allLabels as $label) {
             $categories[] = $label;
-            $inqSeries[]  = $inqAgg[$label] ?? 0;
-            $poSeries[]   = $poAgg[$label] ?? 0;
+            $inqSeries[] = $inqAgg[$label] ?? 0;
+            $poSeries[] = $poAgg[$label] ?? 0;
         }
 
         return response()->json([
-            'categories'    => $categories,
-            'inquiries'     => $inqSeries,
-            'pos'           => $poSeries,
+            'categories' => $categories,
+            'inquiries' => $inqSeries,
+            'pos' => $poSeries,
             'sum_inquiries' => array_sum($inqSeries),
-            'sum_pos'       => array_sum($poSeries),
+            'sum_pos' => array_sum($poSeries),
         ]);
     }
-
-
-
 
 
     /* ============================================================
@@ -299,7 +303,7 @@ class SalesmanPerformanceController extends Controller
     private function normalizeProjectRegion(?string $val): string
     {
         $v = ucfirst(strtolower(trim((string)$val)));
-        if (in_array($v, ['Eastern','Central','Western'], true)) return $v;
+        if (in_array($v, ['Eastern', 'Central', 'Western'], true)) return $v;
         return 'Other';
     }
 
@@ -329,7 +333,7 @@ class SalesmanPerformanceController extends Controller
             ->groupByRaw("$salesLabel, MONTH(s.date_rec), $projRegionCol")
             ->get();
 
-        $regions = ['Eastern','Central','Western','Other'];
+        $regions = ['Eastern', 'Central', 'Western', 'Other'];
         $out = [];
 
         foreach ($rows as $r) {
@@ -354,20 +358,20 @@ class SalesmanPerformanceController extends Controller
             $val = (float)$r->v;
 
             $out[$s][$pr][$idx] += $val;
-            $out[$s][$pr][12]   += $val; // total
+            $out[$s][$pr][12] += $val; // total
         }
 
         ksort($out, SORT_NATURAL);
         return $out;
     }
+
     public function matrix(Request $r)
     {
         $year = (int)($r->query('year') ?? now()->year);
         $area = (string)($r->query('area') ?? 'All');
         $areaNorm = $this->normalizeArea($area);
-        DB::statement("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
+        $this->relaxGroupBy();
 
-        $areaNorm = $this->normalizeArea($area);
 
         // Core pivots (filtered)
         $inquiriesBySalesman = $this->filterSalesmanPivotByArea(
@@ -384,7 +388,7 @@ class SalesmanPerformanceController extends Controller
 
         // Products
         $inqProductMatrix = $this->buildSalesmanProductMatrixInquiries($year, $areaNorm, $this->regionMap);
-        $poProductMatrix  = $this->buildSalesmanProductMatrixPOs($year, $areaNorm, $this->regionMap);
+        $poProductMatrix = $this->buildSalesmanProductMatrixPOs($year, $areaNorm, $this->regionMap);
 
         // Forecast + Targets
         $forecastBySalesman = $this->buildSalesmanPivotForecast($year, $areaNorm, $this->regionMap);
@@ -401,7 +405,7 @@ class SalesmanPerformanceController extends Controller
         // Estimators + totals
         $inquiriesByEstimator = $this->buildEstimatorPivotInquiries($year, $areaNorm, $this->regionMap);
 
-        $totalInquiriesByMonth   = $this->buildTotalInquiriesByMonth($inquiriesBySalesman);
+        $totalInquiriesByMonth = $this->buildTotalInquiriesByMonth($inquiriesBySalesman);
         $totalInquiriesByProduct = $this->buildTotalInquiriesByProductFromSalesmanMatrix($inqProductMatrix);
         $estimatorProductMatrix = $this->buildEstimatorProductMatrixInquiries($year, $areaNorm, $this->regionMap);
 
@@ -410,11 +414,11 @@ class SalesmanPerformanceController extends Controller
             'area' => $areaNorm,
 
             'inquiriesBySalesman' => $inquiriesBySalesman,
-            'posBySalesman'       => $posBySalesman,
+            'posBySalesman' => $posBySalesman,
 
             'salesmanKpiMatrix' => $salesmanKpiMatrix,
-            'inqProductMatrix'  => $inqProductMatrix,
-            'poProductMatrix'   => $poProductMatrix,
+            'inqProductMatrix' => $inqProductMatrix,
+            'poProductMatrix' => $poProductMatrix,
             'inquiriesByEstimator' => $inquiriesByEstimator,
             'totalInquiriesByMonth' => $totalInquiriesByMonth,
             'totalInquiriesByProduct' => $totalInquiriesByProduct,
@@ -424,10 +428,724 @@ class SalesmanPerformanceController extends Controller
     }
 
 
+    /**
+     * Pick the “primary” salesman for charts when area filter is used.
+     * Eastern -> SOHAIB
+     * Central -> TARIQ (you can switch to JAMAL if you want)
+     * Western -> ABDO (or AHMED)
+     */
+    private function primarySalesmanForArea(string $areaNorm): ?string
+    {
+        $areaNorm = $this->normalizeArea($areaNorm);
+
+        return match ($areaNorm) {
+            'Eastern' => 'SOHAIB',
+            'Central' => 'TARIQ',
+            'Western' => 'ABDO',
+            default => null, // for "All" we’ll build an overall view (optional)
+        };
+    }
+
+    /**
+     * Safe 13-length row (Jan..Dec, Total)
+     */
+    private function pad13Row($row): array
+    {
+        $row = is_array($row) ? array_values($row) : [];
+        $row = array_pad($row, 13, 0);
+        return array_slice($row, 0, 13);
+    }
+
+    /**
+     * ✅ Product Mix (PO VALUE) by Month — clustered bars (Jan..cutoff)
+     * - Executive colors
+     * - Rotated value labels WITH background pill (readable for GM)
+     * - Labels only shown up to last non-zero month (within cutoff)
+     * - Labels clamped inside plot area (never overlap title/legend)
+     * Output: data:image/svg+xml;base64,...
+     */
+    private function makeProductMixByMonthClusteredBarChartBase64(
+        array  $salesmanProducts,
+        string $title = 'PO PRODUCT MIX — MONTHLY (SAR)',
+        ?int   $year = null
+    ): string
+    {
+        $year = $year ?? (int) now()->year;
+
+        $productOrder = ['DUCTWORK', 'ACCESSORIES', 'SOUND ATTENUATORS', 'DAMPERS', 'LOUVERS'];
+
+        $short = [
+            'DUCTWORK'          => 'DUCT',
+            'ACCESSORIES'       => 'ACCE',
+            'SOUND ATTENUATORS' => 'SOUN',
+            'DAMPERS'           => 'DAMP',
+            'LOUVERS'           => 'LOUV',
+        ];
+
+        // ✅ YTD cutoff: current year => current month, else full year
+        $cutoff = ($year === (int) now()->year) ? (int) now()->month : 12;
+        $cutoff = max(1, min(12, $cutoff));
+        $visibleMonths = $cutoff;
+
+        // Normalize series (Jan..Dec)
+        $series = [];
+        foreach ($productOrder as $p) {
+            $row = $salesmanProducts[$p] ?? null;
+
+            if ($row === null) {
+                foreach ($salesmanProducts as $k => $v) {
+                    if (strtoupper(trim((string) $k)) === $p) {
+                        $row = $v;
+                        break;
+                    }
+                }
+            }
+
+            $row = $this->pad13Row($row ?? []);
+            $series[$p] = array_map('floatval', array_slice($row, 0, 12));
+        }
+
+        $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+        // ✅ Only consider visible months for "last non-zero month"
+        $lastNonZeroMonth = -1;
+        for ($m = 0; $m < $visibleMonths; $m++) {
+            $sum = 0.0;
+            foreach ($productOrder as $p) $sum += ($series[$p][$m] ?? 0.0);
+            if ($sum > 0) $lastNonZeroMonth = $m;
+        }
+
+        // ✅ Show labels only up to last non-zero month
+        $labelMonthMax = ($lastNonZeroMonth >= 0) ? $lastNonZeroMonth : 0;
+        $labelMonthMax = min($labelMonthMax, $visibleMonths - 1);
+
+        // Scale (only visible months)
+        $maxV = 1.0;
+        foreach ($series as $vals) {
+            $maxV = max($maxV, max(array_slice($vals, 0, $visibleMonths)));
+        }
+
+        $unit = 1000000.0; // Millions
+        $maxVScaled = max(1.0, $maxV / $unit);
+        $maxVScaled = (float) ceil($maxVScaled);
+
+        // Layout
+        $w = 760;
+        $h = 260;
+
+        $headerH = 36;
+        $padL = 70;
+        $padR = 16;
+        $padT = $headerH + 12;
+        $padB = 46;
+
+        $plotW = $w - $padL - $padR;
+        $plotH = $h - $padT - $padB;
+        $baseY = $padT + $plotH;
+
+        $y = function (float $vScaled) use ($padT, $plotH, $maxVScaled): float {
+            return $padT + ($plotH * (1 - ($vScaled / $maxVScaled)));
+        };
+
+        $colors = [
+            'DUCTWORK'          => '#2563eb',
+            'ACCESSORIES'       => '#16a34a',
+            'SOUND ATTENUATORS' => '#f59e0b',
+            'DAMPERS'           => '#ef4444',
+            'LOUVERS'           => '#6b7280',
+        ];
+
+        $titleSvg = '<text x="'.$padL.'" y="20" font-size="13" font-weight="800" fill="#111827">'.htmlspecialchars($title, ENT_QUOTES).'</text>';
+
+        // Legend right
+        $legend = '';
+        $legendGap = 74;
+        $lx = $w - $padR - ($legendGap * count($productOrder));
+        $ly = 10;
+        foreach ($productOrder as $idx => $p) {
+            $xL = $lx + ($idx * $legendGap);
+            $legend .= '<rect x="'.$xL.'" y="'.$ly.'" width="12" height="12" fill="'.$colors[$p].'" />';
+            $legend .= '<text x="'.($xL + 16).'" y="'.($ly + 11).'" font-size="9" fill="#374151">'.$short[$p].'</text>';
+        }
+
+        // Grid
+        $grid = '';
+        for ($g = 0; $g <= 4; $g++) {
+            $val = $maxVScaled * (1 - ($g / 4));
+            $yyG = $padT + ($plotH * ($g / 4));
+            $grid .= '<line x1="'.$padL.'" y1="'.round($yyG,2).'" x2="'.($w - $padR).'" y2="'.round($yyG,2).'" stroke="#e5e7eb" stroke-width="1"/>';
+            $grid .= '<text x="'.($padL - 8).'" y="'.round($yyG + 3,2).'" text-anchor="end" font-size="7" fill="#6b7280">'.number_format($val, 0).'M</text>';
+        }
+
+        $axes = '
+      <line x1="'.$padL.'" y1="'.$padT.'" x2="'.$padL.'" y2="'.$baseY.'" stroke="#d1d5db" stroke-width="1"/>
+      <line x1="'.$padL.'" y1="'.$baseY.'" x2="'.($w - $padR).'" y2="'.$baseY.'" stroke="#d1d5db" stroke-width="1"/>
+    ';
+
+        $fmt = function (float $val): string {
+            if ($val <= 0) return '0';
+            if ($val >= 1000000) return number_format($val / 1000000, 2) . 'M';
+            if ($val >= 1000) return number_format($val / 1000, 0) . 'K';
+            return (string) number_format($val, 0);
+        };
+
+        // ✅ Rotated label with background pill (for GM readability)
+        $rotLabel = function (float $tx, float $ty, string $text, int $fontSize = 9): string {
+            $charW = $fontSize * 0.58;
+            $padX  = 4;
+            $padY  = 2;
+
+            $w2 = max(18, (strlen($text) * $charW) + ($padX * 2));
+            $h2 = $fontSize + ($padY * 2);
+
+            $x2 = $tx - ($w2 / 2);
+            $y2 = $ty - ($h2 / 2);
+
+            return '
+          <g transform="rotate(-90 '.$tx.' '.$ty.')">
+            <rect x="'.round($x2,2).'" y="'.round($y2,2).'"
+                  width="'.round($w2,2).'" height="'.round($h2,2).'"
+                  rx="3" ry="3"
+                  fill="#ffffff" opacity="0.92"
+                  stroke="#e5e7eb" stroke-width="1"/>
+            <text x="'.$tx.'" y="'.$ty.'" text-anchor="middle"
+                  font-size="'.$fontSize.'" font-weight="800" fill="#111827"
+                  dominant-baseline="middle">'.$text.'</text>
+          </g>
+        ';
+        };
+
+        // Bars: only Jan..cutoff
+        $nMonths = $visibleMonths;
+        $nSeries = count($productOrder);
+
+        $monthGap = 18; // separation between month groups
+        $usableW = $plotW - ($monthGap * ($nMonths - 1));
+        $groupW = $usableW / max(1, $nMonths);
+
+        $barW = min(11, $groupW * 0.17);
+        $gap  = max(1, $barW * 0.25);
+
+        $totalBarsW = ($nSeries * $barW) + (($nSeries - 1) * $gap);
+
+        // ✅ Clamp labels strictly inside plot area
+        $minLabelY = $padT + 8;     // below plot top (never in header)
+        $maxLabelY = $baseY - 10;   // above x-axis
+
+        $bars = '';
+        for ($m = 0; $m < $nMonths; $m++) {
+
+            $groupLeft = $padL + ($m * ($groupW + $monthGap));
+            $startX = $groupLeft + ($groupW / 2) - ($totalBarsW / 2);
+
+            foreach ($productOrder as $sIdx => $p) {
+                $val = (float) ($series[$p][$m] ?? 0.0);
+                $vScaled = $val / $unit;
+
+                $x = $startX + ($sIdx * ($barW + $gap));
+
+                // bar
+                if ($val <= 0) {
+                    $bars .= '<rect x="'.round($x,2).'" y="'.round($baseY - 2,2).'" width="'.round($barW,2).'" height="2" fill="'.$colors[$p].'" opacity="0.35" />';
+                } else {
+                    $yy = $y($vScaled);
+                    $hh = max(0, $baseY - $yy);
+                    $bars .= '<rect x="'.round($x,2).'" y="'.round($yy,2).'" width="'.round($barW,2).'" height="'.round($hh,2).'" fill="'.$colors[$p].'" />';
+                }
+
+                // ✅ labels (only until last non-zero month)
+                if ($m <= $labelMonthMax && $val > 0) {
+                    $label = $fmt($val);
+
+                    $yyTop  = $y($vScaled);
+                    $labelY = $yyTop - 12; // above bar
+
+                    // clamp inside plot
+                    if ($labelY < $minLabelY) $labelY = $minLabelY;
+                    if ($labelY > $maxLabelY) $labelY = $maxLabelY;
+
+                    $tx = (float) round($x + ($barW / 2), 2);
+                    $ty = (float) round($labelY, 2);
+
+                    $bars .= $rotLabel($tx, $ty, $label, 9);
+                }
+            }
+
+            // month label
+            $cx = $groupLeft + ($groupW / 2);
+            $bars .= '<text x="'.round($cx,2).'" y="'.($h - 18).'" text-anchor="middle" font-size="9" fill="#6b7280">'.$months[$m].'</text>';
+        }
+
+        $svg = '
+<svg xmlns="http://www.w3.org/2000/svg" width="'.$w.'" height="'.$h.'" viewBox="0 0 '.$w.' '.$h.'">
+  <rect x="0" y="0" width="'.$w.'" height="'.$h.'" fill="#ffffff"/>
+  '.$titleSvg.'
+  '.$legend.'
+  '.$grid.'
+  '.$axes.'
+  '.$bars.'
+</svg>';
+
+        return $this->svgToDataUri($svg);
+    }
+
+
+
+    /**
+     * ✅ Monthly Clustered Bars: Forecast vs Target vs Inquiries vs POs
+     * - Shows only months up to current month for current year (YTD)
+     * - Rotated value labels WITH background (pill) for readability
+     * - Zero values draw a tiny baseline bar (no "0" label)
+     * - Labels are clamped to stay inside plot area (never overlap title/legend)
+     * Output: data:image/svg+xml;base64,...
+     */
+    private function makeMonthly4SeriesClusteredBarChartBase64(
+        array  $forecastRow,
+        array  $targetRow,
+        array  $inqRow,
+        array  $poRow,
+        string $title = 'MONTHLY PERFORMANCE — FORECAST vs TARGET vs INQUIRIES vs POs',
+        ?int   $year = null
+    ): string
+    {
+        $year = $year ?? (int) now()->year;
+
+        $forecast12 = array_slice($this->pad13Row($forecastRow), 0, 12);
+        $target12   = array_slice($this->pad13Row($targetRow),   0, 12);
+        $inq12      = array_slice($this->pad13Row($inqRow),      0, 12);
+        $po12       = array_slice($this->pad13Row($poRow),       0, 12);
+
+        // ✅ YTD cutoff
+        $cutoff = ($year === (int) now()->year) ? (int) now()->month : 12;
+        $cutoff = max(1, min(12, $cutoff));
+
+        $forecast = array_map('floatval', array_slice($forecast12, 0, $cutoff));
+        $target   = array_map('floatval', array_slice($target12,   0, $cutoff));
+        $inq      = array_map('floatval', array_slice($inq12,      0, $cutoff));
+        $po       = array_map('floatval', array_slice($po12,       0, $cutoff));
+
+        // ✅ Colors (Executive)
+        $COL_PO       = '#1D4ED8'; // deep blue
+        $COL_INQ      = '#0F766E'; // teal
+        $COL_TARGET   = '#F59E0B'; // amber
+        $COL_FORECAST = '#CBD5E1'; // light slate
+
+        // Canvas
+        $w = 760;
+        $h = 260;
+
+        $headerH = 34;
+        $padL = 62;
+        $padR = 16;
+        $padT = $headerH + 12;
+        $padB = 50;
+
+        $plotW = $w - $padL - $padR;
+        $plotH = $h - $padT - $padB;
+        $baseY = $padT + $plotH;
+
+        $monthsAll = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        $months = array_slice($monthsAll, 0, $cutoff);
+
+        $n = $cutoff;
+        $groupW = $plotW / max(1, $n);
+
+        $barW = min(11, $groupW * 0.16);
+        $gap  = max(2, $barW * 0.45);
+
+        // Scale
+        $maxV = 1.0;
+        $maxV = max($maxV, max($forecast ?: [0]));
+        $maxV = max($maxV, max($target   ?: [0]));
+        $maxV = max($maxV, max($inq      ?: [0]));
+        $maxV = max($maxV, max($po       ?: [0]));
+        $maxV = (float) ceil($maxV / 1000000) * 1000000;
+        if ($maxV <= 0) $maxV = 1.0;
+
+        $y = function (float $v) use ($padT, $plotH, $maxV): float {
+            return $padT + ($plotH * (1 - ($v / $maxV)));
+        };
+
+        $fmt = function (float $v): string {
+            if ($v <= 0) return '0';
+            if ($v >= 1000000) return number_format($v / 1000000, 2) . 'M';
+            if ($v >= 1000) return number_format($v / 1000, 0) . 'K';
+            return (string) number_format($v, 0);
+        };
+
+        // Grid + y labels
+        $grid = '';
+        for ($g = 0; $g <= 4; $g++) {
+            $val = $maxV * (1 - ($g / 4));
+            $yy  = $padT + ($plotH * ($g / 4));
+            $grid .= '<line x1="'.$padL.'" y1="'.round($yy,2).'" x2="'.($w - $padR).'" y2="'.round($yy,2).'" stroke="#e5e7eb" stroke-width="1"/>';
+            $grid .= '<text x="'.($padL - 8).'" y="'.round($yy + 3,2).'" text-anchor="end" font-size="9" fill="#6b7280">'
+                . number_format($val / 1000000, 0) . 'M</text>';
+        }
+
+        // Title + Legend
+        $titleSvg = '<text x="'.$padL.'" y="18" font-size="12" font-weight="800" fill="#111827">'.htmlspecialchars($title, ENT_QUOTES).'</text>';
+
+        $legendX = $w - $padR - 390;
+        $legend = '
+      <rect x="'.($legendX + 0).'"   y="10" width="10" height="10" fill="'.$COL_PO.'" /><text x="'.($legendX + 16).'"  y="19" font-size="10" fill="#374151">POs</text>
+      <rect x="'.($legendX + 70).'"  y="10" width="10" height="10" fill="'.$COL_INQ.'" /><text x="'.($legendX + 86).'" y="19" font-size="10" fill="#374151">Inquiries</text>
+      <rect x="'.($legendX + 160).'" y="10" width="10" height="10" fill="'.$COL_TARGET.'" /><text x="'.($legendX + 176).'" y="19" font-size="10" fill="#374151">Target</text>
+      <rect x="'.($legendX + 250).'" y="10" width="10" height="10" fill="'.$COL_FORECAST.'" stroke="#94A3B8" stroke-width="1" /><text x="'.($legendX + 266).'" y="19" font-size="10" fill="#374151">Forecast</text>
+    ';
+
+        $axes = '
+      <line x1="'.$padL.'" y1="'.$padT.'" x2="'.$padL.'" y2="'.$baseY.'" stroke="#d1d5db" stroke-width="1"/>
+      <line x1="'.$padL.'" y1="'.$baseY.'" x2="'.($w - $padR).'" y2="'.$baseY.'" stroke="#d1d5db" stroke-width="1"/>
+    ';
+
+        // ✅ Label helper (rotated with background)
+        $rotLabel = function (float $tx, float $ty, string $text, int $fontSize = 9): string {
+            // Rough text width estimate (good enough for 0.00M / 123K etc.)
+            $charW = $fontSize * 0.58;
+            $padX  = 4;
+            $padY  = 2;
+
+            $w = max(18, (strlen($text) * $charW) + ($padX * 2));
+            $h = $fontSize + ($padY * 2);
+
+            $x = $tx - ($w / 2);
+            $y = $ty - ($h / 2);
+
+            return '
+          <g transform="rotate(-90 '.$tx.' '.$ty.')">
+            <rect x="'.round($x,2).'" y="'.round($y,2).'"
+                  width="'.round($w,2).'" height="'.round($h,2).'"
+                  rx="3" ry="3"
+                  fill="#ffffff" opacity="0.92"
+                  stroke="#e5e7eb" stroke-width="1"/>
+            <text x="'.$tx.'" y="'.$ty.'" text-anchor="middle"
+                  font-size="'.$fontSize.'" font-weight="800" fill="#111827"
+                  dominant-baseline="middle">'.$text.'</text>
+          </g>
+        ';
+        };
+
+        // ✅ Clamp labels strictly inside plot area (never in header)
+        $minLabelY = $padT + 8;     // below plot top
+        $maxLabelY = $baseY - 10;   // above x-axis
+
+        // Draw one bar
+        $drawBar = function (float $val, float $x, string $fill, string $stroke = '') use (
+            $y, $baseY, $barW, $fmt, $rotLabel, $minLabelY, $maxLabelY
+        ): string {
+            // baseline bar for zero
+            if ($val <= 0) {
+                return '<rect x="'.round($x,2).'" y="'.round($baseY - 2,2).'" width="'.round($barW,2).'" height="2" fill="'.$fill.'" opacity="0.35" '
+                    . ($stroke ? 'stroke="'.$stroke.'" stroke-width="1"' : '')
+                    . ' />';
+            }
+
+            $yy = $y($val);
+            $hh = max(0, $baseY - $yy);
+
+            $tx = (float) round($x + ($barW / 2), 2);
+
+            // place label just above bar, but clamp within plot
+            $ty = (float) ($yy - 12);
+            if ($ty < $minLabelY) $ty = $minLabelY;
+            if ($ty > $maxLabelY) $ty = $maxLabelY;
+            $ty = (float) round($ty, 2);
+
+            $label = $fmt($val);
+
+            return
+                '<rect x="'.round($x,2).'" y="'.round($yy,2).'" width="'.round($barW,2).'" height="'.round($hh,2).'" fill="'.$fill.'" '
+                . ($stroke ? 'stroke="'.$stroke.'" stroke-width="1"' : '')
+                . ' />'
+                // ✅ wrapped label background (rotated)
+                . $rotLabel($tx, $ty, $label, 9);
+        };
+
+        // Bars
+        $bars = '';
+        for ($i = 0; $i < $n; $i++) {
+            $cx = $padL + ($groupW * $i) + ($groupW / 2);
+
+            $xF = $cx - (1.5 * ($barW + $gap));
+            $xT = $cx - (0.5 * ($barW + $gap));
+            $xI = $cx + (0.5 * ($barW + $gap));
+            $xP = $cx + (1.5 * ($barW + $gap));
+
+            $bars .= $drawBar((float) $forecast[$i], $xF, $COL_FORECAST, '#94A3B8');
+            $bars .= $drawBar((float) $target[$i],   $xT, $COL_TARGET);
+            $bars .= $drawBar((float) $inq[$i],      $xI, $COL_INQ);
+            $bars .= $drawBar((float) $po[$i],       $xP, $COL_PO);
+
+            $bars .= '<text x="'.round($cx,2).'" y="'.($h - 18).'" text-anchor="middle" font-size="9" fill="#6b7280">'.$months[$i].'</text>';
+        }
+
+        $svg = '
+<svg xmlns="http://www.w3.org/2000/svg" width="'.$w.'" height="'.$h.'" viewBox="0 0 '.$w.' '.$h.'">
+  <rect x="0" y="0" width="'.$w.'" height="'.$h.'" fill="#ffffff"/>
+  '.$titleSvg.'
+  '.$legend.'
+  '.$grid.'
+  '.$axes.'
+  '.$bars.'
+</svg>';
+
+        return $this->svgToDataUri($svg);
+    }
 
 
 
 
+    /**
+     * Build a DOMPDF-safe chart as inline SVG (base64 data URI).
+     * Returns: data:image/svg+xml;base64,....
+     */
+    private function svgToDataUri(string $svg): string
+    {
+        // Important: keep SVG UTF-8 and avoid line breaks issues
+        $svg = trim($svg);
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+    }
+
+    private function salesmenForArea(string $areaNorm): array
+    {
+        $areaNorm = $this->normalizeArea($areaNorm);
+
+        return match ($areaNorm) {
+            'Eastern' => ['SOHAIB'],
+            'Central' => ['TARIQ', 'JAMAL'],
+            'Western' => ['ABDO', 'AHMED'],
+            'All'     => [],   // ✅ No charts for ALL (GM requirement)
+            default   => [],   // ✅ safe: unknown/invalid area => no charts
+        };
+    }
+
+    private function buildSalesmanSummaryPayload(int $year, string $areaNorm): array
+    {
+        $today = Carbon::now()->format('d-m-Y');
+
+        $this->relaxGroupBy();
+        $canViewAll = auth()->user()?->hasRole('GM') || auth()->user()?->hasRole('Admin');
+        $regionMap = [
+            'Eastern' => ['SOHAIB'],
+            'Central' => ['TARIQ', 'JAMAL'],
+            'Western' => ['ABDO', 'AHMEDAMIN', 'AHMED AMIN', 'AHMED'],
+        ];
+
+        // ✅ targets
+        $annualTargets = ['Eastern' => 50000000, 'Central' => 50000000, 'Western' => 36000000];
+        $annualTarget = ($areaNorm !== 'All') ? (float)($annualTargets[$areaNorm] ?? 0) : 0.0;
+        $monthlyTarget = ($areaNorm !== 'All' && $annualTarget > 0) ? ($annualTarget / 12.0) : 0.0;
+
+        // ---------- pivots ----------
+        $inquiriesBySalesman = $this->buildSalesmanPivotInquiries($year);
+        $posBySalesman = $this->buildSalesmanPivotPOs($year);
+        $poRegionMatrix = $this->buildSalesmanRegionMatrixPOs($year, $areaNorm, $regionMap);
+
+        $inquiriesBySalesman = $this->filterSalesmanPivotByArea($inquiriesBySalesman, $areaNorm, $regionMap);
+        $posBySalesman = $this->filterSalesmanPivotByArea($posBySalesman, $areaNorm, $regionMap);
+
+        // ---------- region pivots ----------
+        $inqByRegion = $this->buildRegionPivotFromSalesmanPivot($inquiriesBySalesman, $regionMap);
+        $poByRegion = $this->buildRegionPivotFromSalesmanPivot($posBySalesman, $regionMap);
+
+        if ($areaNorm !== 'All') {
+            $inqByRegion = array_intersect_key($inqByRegion, [$areaNorm => true]);
+            $poByRegion = array_intersect_key($poByRegion, [$areaNorm => true]);
+        }
+
+        // ✅ safer totals (index 12 is TOTAL in your pivots)
+        $inqTotal = array_sum(array_map(fn($row) => (float)($row[12] ?? 0), $inquiriesBySalesman));
+        $poTotal = array_sum(array_map(fn($row) => (float)($row[12] ?? 0), $posBySalesman));
+
+        $gapVal = $inqTotal - $poTotal;
+        $gapPct = ($inqTotal > 0) ? round(($poTotal / $inqTotal) * 100, 1) : 0;
+
+        // ---------- matrices ----------
+        $inqProductMatrix = $this->buildSalesmanProductMatrixInquiries($year, $areaNorm, $regionMap);
+        $poProductMatrix = $this->buildSalesmanProductMatrixPOs($year, $areaNorm, $regionMap);
+        $forecastBySalesman = $this->buildSalesmanPivotForecast($year, $areaNorm, $regionMap);
+        $targetBySalesman = $this->buildSalesmanPivotTargets($year, $areaNorm, $regionMap);
+
+        $salesmanKpiMatrix = $this->buildSalesmanKpiMatrix(
+            $forecastBySalesman,
+            $targetBySalesman,
+            $inquiriesBySalesman,
+            $posBySalesman
+        );
+
+        $inquiriesByEstimator = $this->buildEstimatorPivotInquiries($year, $areaNorm, $regionMap);
+        $totalInquiriesByMonth = $this->buildTotalInquiriesByMonth($inquiriesBySalesman);
+        $totalInquiriesByProduct = $this->buildTotalInquiriesByProductFromSalesmanMatrix($inqProductMatrix);
+        $estimatorProductMatrix = $this->buildEstimatorProductMatrixInquiries($year, $areaNorm, $regionMap);
+        $totalInquiriesByMonthByType = $this->buildTotalInquiriesByMonthByType($year, $areaNorm, $regionMap);
+
+        // ---------- charts ----------
+        $salesmen = $this->salesmenForArea($areaNorm);
+        $focusSalesman = ($areaNorm !== 'All') ? implode(', ', $salesmen) : null;
+
+        $charts = [];
+
+        foreach ($salesmen as $s) {
+
+            // product mix chart (PO product monthly)
+            if (isset($poProductMatrix[$s])) {
+                $charts[$s]['product_mix'] = $this->makeProductMixByMonthClusteredBarChartBase64(
+                    $poProductMatrix[$s],
+                    'PRODUCT MIX — ' . $s . ' (MONTHLY)',
+                    $year
+                );
+            } else {
+                $charts[$s]['product_mix'] = null;
+            }
+
+            // monthly performance 4-series chart
+            if (isset($salesmanKpiMatrix[$s])) {
+                $m = $salesmanKpiMatrix[$s];
+
+                $charts[$s]['monthly_perf'] = $this->makeMonthly4SeriesClusteredBarChartBase64(
+                    $m['FORECAST'] ?? [],
+                    $m['TARGET'] ?? [],
+                    $m['INQUIRIES'] ?? [],
+                    $m['POS'] ?? [],
+                    'MONTHLY PERFORMANCE — ' . $s,
+                    $year
+                );
+            } else {
+                $charts[$s]['monthly_perf'] = null;
+            }
+        }
+        // ✅ conversion model (your “10% logic”)
+        $expectedConvPct = 10.0;
+        $expectedConv = max(0.01, $expectedConvPct / 100.0);
+        $requiredQuotes = ($monthlyTarget > 0) ? ($monthlyTarget / $expectedConv) : 0.0;
+        $actualConvPct = ($inqTotal > 0) ? round(($poTotal / $inqTotal) * 100, 1) : 0.0;
+        $quoteGap = $requiredQuotes - $inqTotal;
+
+        return [
+            'year' => $year,
+            'area' => $areaNorm,
+            'today' => $today,
+            'focus_salesman' => $focusSalesman,
+
+            // ✅ expose targets to PDF + insights
+            'targets' => [
+                'annual_target' => $annualTarget,
+                'monthly_target' => $monthlyTarget,
+            ],
+
+            // ✅ expose conversion expectation block
+            'conversion_model' => [
+                'expected_conversion_pct' => $expectedConvPct,
+                'target_sales_monthly' => $monthlyTarget,
+                'required_quotations' => $requiredQuotes,
+                'actual_quotations' => $inqTotal,
+                'quotation_gap' => $quoteGap,
+                'actual_conversion_pct' => $actualConvPct,
+            ],
+
+            'kpis' => [
+                'inquiries_total' => $inqTotal,
+                'pos_total' => $poTotal,
+                'gap_value' => $gapVal,
+                'gap_percent' => $gapPct,
+            ],
+
+            'inquiriesBySalesman' => $inquiriesBySalesman,
+            'posBySalesman' => $posBySalesman,
+            'inqByRegion' => $inqByRegion,
+            'poByRegion' => $poByRegion,
+
+            'inqProductMatrix' => $inqProductMatrix,
+            'poProductMatrix' => $poProductMatrix,
+            'salesmanKpiMatrix' => $salesmanKpiMatrix,
+            'poRegionMatrix' => $poRegionMatrix,
+
+            'inquiriesByEstimator' => $inquiriesByEstimator,
+            'totalInquiriesByMonth' => $totalInquiriesByMonth,
+            'totalInquiriesByProduct' => $totalInquiriesByProduct,
+            'estimatorProductMatrix' => $estimatorProductMatrix,
+            'totalInquiriesByMonthByType' => $totalInquiriesByMonthByType,
+
+            'charts' => $charts,
+            'salesmen' => $salesmen,
+            'insights' => null,
+            'gm_controls' => $this->buildGmControls($year, $areaNorm),
+        ];
+    }
+
+
+    public function insights(Request $r)
+    {
+        $year = (int)($r->input('year') ?? now()->year);
+        $area = (string)($r->input('area') ?? 'All');
+        $areaNorm = $this->normalizeArea($area);
+
+        // robust ai parsing (ai=1/true/on/yes/10)
+        $aiRaw = $r->input('ai', 0);
+        $aiEnabled = filter_var($aiRaw, FILTER_VALIDATE_BOOLEAN)
+            || (is_numeric($aiRaw) && (int)$aiRaw > 0);
+
+        // ✅ Build the SAME payload you build inside pdf()
+        $payload = $this->buildSalesmanSummaryPayload($year, $areaNorm);
+        // ^ You should extract your big "payload building" logic into this helper
+        // so you don't duplicate code.
+
+        // RULES always
+        $ruleService = app(SalesmanSummaryInsightService::class);
+        $baseInsights = $ruleService->generate($payload);
+        $baseInsights = $this->ensureInsightsSkeletonNew($baseInsights);
+        $ins = $this->addLowConfidenceFillers($baseInsights);
+
+        $ins['meta'] ??= [];
+        $ins['meta']['mode'] = 'RULES';
+        $ins['meta']['engine'] = 'rules';
+        $ins['meta']['area'] = $areaNorm;
+        $ins['meta']['year'] = $year;
+        $ins['meta']['ai'] = $aiEnabled ? 1 : 0;
+        $ins['meta']['generated_at'] = now()->toDateTimeString();
+
+        // AI merge (optional)
+        if ($aiEnabled) {
+            try {
+                $llmService = app(\App\Services\Reports\SalesmanSummaryLlmService::class);
+                $aiFacts = $this->buildAiFactsFromPayload($payload);
+                $aiMerged = $llmService->enhance($aiFacts, $ins);
+
+                $aiMerged = $this->ensureInsightsSkeletonNew($aiMerged);
+                $aiMerged = $this->addLowConfidenceFillers($aiMerged);
+
+                $aiMerged['meta'] ??= [];
+                $aiMerged['meta']['engine'] = 'rules+ai';
+                $aiMerged['meta']['ai_ran'] = 1;
+                $aiMerged['meta']['ai'] = 1;
+                $aiMerged['meta']['mode'] = 'LIVE';
+
+                $ins = $aiMerged;
+            } catch (\Throwable $e) {
+                $ins['meta']['ai_ran'] = 0;
+                $ins['meta']['ai_error'] = $e->getMessage();
+            }
+        }
+
+        // ✅ store insights for PDF using token
+        $token = (string)Str::uuid();
+        $cacheKey = "pdf:insights:salesmanSummary:token:$token";
+
+        Cache::put(
+            "pdf:insights:salesmanSummary:token:$token",
+            [
+                'insights' => $ins,       // store only insights
+                'year' => $year,
+                'area' => $areaNorm,
+                'created_at' => now()->toDateTimeString(),
+            ],
+            now()->addMinutes(30)
+        );
+
+
+        return response()->json(['ok' => true, 'token' => $token]);
+    }
 
 
 
@@ -436,131 +1154,424 @@ class SalesmanPerformanceController extends Controller
      * - One PDF
      * - Filters by area (Eastern/Central/Western/All)
      * - Includes region summary, product matrices, performance matrix, estimators, totals
+     * - ✅ Adds charts (DOMPDF) as Base64 images (monthly trend + region share)
      */
+    /* ===========================
+   1) CONTROLLER (pdf method)
+   Copy-paste this WHOLE method
+   =========================== */
+
+
     public function pdf(Request $r)
     {
-        $year  = (int)($r->query('year') ?? now()->year);
-        $area  = (string)($r->query('area') ?? 'All'); // ✅ NEW
-        $today = Carbon::now()->format('d-m-Y');
+        $year = (int)($r->query('year') ?? now()->year);
+        $area = (string)($r->query('area') ?? 'All');
         $areaNorm = $this->normalizeArea($area);
-        // Disable strict grouping (your existing approach)
-        DB::statement("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
 
-        // Region mapping (fixed salesmen mapping)
-        $regionMap = [
-            'Eastern' => ['SOHAIB'],
-            'Central' => ['TARIQ', 'JAMAL'],
-            'Western' => ['ABDO', 'AHMED'],
-        ];
+        $token = (string)$r->query('token', '');
+        $debug = (int)$r->query('debug', 0) === 1;
 
-        // -------------------------------
-        // 1) Core pivots (Salesman)
-        // -------------------------------
-        $inquiriesBySalesman = $this->buildSalesmanPivotInquiries($year);
-        $posBySalesman       = $this->buildSalesmanPivotPOs($year);
-        $poRegionMatrix = $this->buildSalesmanRegionMatrixPOs($year, $areaNorm, $this->regionMap);
-        // ✅ Filter by selected area (PDF prints only selected region salesmen)
-        $inquiriesBySalesman = $this->filterSalesmanPivotByArea($inquiriesBySalesman, $area, $regionMap);
-        $posBySalesman       = $this->filterSalesmanPivotByArea($posBySalesman, $area, $regionMap);
+        // ✅ single source of truth
+        $payload = $this->buildSalesmanSummaryPayload($year, $areaNorm);
 
-        // -------------------------------
-        // 2) Region pivots (derived from salesmen pivots)
-        // -------------------------------
-        $inqByRegion = $this->buildRegionPivotFromSalesmanPivot($inquiriesBySalesman, $regionMap);
-        $poByRegion  = $this->buildRegionPivotFromSalesmanPivot($posBySalesman, $regionMap);
+        // ✅ fallback rules
+        $ruleService = app(SalesmanSummaryInsightService::class);
+        $rules = $ruleService->generate($payload);
+        $rules = $this->ensureInsightsSkeletonNew($rules);
+        $rules = $this->addLowConfidenceFillers($rules);
 
-        // ✅ If area != All, keep only that region row in region tables
-        $areaNorm = $this->normalizeArea($area);
-        if ($areaNorm !== 'All') {
-            $inqByRegion = array_intersect_key($inqByRegion, [$areaNorm => true]);
-            $poByRegion  = array_intersect_key($poByRegion,  [$areaNorm => true]);
+        $rules['meta'] ??= [];
+        $rules['meta']['engine'] = 'rules';
+        $rules['meta']['mode'] = 'RULES';
+        $rules['meta']['area'] = $areaNorm;
+        $rules['meta']['year'] = $year;
+        $rules['meta']['ai_ran'] = 0;
+
+        $ins = $rules;
+
+        if ($token) {
+            $cached = Cache::get("pdf:insights:salesmanSummary:token:$token");
+            if ($cached && isset($cached['insights'])) {
+                $ins = $cached['insights'];
+                $ins = $this->ensureInsightsSkeletonNew($ins);
+                $ins = $this->addLowConfidenceFillers($ins);
+                $ins['meta'] ??= [];
+                $ins['meta']['ai_ran'] = (($ins['meta']['engine'] ?? '') === 'rules+ai') ? 1 : 0;
+            } else {
+                $ins = $rules;
+                $ins['meta']['note'] = 'AI token not found/expired; using rules.';
+            }
         }
 
-        // -------------------------------
-        // 3) KPI totals (based on filtered data)
-        // -------------------------------
-        $inqTotal = array_sum(array_map(fn($row) => (float) end($row), $inquiriesBySalesman));
-        $poTotal  = array_sum(array_map(fn($row) => (float) end($row), $posBySalesman));
+        $payload['insights'] = $ins;
 
-        $gapVal = $inqTotal - $poTotal;
-        $gapPct = ($inqTotal > 0) ? round(($poTotal / $inqTotal) * 100, 1) : 0;
-
-        // -------------------------------
-        // 4) Product matrices (Salesman -> Product family -> months)
-        // -------------------------------
-        $inqProductMatrix = $this->buildSalesmanProductMatrixInquiries($year, $area, $regionMap);
-        $poProductMatrix  = $this->buildSalesmanProductMatrixPOs($year, $area, $regionMap);
-
-        // -------------------------------
-        // 5) Forecast pivots (Salesman) from forecast table
-        // -------------------------------
-        $forecastBySalesman = $this->buildSalesmanPivotForecast($year, $area, $regionMap);
-
-        // -------------------------------
-        // 6) Targets (placeholder for now)
-        // NOTE: If you already have targets table or logic, replace this.
-        // -------------------------------
-        $targetBySalesman = $this->buildSalesmanPivotTargets($year, $areaNorm, $regionMap);
-
-        // -------------------------------
-        // 7) Performance matrix (Forecast/Target/Inquiries/PO/Conversion)
-        // Shape required by Blade: [salesman][FORECAST|TARGET|INQUIRIES|POS|CONV_PCT] => [13]
-        // -------------------------------
-        $salesmanKpiMatrix = $this->buildSalesmanKpiMatrix(
-            $forecastBySalesman,
-            $targetBySalesman,
-            $inquiriesBySalesman,
-            $posBySalesman
-        );
-
-        // -------------------------------
-        // 8) Estimator pivots + totals (placeholders + safe arrays)
-        // Replace estimator column name later when we finalize.
-        // -------------------------------
-        $inquiriesByEstimator    = $this->buildEstimatorPivotInquiries($year, $areaNorm, $regionMap);
-
-        $totalInquiriesByMonth   = $this->buildTotalInquiriesByMonth($inquiriesBySalesman);
-        $totalInquiriesByProduct = $this->buildTotalInquiriesByProductFromSalesmanMatrix($inqProductMatrix);
-        $estimatorProductMatrix = $this->buildEstimatorProductMatrixInquiries($year, $areaNorm, $this->regionMap);
-        $totalInquiriesByMonthByType = $this->buildTotalInquiriesByMonthByType($year, $areaNorm, $regionMap);
-
-        // ✅ Build payload required by your Blade
-        $payload = [
-            'year' => $year,
-            'area' => $areaNorm,
-            'today' => $today,
-            'kpis' => [
-                'inquiries_total' => $inqTotal,
-                'pos_total'       => $poTotal,
-                'gap_value'       => $gapVal,
-                'gap_percent'     => $gapPct,
-            ],
-
-            // existing tables
-            'inquiriesBySalesman' => $inquiriesBySalesman,
-            'posBySalesman'       => $posBySalesman,
-            'inqByRegion'         => $inqByRegion,
-            'poByRegion'          => $poByRegion,
-
-            // new sections used by Blade
-            'inqProductMatrix'    => $inqProductMatrix,
-            'poProductMatrix'     => $poProductMatrix,
-            'salesmanKpiMatrix'   => $salesmanKpiMatrix,
-
-            // estimator + totals used by Blade
-            'inquiriesByEstimator'   => $inquiriesByEstimator,
-            'totalInquiriesByMonth'  => $totalInquiriesByMonth,
-            'totalInquiriesByProduct'=> $totalInquiriesByProduct,
-            'estimatorProductMatrix' => $estimatorProductMatrix,
-            'totalInquiriesByMonthByType' => $totalInquiriesByMonthByType,
-            'poRegionMatrix' => $poRegionMatrix,
-
-        ];
+        if ($debug) {
+            return response()->json([
+                'ok' => true,
+                'token' => $token,
+                'meta' => $ins['meta'] ?? [],
+                'engine' => $ins['meta']['engine'] ?? null,
+                'conversion_model' => $payload['conversion_model'] ?? null,
+            ]);
+        }
 
         return Pdf::loadView('reports.salesman-summary', $payload)
-            ->setPaper('a4', 'portrait')
+            ->setPaper('a4', 'landscape')
             ->download("ATAI_Salesman_Summary_{$year}_{$areaNorm}.pdf");
     }
+
+
+    private function ensureInsightsSkeletonNew(array $ins): array
+    {
+        $ins['overall_analysis'] ??= [
+            'snapshot' => [],
+            'regional_key_points' => [],
+            'salesman_key_points' => [],
+            'product_key_points' => [],
+        ];
+
+        $ins['high_insights'] ??= [];
+        $ins['low_insights'] ??= [];
+        $ins['what_needs_attention'] ??= [];
+        $ins['one_line_summary'] ??= '';
+
+        $ins['meta'] ??= [];
+        $ins['meta']['engine'] ??= 'rules';
+        $ins['meta']['generated_at'] ??= now()->toDateTimeString();
+
+        return $ins;
+    }
+
+
+    private function addLowConfidenceFillers(array $ins): array
+    {
+        $ins = $this->ensureInsightsSkeletonNew($ins);
+
+        $mkHigh = function ($title, $text, $gmAction = 'Review and validate with the team.', $rag = 'Amber', $confidence = 'Low') {
+            return [
+                'title' => $title,
+                'rag' => $rag,
+                'confidence' => $confidence,
+                'text' => $text,
+                'gm_action' => $gmAction,
+            ];
+        };
+
+        $mkLow = function ($title, $text, $gmInterp = 'Treat as directional until more data accumulates.', $rag = 'Amber', $confidence = 'Low') {
+            return [
+                'title' => $title,
+                'rag' => $rag,
+                'confidence' => $confidence,
+                'text' => $text,
+                'gm_interpretation' => $gmInterp,
+            ];
+        };
+
+        $mkAttn = function ($title, $text, $rag = 'Red', $confidence = 'Low') {
+            return [
+                'title' => $title,
+                'rag' => $rag,
+                'confidence' => $confidence,
+                'text' => $text,
+            ];
+        };
+
+        // --- Overall analysis fillers ---
+        if (empty($ins['overall_analysis']['snapshot'])) {
+            $ins['overall_analysis']['snapshot'] = [
+                'Limited data available for this scope; treat insights as directional until more months/records accumulate.',
+            ];
+        }
+        if (empty($ins['overall_analysis']['regional_key_points'])) {
+            $ins['overall_analysis']['regional_key_points'] = [
+                'Regional comparisons require stronger month coverage; validate region mapping and ensure all quotations/POs are logged.',
+            ];
+        }
+        if (empty($ins['overall_analysis']['salesman_key_points'])) {
+            $ins['overall_analysis']['salesman_key_points'] = [
+                'Salesman-level performance signals are limited; confirm top quotations and follow-up status updates are up to date.',
+            ];
+        }
+        if (empty($ins['overall_analysis']['product_key_points'])) {
+            $ins['overall_analysis']['product_key_points'] = [
+                'Product mix insights need consistent product tagging; verify family/category completeness in inquiry and PO logs.',
+            ];
+        }
+
+        // --- High / Low / Attention fillers ---
+        if (empty($ins['high_insights'])) {
+            $ins['high_insights'] = [
+                $mkHigh(
+                    'Baseline performance signal (limited)',
+                    'Current dataset is not strong enough for high-confidence wins; continue weekly logging to strengthen signals.',
+                    'Focus on logging discipline and follow up on top-value open quotations.'
+                )
+            ];
+        }
+
+        if (empty($ins['low_insights'])) {
+            $ins['low_insights'] = [
+                $mkLow(
+                    'Directional trend only',
+                    'Month coverage is limited; trends may change as more data comes in.',
+                    'Do not treat trend direction as final until we have 3+ active months.'
+                )
+            ];
+        }
+
+        if (empty($ins['what_needs_attention'])) {
+            $ins['what_needs_attention'] = [
+                $mkAttn(
+                    'Data completeness / logging discipline',
+                    'Ensure all quotations, PO values, product family, and dates are logged consistently to avoid hidden gaps.',
+                    'Red',
+                    'Low'
+                )
+            ];
+        }
+
+        if (empty($ins['one_line_summary'])) {
+            $ins['one_line_summary'] =
+                'Insights are directional due to limited coverage—focus on logging discipline and follow-up on top open quotations.';
+        }
+
+        $ins['meta'] ??= [];
+        $ins['meta']['engine'] = $ins['meta']['engine'] ?? 'rules';
+
+        return $ins;
+    }
+
+
+    private function buildAiFactsFromPayload(array $payload): array
+    {
+        $year = (int)($payload['year'] ?? now()->year);
+        $area = (string)($payload['area'] ?? 'All');
+
+        $kpis = $payload['kpis'] ?? [];
+        $inqTotal = (float)($kpis['inquiries_total'] ?? 0);
+        $poTotal = (float)($kpis['pos_total'] ?? 0);
+
+        $inqBySalesman = $payload['inquiriesBySalesman'] ?? [];
+        $poBySalesman = $payload['posBySalesman'] ?? [];
+        $forecast = $payload['salesmanKpiMatrix'] ?? []; // has FORECAST/TARGET/INQUIRIES/POS/CONV
+
+        $salesmen = array_unique(array_merge(
+            array_keys($inqBySalesman),
+            array_keys($poBySalesman),
+            array_keys($forecast)
+        ));
+        sort($salesmen, SORT_NATURAL);
+
+        $salesmanFacts = [];
+        foreach ($salesmen as $s) {
+            $inq = (float)($inqBySalesman[$s][12] ?? 0);
+            $po = (float)($poBySalesman[$s][12] ?? 0);
+
+            $conv = 0.0;
+            $fc = 0.0;
+            $tgt = 0.0;
+
+            if (isset($forecast[$s])) {
+                $conv = (float)($forecast[$s]['CONV_PCT'][12] ?? 0);
+                $fc = (float)($forecast[$s]['FORECAST'][12] ?? 0);
+                $tgt = (float)($forecast[$s]['TARGET'][12] ?? 0);
+            }
+
+            $salesmanFacts[] = [
+                'salesman' => $s,
+                'inquiries_total' => $inq,
+                'pos_total' => $po,
+                'conversion_pct' => $conv,
+                'forecast_total' => $fc,
+                'target_total' => $tgt,
+            ];
+        }
+
+        // simple confidence flag: active months (any non-zero in total row)
+        $activeMonths = 0;
+        $totalInqRow = $payload['totalInquiriesByMonth'] ?? array_fill(0, 13, 0);
+        for ($i = 0; $i < 12; $i++) {
+            if (((float)($totalInqRow[$i] ?? 0)) > 0) $activeMonths++;
+        }
+        $confidence = ($activeMonths >= 3) ? 'Medium/High' : 'Low';
+
+        return [
+            'scope' => [
+                'year' => $year,
+                'area' => $area,
+                'focus_salesman' => $payload['focus_salesman'] ?? null,
+            ],
+            'kpis' => [
+                'inquiries_total' => $inqTotal,
+                'pos_total' => $poTotal,
+                'gap_value' => (float)($kpis['gap_value'] ?? 0),
+                'gap_percent' => (float)($kpis['gap_percent'] ?? 0),
+            ],
+            'salesmen' => $salesmanFacts,
+            'meta' => [
+                'active_months_inquiries' => $activeMonths,
+                'confidence' => $confidence,
+                'note' => 'Facts-only payload for AI wording. No monthly arrays/matrices included.',
+            ],
+        ];
+    }
+
+    /* Gm controls for portal */
+
+
+    private function buildGmControls(int $year, string $areaNorm): array
+    {
+        $areaNorm = strtoupper(trim($areaNorm));
+        $today = Carbon::now();
+
+        /* ============================================================
+         | A) Week range (KSA workweek: SUN → THU)
+         | We always check LAST COMPLETED week ending on THURSDAY
+         ============================================================ */
+        $thisWeekEnd = $today->copy()->endOfWeek(Carbon::THURSDAY);   // Thu of current KSA week
+        // If today is before/at Thu, last completed is previous Thu
+        if ($today->lte($thisWeekEnd)) {
+            $weekEnd = $thisWeekEnd->copy()->subWeek();               // last Thu
+        } else {
+            $weekEnd = $thisWeekEnd->copy();                          // (rare case) after Thu
+        }
+        $weekStart = $weekEnd->copy()->subDays(4);                    // Sun (Thu-4)
+
+        /* ============================================================
+         | B) Required salesmen by region
+         ============================================================ */
+        $required = match ($areaNorm) {
+            'EASTERN' => ['SOHAIB'],
+            'CENTRAL' => ['TARIQ', 'JAMAL'],
+            'WESTERN' => ['ABDO', 'AHMED'],
+            default => ['SOHAIB', 'TARIQ', 'JAMAL', 'ABDO', 'AHMED'],
+        };
+
+        /* ============================================================
+         | 1) WEEKLY REPORT SUBMITTED
+         | weekly_reports columns (from your screenshot):
+         | - engineer_name, week_start, week_end, status
+         | We assume: status='submitted' means submitted
+         ============================================================ */
+        $submitted = DB::table('weekly_reports')
+            ->selectRaw("UPPER(TRIM(engineer_name)) AS salesman")
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->whereDate('week_end', $weekEnd->toDateString())
+            ->whereIn(DB::raw("LOWER(TRIM(status))"), ['submitted', 'approved']) // adjust if you use different text
+            ->pluck('salesman')
+            ->toArray();
+
+        $submittedSet = array_fill_keys($submitted, true);
+
+        $missing = [];
+        foreach ($required as $s) {
+            $sU = strtoupper(trim($s));
+            if (!isset($submittedSet[$sU])) $missing[] = $sU;
+        }
+
+        $weekly_report = [
+            'title' => 'Weekly report submitted',
+            'ok' => empty($missing),
+            'status' => empty($missing) ? 'YES' : 'NO',
+            'detail' => empty($missing)
+                ? "Week {$weekStart->format('d-M')} → {$weekEnd->format('d-M-Y')} submitted."
+                : "Missing ({$weekStart->format('d-M')} → {$weekEnd->format('d-M-Y')}): " . implode(', ', $missing),
+        ];
+
+        /* ============================================================
+         | 2) QUOTATION → PO NOT UPDATED (14+ days, >= 500k, no PO)
+         | Your real columns:
+         | - projects: quotation_no, quotation_date, quotation_value, area
+         | - salesorderlog: Quote No. (column has dot + space)
+         | NOTE: backticks are REQUIRED for `Quote No.`
+         ============================================================ */
+        $from = Carbon::create($year, 1, 1)->startOfDay();
+        $to = Carbon::create($year, 12, 31)->endOfDay();
+        $cut = $today->copy()->subDays(14)->toDateString();
+
+        $stale = DB::table('projects as p')
+            ->selectRaw("
+            COUNT(*) as cnt,
+            COALESCE(SUM(p.quotation_value),0) as quoted_sum
+        ")
+            ->whereBetween('p.quotation_date', [$from, $to])
+            ->whereNotNull('p.quotation_no')
+            ->whereRaw("TRIM(p.quotation_no) <> ''")
+            ->whereRaw("p.quotation_value >= 500000")
+            ->whereRaw("p.quotation_date <= ?", [$cut])
+            ->whereNull('p.deleted_at')
+            ->whereNotExists(function ($q) {
+                $q->selectRaw('1')
+                    ->from('salesorderlog as s')
+                    ->whereNull('s.deleted_at')
+                    // match projects.quotation_no with salesorderlog.`Quote No.`
+                    ->whereRaw("UPPER(TRIM(`s`.`Quote No.`)) = UPPER(TRIM(p.quotation_no))");
+            })
+            ->when($areaNorm !== 'ALL', function ($q) use ($areaNorm) {
+                // projects table uses "area" in your screenshot, not "region"
+                $q->whereRaw("UPPER(TRIM(p.area)) = ?", [$areaNorm]);
+            })
+            ->first();
+
+        $cnt = (int)($stale->cnt ?? 0);
+        $sum = (float)($stale->quoted_sum ?? 0);
+
+        $quotation_po = [
+            'title' => 'Quotation → PO not updated',
+            'ok' => ($cnt === 0),
+            'status' => ($cnt === 0) ? 'YES' : 'NO',
+            'detail' => ($cnt === 0)
+                ? "No pending high-value quotations older than 14 days."
+                : "{$cnt} quotation(s) ≥ 500k SAR are 14+ days old with no PO (Total: SAR " . number_format($sum, 0) . ").",
+        ];
+
+        /* ============================================================
+         | 3) BNC update → leads generation (NO upload-check)
+         | GM wants: did the REGION’s BNC leads get UPDATED/WORKED ON
+         | (comment/update) recently?
+         | We'll use bnc_projects.updated_at (and optionally last_comment)
+         ============================================================ */
+        $bncCut = $today->copy()->subDays(7);
+
+        $bncStats = DB::table('bnc_projects as b')
+            ->selectRaw("
+            MAX(b.updated_at) as last_updated,
+            SUM(CASE WHEN b.updated_at >= ? THEN 1 ELSE 0 END) as updated_7d,
+            COUNT(*) as total_leads
+        ", [$bncCut->toDateTimeString()])
+            ->when($areaNorm !== 'ALL', function ($q) use ($areaNorm) {
+                $q->whereRaw("UPPER(TRIM(b.region)) = ?", [$areaNorm]);
+            })
+            ->first();
+
+        $lastUpd = $bncStats->last_updated ? Carbon::parse($bncStats->last_updated) : null;
+        $updated7d = (int)($bncStats->updated_7d ?? 0);
+        $totalLeads = (int)($bncStats->total_leads ?? 0);
+
+        $bncOk = ($updated7d > 0);
+
+        $bnc_update = [
+            'title' => 'BNC update → leads generation',
+            'ok' => $bncOk,
+            'status' => $bncOk ? 'YES' : 'NO',
+            'detail' => $totalLeads === 0
+                ? "No BNC leads found for this region."
+                : ($bncOk
+                    ? "{$updated7d} lead(s) updated in last 7 days. Last activity: " . ($lastUpd ? $lastUpd->format('d-M-Y') : '—')
+                    : "No lead activity in last 7 days. Last activity: " . ($lastUpd ? $lastUpd->format('d-M-Y') : '—')),
+        ];
+
+        return [
+            'quotation_po' => $quotation_po,
+            'weekly_report' => $weekly_report,
+            'bnc_update' => $bnc_update,
+            'meta' => [
+                'week_start' => $weekStart->toDateString(),
+                'week_end' => $weekEnd->toDateString(),
+            ],
+        ];
+    }
+
 
     /* ============================================================
        Helpers: normalize area + salesman + PO amount
@@ -569,7 +1580,7 @@ class SalesmanPerformanceController extends Controller
     private function normalizeArea(string $area): string
     {
         $a = ucfirst(strtolower(trim($area)));
-        return in_array($a, ['Eastern','Central','Western'], true) ? $a : 'All';
+        return in_array($a, ['Eastern', 'Central', 'Western'], true) ? $a : 'All';
     }
 
     /**
@@ -591,16 +1602,6 @@ class SalesmanPerformanceController extends Controller
         return $n;
     }
 
-    /**
-     * PO amount expression (keep your existing implementation if you already have it).
-     * This is a safe fallback: you should replace with your real one.
-     */
-//    private function poAmountExpr(string $alias = 's'): string
-//    {
-//        // Example column names used in your DB: `Total Amount` might differ
-//        // Replace with your already working expression.
-//        return "COALESCE(`{$alias}`.`Total Amount`,0)";
-//    }
 
     /* ============================================================
        Core pivots: salesman inquiries / POs
@@ -609,7 +1610,7 @@ class SalesmanPerformanceController extends Controller
     private function buildSalesmanPivotInquiries(int $year): array
     {
         $labelExpr = "COALESCE(NULLIF(p.salesman,''), NULLIF(p.salesperson,''), 'Not Mentioned')";
-        $valExpr   = "COALESCE(p.quotation_value,0)";
+        $valExpr = "COALESCE(p.quotation_value,0)";
 
         $rows = DB::table('projects as p')
             ->selectRaw("$labelExpr AS salesman, MONTH(p.quotation_date) AS m, SUM($valExpr) AS s")
@@ -623,7 +1624,7 @@ class SalesmanPerformanceController extends Controller
     private function buildSalesmanPivotPOs(int $year): array
     {
         $labelExpr = "COALESCE(NULLIF(`s`.`Sales Source`,''), 'Not Mentioned')";
-        $amtExpr   = $this->poAmountExpr('s');
+        $amtExpr = $this->poAmountExpr('s');
 
         $rows = DB::table('salesorderlog as s')
             ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, SUM($amtExpr) AS s")
@@ -708,31 +1709,64 @@ class SalesmanPerformanceController extends Controller
         $t = strtolower(trim($txt));
         if ($t === '') return null;
 
-        if (str_contains($t, 'duct')) return 'DUCTWORK';
-        if (str_contains($t, 'damper')) return 'DAMPERS';
+        $t = preg_replace('/[\.\,\/\-\_]+/', ' ', $t);
+        $t = preg_replace('/\s+/', ' ', $t);
 
-        // ✅ Separate bucket for Louvers
-        if (str_contains($t, 'louver')) return 'LOUVERS';
+        // ductwork
+        if (preg_match('/\bducts?\b|\bductwork\b|\bgi\b|\bgalv\b|\bgalvan(i|iz)ed\b|\bpre\s*insulated\b|\bpre-?insulated\b|\bpir\b|\bphenolic\b|\bpanel\b|\bspiral\b|\bround\b|\bflat\s*oval\b|\boval\b|\bul\b|\bfire\s*rated\b|\bflamebar\b|\bstainless\b|\bss\b|\b304\b|\b316l\b|\balumin(um|ium)\b|\bblack\s*steel\b|\bbs\b|\bvoid\s*former\b|\bpost\s*tension\b/i', $t)) {
+            return 'DUCTWORK';
+        }
 
-        if (str_contains($t, 'attenuat') || str_contains($t, 'sound')) return 'SOUND ATTENUATORS';
+        // ✅ dampers (plural-safe)
+        if (preg_match('/\bdamper(s)?\b|\bfd\b|\bf\s*&\s*s\b|\bfire\s*damper(s)?\b|\bsmoke\b/', $t)) {
+            return 'DAMPERS';
+        }
 
-        // ✅ Accessories (exclude louver now)
-        if (str_contains($t, 'access')
-            || str_contains($t, 'flex')
-            || str_contains($t, 'plenum')
-            || str_contains($t, 'airstack')
-            || str_contains($t, 'vav')
-            || str_contains($t, 'cav')
-            || str_contains($t, 'btus')
-            || str_contains($t, 'heater')
-        ) return 'ACCESSORIES';
+        // ✅ louvers (plural-safe)
+        if (preg_match('/\blouver(s)?\b|\bacoustic\s*louver(s)?\b|\bsand\s*trap\b/', $t)) {
+            return 'LOUVERS';
+        }
+
+        // ✅ sound attenuators (plural-safe)
+        if (preg_match('/\battenuator(s)?\b|\bsound\b|\bcrosstalk\b|\bcross\s*talk\b/', $t)) {
+            return 'SOUND ATTENUATORS';
+        }
+
+        // accessories
+        if (
+            preg_match('/\baccessor(y|ies)\b|\bflex\b|\bplenum\b|\bairstack\b|\bheater(s)?\b|\bduct\s*heater(s)?\b/', $t)
+            || preg_match('/\bvav\b|\bcav\b|\bbtu(s)?\b|\bvav\s*box(es)?\b/', $t)
+        ) {
+            return 'ACCESSORIES';
+        }
 
         return null;
     }
 
+
+    private function buildConversionModel(float $target, float $actualInquiries, float $actualPO, float $expectedConvPct = 10.0): array
+    {
+        $expectedConv = max(0.01, $expectedConvPct / 100.0);
+
+        $requiredQuotes = $target / $expectedConv; // e.g., 4.17M / 0.10 = 41.7M
+        $actualConvPct = ($actualInquiries > 0) ? round(($actualPO / $actualInquiries) * 100, 1) : 0.0;
+
+        $gapQuotes = $requiredQuotes - $actualInquiries;
+
+        return [
+            'expected_conversion_pct' => $expectedConvPct,
+            'actual_conversion_pct' => $actualConvPct,
+            'target_sales' => $target,
+            'required_quotations' => $requiredQuotes,
+            'actual_quotations' => $actualInquiries,
+            'quotation_gap' => $gapQuotes,
+        ];
+    }
+
     private function buildSalesmanProductMatrixInquiries(int $year, string $area, array $regionMap): array
     {
-        $families = ['DUCTWORK','DAMPERS','LOUVERS','SOUND ATTENUATORS','ACCESSORIES'];
+        // ✅ add PRE-INSULATED & SPIRAL as separate buckets (for Abdo/Ahmed only in UI)
+        $families = ['DUCTWORK', 'PRE-INSULATED', 'SPIRAL', 'DAMPERS', 'LOUVERS', 'SOUND ATTENUATORS', 'ACCESSORIES'];
 
         $labelExpr = "COALESCE(NULLIF(p.salesman,''), NULLIF(p.salesperson,''), 'Not Mentioned')";
         $prodCol   = "COALESCE(NULLIF(p.atai_products,''),'')";
@@ -755,8 +1789,26 @@ class SalesmanPerformanceController extends Controller
                 if (!in_array($s, $allowed, true)) continue;
             }
 
-            $fam = $this->normalizeProductFamily((string)$r->prod);
-            if (!$fam) continue;
+            $prodRaw = strtoupper(trim((string)$r->prod));
+
+            // ✅ detect ductwork subtype for matrix buckets
+            $bucket = null;
+
+            if ($prodRaw === '') {
+                $bucket = null;
+            } elseif (str_contains($prodRaw, 'PRE') && str_contains($prodRaw, 'INSUL')) {
+                $bucket = 'PRE-INSULATED';
+            } elseif (str_contains($prodRaw, 'SPIRAL')) {
+                $bucket = 'SPIRAL';
+            } else {
+                // fallback to your family normalizer
+                $bucket = $this->normalizeProductFamily((string)$r->prod); // returns DUCTWORK/DAMPERS/...
+            }
+
+            if (!$bucket) continue;
+
+            // only buckets we support
+            if (!in_array($bucket, $families, true)) continue;
 
             if (!isset($out[$s])) {
                 foreach ($families as $f) $out[$s][$f] = array_fill(0, 13, 0.0);
@@ -766,61 +1818,192 @@ class SalesmanPerformanceController extends Controller
             if ($m < 1 || $m > 12) continue;
 
             $idx = $m - 1;
-            $out[$s][$fam][$idx] += (float)$r->s;
-            $out[$s][$fam][12]   += (float)$r->s; // total
+
+            $out[$s][$bucket][$idx] += (float)$r->s;
+            $out[$s][$bucket][12]   += (float)$r->s;
         }
 
         ksort($out, SORT_NATURAL);
         return $out;
     }
 
+
+
+
+
+
     private function buildSalesmanProductMatrixPOs(int $year, string $area, array $regionMap): array
     {
-        $families = ['DUCTWORK','DAMPERS','LOUVERS','SOUND ATTENUATORS','ACCESSORIES'];
+        $areaNorm = $this->normalizeArea($area);
+
+        // ✅ Western salesmen (must show ductwork split even in ALL for GM)
+        $westernSalesmen = ['ABDO','AHMED'];
+
+        // ✅ Row sets
+        $westernFamilies = [
+            'DUCTWORK',
+            'PRE-INSULATED DUCTWORK',
+            'SPIRAL DUCTWORK',
+            'DAMPERS',
+            'LOUVERS',
+            'SOUND ATTENUATORS',
+            'ACCESSORIES',
+        ];
+
+        $defaultFamilies = [
+            'DUCTWORK',
+            'DAMPERS',
+            'LOUVERS',
+            'SOUND ATTENUATORS',
+            'ACCESSORIES',
+        ];
 
         $labelExpr = "COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
-        $prodCol   = "COALESCE(NULLIF(`s`.`Products`,''),'')";
-        $amtExpr   = $this->poAmountExpr('s');
+        $amtExpr   = $this->poAmountExpr('s'); // must return numeric
 
-        $rows = DB::table('salesorderlog as s')
-            ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, $prodCol AS prod, SUM($amtExpr) AS s")
+        // ============================================================
+        // A) Breakdown rows (preferred): sum b.amount by salesman + month + family + subtype
+        // ============================================================
+        $breakdownRows = DB::table('salesorderlog as s')
+            ->join('salesorderlog_product_breakdowns as b', 'b.salesorderlog_id', '=', 's.id')
+            ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, b.family AS family, b.subtype AS subtype, SUM(b.amount) AS sum_amt")
+            ->whereYear('s.date_rec', $year)
+            ->whereNull('s.deleted_at')
+            ->whereRaw('`s`.`PO. No.` IS NOT NULL')
+            ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
+            ->whereRaw('b.amount > 0')
+            ->groupByRaw("$labelExpr, MONTH(s.date_rec), b.family, b.subtype")
+            ->get();
+
+        // ============================================================
+        // B) Fallback rows (no breakdown exists): use s.Products + PO amount
+        //    ✅ Goes into the real family
+        //    ✅ whereNotExists prevents double counting
+        // ============================================================
+        $fallbackRows = DB::table('salesorderlog as s')
+            ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, COALESCE(NULLIF(`s`.`Products`,''),'') AS prod, SUM($amtExpr) AS sum_amt")
             ->whereYear('s.date_rec', $year)
             ->whereNull('s.deleted_at')
             ->whereRaw('`s`.`PO. No.` IS NOT NULL')
             ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
             ->whereRaw($amtExpr . ' > 0')
-            ->groupByRaw("$labelExpr, MONTH(s.date_rec), $prodCol")
+            ->whereNotExists(function ($q) {
+                $q->selectRaw('1')
+                    ->from('salesorderlog_product_breakdowns as b')
+                    ->whereColumn('b.salesorderlog_id', 's.id');
+            })
+            ->groupByRaw("$labelExpr, MONTH(s.date_rec), COALESCE(NULLIF(`s`.`Products`,''),'')")
             ->get();
 
         $out = [];
-        $areaNorm = $this->normalizeArea($area);
 
-        foreach ($rows as $r) {
-            $s = $this->normalizeSalesman($r->salesman);
+        // ✅ init salesman bucket (choose rowset per salesman)
+        $init = function (string $salesman, bool $useWesternRows) use (&$out, $westernFamilies, $defaultFamilies) {
+            if (isset($out[$salesman])) return;
 
-            if ($areaNorm !== 'All') {
-                $allowed = $regionMap[$areaNorm] ?? [];
-                if (!in_array($s, $allowed, true)) continue;
+            $families = $useWesternRows ? $westernFamilies : $defaultFamilies;
+
+            foreach ($families as $f) {
+                $out[$salesman][$f] = array_fill(0, 13, 0.0); // 12 months + total
             }
+        };
 
-            $fam = $this->normalizeProductFamily((string)$r->prod);
-            if (!$fam) continue;
+        // ✅ Western ductwork subtype -> row key
+        $ductworkKey = function (?string $subtype): string {
+            $x = strtoupper(trim((string)$subtype));
+            if ($x === '') return 'DUCTWORK';
+            if (str_contains($x, 'PRE') || str_contains($x, 'INSUL')) return 'PRE-INSULATED DUCTWORK';
+            if (str_contains($x, 'SPIRAL')) return 'SPIRAL DUCTWORK';
+            return 'DUCTWORK';
+        };
 
-            if (!isset($out[$s])) {
-                foreach ($families as $f) $out[$s][$f] = array_fill(0, 13, 0.0);
+        // ✅ Apply area filter based on salesman alias map
+        $allowedForArea = null;
+        if ($areaNorm !== 'All') {
+            $allowedForArea = $regionMap[$areaNorm] ?? [];
+        }
+
+        // Helper: should this salesman get western rowset/split?
+        $isWesternSalesman = function (string $salesman) use ($westernSalesmen): bool {
+            return in_array($salesman, $westernSalesmen, true);
+        };
+
+        // ============================================================
+        // 1) Apply breakdown rows first
+        // ============================================================
+        foreach ($breakdownRows as $r) {
+            $salesman = $this->normalizeSalesman($r->salesman);
+
+            if ($allowedForArea !== null && !in_array($salesman, $allowedForArea, true)) {
+                continue;
             }
 
             $m = (int)$r->m;
             if ($m < 1 || $m > 12) continue;
-
             $idx = $m - 1;
-            $out[$s][$fam][$idx] += (float)$r->s;
-            $out[$s][$fam][12]   += (float)$r->s;
+
+            $famRaw = strtoupper(trim((string)$r->family));
+            $fam    = $this->normalizeProductFamily($famRaw); // -> DUCTWORK/DAMPERS/...
+            if (!$fam) continue;
+
+            // ✅ Decide western split per salesman (Western area OR GM ALL but salesman is western)
+            $useWesternRowsForThisSalesman = ($areaNorm === 'Western') || ($areaNorm === 'All' && $isWesternSalesman($salesman));
+
+            $key = ($fam === 'DUCTWORK' && $useWesternRowsForThisSalesman)
+                ? $ductworkKey($r->subtype)
+                : $fam;
+
+            $init($salesman, $useWesternRowsForThisSalesman);
+
+            // ✅ safety: only add into known rows
+            if (!isset($out[$salesman][$key])) continue;
+
+            $val = (float)$r->sum_amt;
+            $out[$salesman][$key][$idx] += $val;
+            $out[$salesman][$key][12]   += $val;
+        }
+
+        // ============================================================
+        // 2) Apply fallback rows (no breakdown) -> real family via s.Products
+        // ============================================================
+        foreach ($fallbackRows as $r) {
+            $salesman = $this->normalizeSalesman($r->salesman);
+
+            if ($allowedForArea !== null && !in_array($salesman, $allowedForArea, true)) {
+                continue;
+            }
+
+            $m = (int)$r->m;
+            if ($m < 1 || $m > 12) continue;
+            $idx = $m - 1;
+
+            $fam = $this->normalizeProductFamily((string)$r->prod);
+            if (!$fam) continue;
+
+            // ✅ Decide western split rowset per salesman (Western area OR GM ALL but salesman is western)
+            $useWesternRowsForThisSalesman = ($areaNorm === 'Western') || ($areaNorm === 'All' && $isWesternSalesman($salesman));
+
+            // ✅ Fallback has no subtype → keep ductwork into base DUCTWORK
+            $key = ($fam === 'DUCTWORK' && $useWesternRowsForThisSalesman)
+                ? 'DUCTWORK'
+                : $fam;
+
+            $init($salesman, $useWesternRowsForThisSalesman);
+
+            if (!isset($out[$salesman][$key])) continue;
+
+            $val = (float)$r->sum_amt;
+            $out[$salesman][$key][$idx] += $val;
+            $out[$salesman][$key][12]   += $val;
         }
 
         ksort($out, SORT_NATURAL);
         return $out;
     }
+
+
+
+
 
     /* ============================================================
        Forecast pivot (from forecast table)
@@ -828,13 +2011,13 @@ class SalesmanPerformanceController extends Controller
     ============================================================ */
     private function buildEstimatorProductMatrixInquiries(int $year, string $area, array $regionMap): array
     {
-        $families = ['DUCTWORK','DAMPERS','LOUVERS','SOUND ATTENUATORS','ACCESSORIES'];
+        $families = ['DUCTWORK', 'DAMPERS', 'LOUVERS', 'SOUND ATTENUATORS', 'ACCESSORIES'];
         $areaNorm = $this->normalizeArea($area);
 
-        $estLabel   = "COALESCE(NULLIF(p.estimator_name,''),'Not Mentioned')";
+        $estLabel = "COALESCE(NULLIF(p.estimator_name,''),'Not Mentioned')";
         $salesLabel = "COALESCE(NULLIF(p.salesman,''),NULLIF(p.salesperson,''),'Not Mentioned')";
-        $prodCol    = "COALESCE(NULLIF(p.atai_products,''),'')";
-        $valExpr    = "COALESCE(p.quotation_value,0)";
+        $prodCol = "COALESCE(NULLIF(p.atai_products,''),'')";
+        $valExpr = "COALESCE(p.quotation_value,0)";
 
         $rows = DB::table('projects as p')
             ->selectRaw("$estLabel AS estimator,
@@ -873,7 +2056,7 @@ class SalesmanPerformanceController extends Controller
 
             $idx = $m - 1;
             $out[$est][$fam][$idx] += (float)$r->s;
-            $out[$est][$fam][12]   += (float)$r->s; // total
+            $out[$est][$fam][12] += (float)$r->s; // total
         }
 
         ksort($out, SORT_NATURAL);
@@ -923,7 +2106,7 @@ class SalesmanPerformanceController extends Controller
 
             $idx = $m - 1;
             $out[$s][$idx] += (float)$r->s;
-            $out[$s][12]   += (float)$r->s;
+            $out[$s][12] += (float)$r->s;
         }
 
         ksort($out, SORT_NATURAL);
@@ -965,7 +2148,7 @@ class SalesmanPerformanceController extends Controller
                 $monthly = $annual / 12;
 
                 $row = array_fill(0, 13, 0.0);
-                for ($i=0; $i<12; $i++) $row[$i] = $monthly;
+                for ($i = 0; $i < 12; $i++) $row[$i] = $monthly;
                 $row[12] = $annual;
 
                 $out[$salesman] = $row;
@@ -1019,7 +2202,7 @@ class SalesmanPerformanceController extends Controller
 
             $idx = $m - 1;
             $out[$est][$idx] += (float)$r->s;
-            $out[$est][12]   += (float)$r->s;
+            $out[$est][12] += (float)$r->s;
         }
 
         ksort($out, SORT_NATURAL);
@@ -1044,9 +2227,9 @@ class SalesmanPerformanceController extends Controller
         $out = [];
         foreach ($keys as $s) {
             $f = $forecast[$s] ?? array_fill(0, 13, 0.0);
-            $t = $targets[$s]  ?? array_fill(0, 13, 0.0);
-            $i = $inq[$s]      ?? array_fill(0, 13, 0.0);
-            $p = $po[$s]       ?? array_fill(0, 13, 0.0);
+            $t = $targets[$s] ?? array_fill(0, 13, 0.0);
+            $i = $inq[$s] ?? array_fill(0, 13, 0.0);
+            $p = $po[$s] ?? array_fill(0, 13, 0.0);
 
             // conversion: month-wise and total (total uses overall totals)
             $conv = array_fill(0, 13, 0.0);
@@ -1056,11 +2239,11 @@ class SalesmanPerformanceController extends Controller
             $conv[12] = ($i[12] > 0) ? round(($p[12] / $i[12]) * 100, 1) : 0.0;
 
             $out[$s] = [
-                'FORECAST'  => $f,
-                'TARGET'    => $t,
+                'FORECAST' => $f,
+                'TARGET' => $t,
                 'INQUIRIES' => $i,
-                'POS'       => $p,
-                'CONV_PCT'  => $conv,
+                'POS' => $p,
+                'CONV_PCT' => $conv,
             ];
         }
 
@@ -1111,7 +2294,7 @@ class SalesmanPerformanceController extends Controller
     ";
 
         $labelExpr = "COALESCE(NULLIF(p.salesman,''),NULLIF(p.salesperson,''),'Not Mentioned')";
-        $valExpr   = "COALESCE(p.quotation_value,0)";
+        $valExpr = "COALESCE(p.quotation_value,0)";
 
         $q = DB::table('projects as p')
             ->selectRaw("$typeExpr AS ptype, MONTH(p.quotation_date) AS m, SUM($valExpr) AS v, $labelExpr AS salesman")

@@ -240,7 +240,7 @@
             style: 'currency', currency: 'SAR', maximumFractionDigits: 0
         }).format(Number(n || 0));
 
-        let PROJ_YEAR = '2025';
+        let PROJ_YEAR = '2026';
         let PROJ_REGION = '';
         let ATAI_ME = null;
         let CAN_VIEW_ALL = false;

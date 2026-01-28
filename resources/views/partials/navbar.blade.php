@@ -27,8 +27,8 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('inquiries.index') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('inquiries.index') }}">
+                    <a class="nav-link {{ request()->routeIs('projects.inquiries_log') ? 'active fw-semibold text-primary' : '' }}"
+                       href="{{ route('projects.inquiries_log') }}">
                         Quotation Log
                     </a>
                 </li>
@@ -105,24 +105,24 @@
                 {{--                        Sales Summary--}}
                 {{--                    </a>--}}
                 {{--                </li>--}}
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('performance.area*') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('performance.area') }}">
-                        Area Summary
-                    </a>
-                </li>
+{{--                <li class="nav-item">--}}
+{{--                    <a class="nav-link {{ request()->routeIs('performance.area*') ? 'active fw-semibold text-primary' : '' }}"--}}
+{{--                       href="{{ route('performance.area') }}">--}}
+{{--                        Area Summary--}}
+{{--                    </a>--}}
+{{--                </li>--}}
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active fw-semibold text-primary' : '' }}"
                        href="{{ route('performance.salesman') }}">
-                        Salesman Summary
+                        Summary
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('performance.product*') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('performance.product') }}">
-                        Product Summary
-                    </a>
-                </li>
+{{--                <li class="nav-item">--}}
+{{--                    <a class="nav-link {{ request()->routeIs('performance.product*') ? 'active fw-semibold text-primary' : '' }}"--}}
+{{--                       href="{{ route('performance.product') }}">--}}
+{{--                        Product Summary--}}
+{{--                    </a>--}}
+{{--                </li>--}}
 
 
 

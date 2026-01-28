@@ -19,7 +19,7 @@ class ProjectsDatatableController extends Controller
         return match ($regionNorm) {
             'eastern' => ['SOHAIB', 'SOAHIB'],
             'central' => ['TARIQ', 'TAREQ', 'JAMAL'],
-            'western' => ['ABDO', 'ABDUL', 'ABDOU', 'AHMED'],
+            'western' => ['ABDO', 'ABDUL', 'ABDOU', 'AHMED', 'AHMEDAMIN'],
             default => [],
         };
     }
@@ -128,7 +128,7 @@ class ProjectsDatatableController extends Controller
                 if (!empty($aliases)) {
                     $q->where(function ($qq) use ($aliases) {
                         foreach ($aliases as $a) {
-                            $qq->orWhereRaw("REPLACE(UPPER(TRIM(salesman)),' ','') = ?", [$a]);
+                            $qq->orWhereRaw("REPLACE(UPPER(TRIM(projects.salesperson)),' ','')) = ?", [$a]);
                         }
                     });
                 }
@@ -230,6 +230,7 @@ class ProjectsDatatableController extends Controller
                     ->orWhere('projects.client_name', 'like', "%{$searchVal}%")
                     ->orWhere('projects.atai_products', 'like', "%{$searchVal}%")
                     ->orWhere('projects.quotation_no', 'like', "%{$searchVal}%")
+                    ->orWhere('projects.salesperson', 'like', "%{$searchVal}%")
                     ->orWhereRaw("
                     REPLACE(REPLACE(REPLACE(REPLACE(UPPER(TRIM(projects.quotation_no)),' ',''),'-',''),'.',''),'/','')
                     LIKE ?

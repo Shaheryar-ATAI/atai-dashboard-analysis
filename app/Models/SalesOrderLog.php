@@ -267,6 +267,9 @@ class SalesOrderLog extends Model
     }
 
 
-
+    public function productBreakdowns()
+    {
+        return $this->hasMany(\App\Models\SalesOrderLogProductBreakdown::class, 'salesorderlog_id');
+    }
 
 }
