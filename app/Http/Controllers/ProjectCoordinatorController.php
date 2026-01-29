@@ -18,25 +18,30 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class ProjectCoordinatorController extends Controller
 {
     /* ============================================================
-     *  SCOPES (RBAC)
-     * ============================================================
-     *
-     * Goal:
-     * - Keep your current working behavior unchanged.
-     * - Make RBAC + UI filters consistent and enforced in index/show/delete/export.
-     * - Fix the common issue: grouped SalesOrder queries not selecting columns like
-     *   Payment Terms / Sales OAA / Remarks (so modal shows blank).
+     | SCOPES (RBAC)
+     | ============================================================
+     |
+     | Goal:
+     | - Keep current working behavior unchanged.
+     | - Enforce RBAC consistently in:
+     |   index / show / delete / export / attachments / viewAttachment
+     | - Fix common issue:
+     |   grouped sales order query misses spaced columns
+     |   (Payment Terms / Sales OAA / Remarks) => modal shows blank.
+     |
      */
 
     /**
-     * Returns a list of allowed salesman aliases for the logged-in user.
-     * Empty array means "no restriction" (GM/Admin/Eastern coordinator).
+     * Allowed salesman aliases for the logged-in user.
+     * Empty array = NO restriction (GM/Admin/Eastern coordinator).
      */
     private function coordinatorSalesmenScope($user): array
     {
         // GM/Admin (or permission) => all
-        if ((method_exists($user, 'can') && $user->can('viewAllRegions')) ||
-            (method_exists($user, 'hasRole') && $user->hasRole('gm|admin'))) {
+        if (
+            (method_exists($user, 'can') && $user->can('viewAllRegions')) ||
+            (method_exists($user, 'hasRole') && $user->hasRole('gm|admin'))
+        ) {
             return [];
         }
 
@@ -58,7 +63,8 @@ class ProjectCoordinatorController extends Controller
             return [
                 'TAREQ', 'TARIQ', 'TAREQ ',
                 'JAMAL',
-                'M.ABU MERHI', 'M. ABU MERHI', 'M.MERHI', 'MERHI', 'ABU MERHI', 'M ABU MERHI', 'MOHAMMED',
+                'M.ABU MERHI', 'M. ABU MERHI', 'M.MERHI', 'MERHI',
+                'ABU MERHI', 'M ABU MERHI', 'MOHAMMED',
             ];
         }
 
@@ -66,23 +72,28 @@ class ProjectCoordinatorController extends Controller
     }
 
     /**
-     * Returns allowed region keys for the logged-in user.
+     * Allowed region keys for logged-in user.
      * NOTE: As per your rule, project coordinators can see ALL regions.
      */
     private function coordinatorRegionScope($user): array
     {
         // GM/Admin or permission => all
-        if ((method_exists($user, 'can') && $user->can('viewAllRegions')) ||
-            (method_exists($user, 'hasRole') && $user->hasRole('gm|admin'))) {
+        if (
+            (method_exists($user, 'can') && $user->can('viewAllRegions')) ||
+            (method_exists($user, 'hasRole') && $user->hasRole('gm|admin'))
+        ) {
             return ['eastern', 'central', 'western'];
         }
 
-        // ✅ Project coordinators: ALL REGIONS (per your rule)
-        if (method_exists($user, 'hasRole') && $user->hasRole('project_coordinator_western|project_coordinator_eastern|project_coordinator_central')) {
+        // ✅ Coordinators: ALL REGIONS (per your rule)
+        if (
+            method_exists($user, 'hasRole') &&
+            $user->hasRole('project_coordinator_western|project_coordinator_eastern|project_coordinator_central')
+        ) {
             return ['eastern', 'central', 'western'];
         }
 
-        // fallback: use user.region if present
+        // Fallback: use user.region if present
         $r = strtolower((string)($user->region ?? ''));
         if (in_array($r, ['eastern', 'central', 'western'], true)) {
             return [$r];
@@ -92,9 +103,12 @@ class ProjectCoordinatorController extends Controller
     }
 
     /* ============================================================
-     *  HELPERS
-     * ============================================================ */
+     | HELPERS (Filters + Aliases)
+     | ============================================================ */
 
+    /**
+     * UI filter: sales-team region dropdown (eastern/central/western/all)
+     */
     private function selectedSalesTeamRegion(Request $request): string
     {
         $r = strtolower(trim((string)$request->input('region', 'all')));
@@ -102,20 +116,25 @@ class ProjectCoordinatorController extends Controller
     }
 
     /**
-     * Canonical => accepted aliases (UPPERCASE preferred)
+     * Canonical salesman => aliases list.
+     * Used for normalization + region selection filtering.
      */
     private function salesmanAliasMap(): array
     {
         return [
-            'SOHAIB' => ['SOHAIB', 'SOAHIB', 'SOAIB', 'SOHIB'],
-            'TAREQ' => ['TARIQ', 'TAREQ', 'TAREQ '],
-            'JAMAL' => ['JAMAL'],
+            'SOHAIB'    => ['SOHAIB', 'SOAHIB', 'SOAIB', 'SOHIB'],
+            'TAREQ'     => ['TARIQ', 'TAREQ', 'TAREQ '],
+            'JAMAL'     => ['JAMAL'],
             'ABU_MERHI' => ['M.ABU MERHI', 'M. ABU MERHI', 'M.MERHI', 'MERHI', 'ABU MERHI', 'M ABU MERHI', 'MOHAMMED'],
-            'ABDO' => ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF', 'ABDO YOUSIF'],
-            'AHMED' => ['AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'AHMED AMIN ', 'AHMED AMIN.', 'AHMED AMEEN.', 'Ahmed Amin'],
+            'ABDO'      => ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF', 'ABDO YOUSIF'],
+            'AHMED'     => ['AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'AHMED AMIN ', 'AHMED AMIN.', 'AHMED AMEEN.', 'Ahmed Amin'],
         ];
     }
 
+    /**
+     * Region => canonical salesmen list
+     * Used when UI "Region" filter is selected.
+     */
     private function regionSalesmenCanonicalMap(): array
     {
         return [
@@ -125,19 +144,28 @@ class ProjectCoordinatorController extends Controller
         ];
     }
 
+    /**
+     * Normalize incoming list of salesmen to uppercase trimmed unique values.
+     */
     private function normalizeSalesmenScope(array $salesmenScope): array
     {
         return array_values(array_unique(
-            array_filter(array_map(fn($v) => strtoupper(trim((string)$v)), $salesmenScope))
+            array_filter(array_map(fn ($v) => strtoupper(trim((string)$v)), $salesmenScope))
         ));
     }
 
+    /**
+     * Build allowed salesmen list based on UI region selection.
+     * If UI = "all" => return [] (meaning no UI restriction).
+     */
     private function salesmenForRegionSelection(string $regionKey): array
     {
-        if ($regionKey === 'all') return [];
+        if ($regionKey === 'all') {
+            return [];
+        }
 
         $regionMap = $this->regionSalesmenCanonicalMap();
-        $aliasMap = $this->salesmanAliasMap();
+        $aliasMap  = $this->salesmanAliasMap();
 
         $canonicals = $regionMap[$regionKey] ?? [];
 
@@ -153,8 +181,8 @@ class ProjectCoordinatorController extends Controller
     }
 
     /**
-     * Combine RBAC salesman scope + UI region selection:
-     * - If UI region selected -> apply that list
+     * Combine RBAC salesman scope + UI region selection scope:
+     * - If UI region selected -> apply that region list
      * - If RBAC list exists too -> INTERSECT
      * - If UI = all -> RBAC only
      */
@@ -163,21 +191,26 @@ class ProjectCoordinatorController extends Controller
         $rbac = $this->normalizeSalesmenScope($rbacSalesmenScope);
 
         $regionKey = $this->selectedSalesTeamRegion($request);
-        $byRegion = $this->salesmenForRegionSelection($regionKey); // [] if all
+        $byRegion  = $this->salesmenForRegionSelection($regionKey); // [] if all
 
+        // UI region restriction exists
         if (!empty($byRegion)) {
+            // RBAC exists => intersect
             if (!empty($rbac)) {
                 $set = array_flip($rbac);
-                return array_values(array_filter($byRegion, fn($x) => isset($set[$x])));
+                return array_values(array_filter($byRegion, fn ($x) => isset($set[$x])));
             }
+
+            // UI region only
             return $byRegion;
         }
 
+        // UI = all => RBAC only
         return $rbac;
     }
 
     /**
-     * Apply salesmen scope to salesorderlog query (Sales Source column).
+     * Apply salesman scope to SalesOrderLog query (Sales Source column).
      */
     private function applySalesmenScopeToSalesOrderQuery($query, array $salesmenScope)
     {
@@ -189,7 +222,7 @@ class ProjectCoordinatorController extends Controller
     }
 
     /**
-     * Apply salesmen scope to projects query (salesman/salesperson columns).
+     * Apply salesman scope to Projects query (salesman/salesperson columns).
      */
     private function applySalesmenScopeToProjectsQuery($query, array $salesmenScope)
     {
@@ -201,19 +234,21 @@ class ProjectCoordinatorController extends Controller
     }
 
     /**
-     * Hard enforcement for single sales order record access.
+     * Hard enforcement for single Sales Order access (show/attachments/view/delete).
      */
     private function enforceSalesOrderScopeOr403(Request $request, SalesOrderLog $salesorder): void
     {
-        $user = $request->user();
+        $user         = $request->user();
         $regionsScope = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
+        // Region check
         $soRegion = strtolower(trim((string)($salesorder->project_region ?? $salesorder->area ?? '')));
         if ($soRegion !== '' && !in_array($soRegion, $regionsScope, true)) {
             abort(403, 'Not allowed (region).');
         }
 
+        // Salesman check (only when restricted)
         if (!empty($salesmenScope)) {
             $sm = strtoupper(trim((string)($salesorder->{'Sales Source'} ?? $salesorder->salesman ?? '')));
             if ($sm !== '' && !in_array($sm, $salesmenScope, true)) {
@@ -223,27 +258,27 @@ class ProjectCoordinatorController extends Controller
     }
 
     /**
-     * Prevent duplicate PO numbers (case/space-insensitive trimming).
-     * If $ignoreId provided, it is excluded (used while updating existing SO).
+     * Duplicate PO No check (case/space-insensitive).
+     * If $ignoreId provided, it is excluded (for update).
      */
     private function poNumberExists(string $poNo, ?int $ignoreId = null): bool
     {
         $poNo = trim($poNo);
         if ($poNo === '') return false;
 
-        // Case-insensitive + trim compare (safer for real data)
         return DB::table('salesorderlog')
             ->whereNull('deleted_at')
-            ->when($ignoreId, fn($q) => $q->where('id', '<>', $ignoreId))
+            ->when($ignoreId, fn ($q) => $q->where('id', '<>', $ignoreId))
             ->whereRaw('UPPER(TRIM(`PO. No.`)) = UPPER(?)', [$poNo])
             ->exists();
     }
 
     /**
-     * Fix for the "missing fields in Sales Orders list" problem:
-     * - Some model "grouped query" methods do not select spaced columns like `Payment Terms`, `Sales OAA`, `Remarks`.
-     * - We keep your working query first, then add those columns.
-     * - If it still fails due to subquery/grouping, we fallback to a robust DB query with explicit aliases.
+     * Fix: ensure Sales Orders list contains fields needed by modal.
+     * Strategy:
+     * 1) Use existing working grouped query
+     * 2) Try to add missing spaced columns
+     * 3) If grouped query fails, fallback to robust DB::table query
      */
     private function fetchSalesOrdersForIndex(array $regionsScope, array $salesmenScope)
     {
@@ -263,7 +298,8 @@ class ProjectCoordinatorController extends Controller
         try {
             return $q->orderByDesc('po_date')->get();
         } catch (\Throwable $e) {
-            // 2) Fallback (very robust): explicit DB query with clean aliases
+
+            // 2) Fallback: explicit DB query with clean aliases
             $fallback = DB::table('salesorderlog')
                 ->whereNull('deleted_at')
                 ->selectRaw("
@@ -291,6 +327,7 @@ class ProjectCoordinatorController extends Controller
             if (!empty($salesmenScope)) {
                 $fallback->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $salesmenScope);
             }
+
             if (!empty($regionsScope)) {
                 $fallback->whereIn(DB::raw('LOWER(TRIM(project_region))'), $regionsScope);
             }
@@ -300,32 +337,38 @@ class ProjectCoordinatorController extends Controller
     }
 
     /* ============================================================
-     *  INDEX
-     * ============================================================ */
+     | INDEX
+     | ============================================================ */
 
     public function index(Request $request)
     {
-        $user = $request->user();
+        $user       = $request->user();
         $userRegion = strtolower((string)($user->region ?? ''));
+
+        // Hard RBAC region scope (coordinators: all)
         $regionsScope = $this->coordinatorRegionScope($user);
 
         // Effective salesmen scope = RBAC + UI region selection (sales team filter)
         $rbacSalesmenScope = $this->coordinatorSalesmenScope($user);
-        $salesmenScope = $this->buildEffectiveSalesmenScope($request, $rbacSalesmenScope);
+        $salesmenScope     = $this->buildEffectiveSalesmenScope($request, $rbacSalesmenScope);
 
-        // NOTE: This alias map here is only for dropdown canonicalization.
-        // Keep minimal canonical keys (UI shows canonicals).
+        /**
+         * Dropdown canonicalization map:
+         * - used only to show clean canonical labels in UI
+         * - does not change any DB logic
+         */
         $dropdownCanonicalMap = [
             'SOHAIB' => ['SOHAIB', 'SOAHIB'],
-            'TARIQ' => ['TARIQ', 'TAREQ'],
-            'JAMAL' => ['JAMAL'],
-            'ABDO' => ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF'],
-            'AHMED' => ['AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'Ahmed Amin'],
+            'TARIQ'  => ['TARIQ', 'TAREQ'],
+            'JAMAL'  => ['JAMAL'],
+            'ABDO'   => ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF'],
+            'AHMED'  => ['AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'Ahmed Amin'],
         ];
 
-        // --------------------------
-        // Salesmen dropdown options (scoped)
-        // --------------------------
+        /* ------------------------------------------------------------
+         | Salesmen dropdown options (scoped)
+         | ------------------------------------------------------------ */
+
         $projectsSalesmenQ = Project::query()->whereNull('deleted_at');
         $this->applySalesmenScopeToProjectsQuery($projectsSalesmenQ, $salesmenScope);
 
@@ -337,7 +380,7 @@ class ProjectCoordinatorController extends Controller
             ->merge($projectsSalesmenQ->pluck('salesman'))
             ->merge($salesOrdersSalesmenQ->pluck('Sales Source'))
             ->filter()
-            ->map(fn($v) => strtoupper(trim((string)$v)))
+            ->map(fn ($v) => strtoupper(trim((string)$v)))
             ->unique()
             ->values();
 
@@ -359,25 +402,29 @@ class ProjectCoordinatorController extends Controller
             $salesmenFilterOptions = array_values($salesmenFilterOptions);
         }
 
-        // --------------------------
-        // Projects + Sales Orders (scoped)
-        // --------------------------
-        // NOTE: You intentionally commented-out status/status_current restrictions in model/controller.
-        // We keep your working behavior. The model query decides what shows.
-        $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
-        $projects = (clone $projectsQuery)->orderByDesc('quotation_date')->get();
+        /* ------------------------------------------------------------
+         | Projects + Sales Orders (scoped)
+         | ------------------------------------------------------------ */
 
-        // ✅ Professional fix: ensure required columns are available for modals and table
+        // Your existing base query (model decides what appears)
+        $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
+        $projects      = (clone $projectsQuery)->orderByDesc('quotation_date')->get();
+
+        // ✅ Ensure required fields available for modals/tables
         $salesOrders = $this->fetchSalesOrdersForIndex($regionsScope, $salesmenScope);
 
-        // KPIs (scoped)
-        $kpiProjectsCount = (clone $projectsQuery)->count();
-        $kpiSalesOrdersCount = $salesOrders->count();
-        $kpiSalesOrdersValue = (float)$salesOrders->sum('total_po_value');
+        /* ------------------------------------------------------------
+         | KPIs (scoped)
+         | ------------------------------------------------------------ */
 
-        // --------------------------
-        // Chart Data (clean aggregates)
-        // --------------------------
+        $kpiProjectsCount     = (clone $projectsQuery)->count();
+        $kpiSalesOrdersCount  = $salesOrders->count();
+        $kpiSalesOrdersValue  = (float)$salesOrders->sum('total_po_value');
+
+        /* ------------------------------------------------------------
+         | Chart data (clean aggregates)
+         | ------------------------------------------------------------ */
+
         $projectByRegion = DB::table('projects')
             ->whereNull('deleted_at')
             ->when(!empty($salesmenScope), function ($q) use ($salesmenScope) {
@@ -398,40 +445,49 @@ class ProjectCoordinatorController extends Controller
             ->pluck('total', 'region_key')
             ->toArray();
 
-        $regions = ['eastern', 'central', 'western'];
+        $regions         = ['eastern', 'central', 'western'];
         $chartCategories = [];
-        $chartProjects = [];
-        $chartPOs = [];
+        $chartProjects   = [];
+        $chartPOs        = [];
 
         foreach ($regions as $r) {
             if (!in_array($r, $regionsScope, true)) continue;
             $chartCategories[] = ucfirst($r);
-            $chartProjects[] = (float)($projectByRegion[$r] ?? 0);
-            $chartPOs[] = (float)($poByRegion[$r] ?? 0);
+            $chartProjects[]   = (float)($projectByRegion[$r] ?? 0);
+            $chartPOs[]        = (float)($poByRegion[$r] ?? 0);
         }
 
         return view('coordinator.index', [
-            'userRegion' => $userRegion,
-            'regionsScope' => $regionsScope,
-            'salesmenScope' => $salesmenScope,
+            'userRegion'            => $userRegion,
+            'regionsScope'          => $regionsScope,
+            'salesmenScope'         => $salesmenScope,
             'salesmenFilterOptions' => $salesmenFilterOptions,
 
-            'kpiProjectsCount' => $kpiProjectsCount,
-            'kpiSalesOrdersCount' => $kpiSalesOrdersCount,
-            'kpiSalesOrdersValue' => $kpiSalesOrdersValue,
+            'kpiProjectsCount'     => $kpiProjectsCount,
+            'kpiSalesOrdersCount'  => $kpiSalesOrdersCount,
+            'kpiSalesOrdersValue'  => $kpiSalesOrdersValue,
 
-            'projects' => $projects,
+            'projects'    => $projects,
             'salesOrders' => $salesOrders,
 
             'chartCategories' => $chartCategories,
-            'chartProjects' => $chartProjects,
-            'chartPOs' => $chartPOs,
+            'chartProjects'   => $chartProjects,
+            'chartPOs'        => $chartPOs,
         ]);
     }
 
     /* ============================================================
-     *  STORE PO
-     * ============================================================ */
+     | STORE PO (Create/Update + Attachments + Breakdown)
+     | ============================================================ */
+
+    /**
+     * Sync PO breakdown row(s) into salesorderlog_product_breakdowns.
+     *
+     * Rules:
+     * - If no subtype selected => remove breakdown rows (optionally by family).
+     * - If subtype amount is blank => assume full row PO value.
+     * - If family = DUCTWORK => add remainder into base bucket as "Ductwork".
+     */
     private function syncPoBreakdownRow(
         int $salesorderlogId,
         ?string $family,
@@ -440,78 +496,110 @@ class ProjectCoordinatorController extends Controller
         float $defaultAmount,
         ?string $quotationNo = null
     ): void {
-        $family  = strtoupper(trim((string)$family));
-        $subtype = trim((string)$subtype);
+        $familyRaw  = trim((string)$family);
+        $subtypeRaw = trim((string)$subtype);
 
-        // ✅ RULE: if no subtype => no breakdown row should exist
-        if ($subtype === '') {
-            DB::table('salesorderlog_product_breakdowns')
-                ->where('salesorderlog_id', $salesorderlogId)
-                ->delete();
+        $familyU  = strtoupper($familyRaw);
+        $subtype  = $subtypeRaw; // optional: keep original casing for display
+
+        if ($familyU === '') $familyU = 'UNKNOWN';
+
+        // ✅ If no subtype => delete breakdown rows (safe cleanup)
+        if ($subtypeRaw === '') {
+            $q = DB::table('salesorderlog_product_breakdowns')
+                ->where('salesorderlog_id', $salesorderlogId);
+
+            if ($familyU !== 'UNKNOWN') {
+                $q->whereRaw('UPPER(TRIM(family)) = ?', [$familyU]);
+            }
+
+            $q->delete();
             return;
         }
 
-        if ($family === '') $family = 'UNKNOWN';
+        // If subtype amount blank => use full PO value
+        $amount = ($subtypeAmount === null) ? (float)$defaultAmount : (float)$subtypeAmount;
 
-        // ✅ if amount blank => assume full PO value belongs to selected subtype
-        $amount = ($subtypeAmount === null) ? $defaultAmount : (float)$subtypeAmount;
+        // Guardrails
+        if ($amount < 0) $amount = 0.0;
+        if ($defaultAmount < 0) $defaultAmount = 0.0;
 
-        if ($amount < 0) $amount = 0;
-
-        // optional: clamp so user doesn't enter more than PO row value
+        // Clamp: never allow subtype amount > row PO value
         if ($amount > $defaultAmount) $amount = $defaultAmount;
 
-        // enforce one row per salesorderlog_id (simple + safe)
+        // Delete existing rows for this PO + family (prevent duplicates)
         DB::table('salesorderlog_product_breakdowns')
             ->where('salesorderlog_id', $salesorderlogId)
+            ->whereRaw('UPPER(TRIM(family)) = ?', [$familyU])
             ->delete();
 
-        DB::table('salesorderlog_product_breakdowns')->insert([
+        $rows = [];
+
+        // 1) Insert selected subtype row
+        $rows[] = [
             'salesorderlog_id' => $salesorderlogId,
-            'family'           => $family,
-            'subtype'          => $subtype,
-            'amount'           => $amount,
+            'family'           => $familyU,
+            'subtype'          => $subtypeRaw,
+            'amount'           => round($amount, 2),
             'quotation_no'     => $quotationNo,
             'created_at'       => now(),
             'updated_at'       => now(),
-        ]);
-    }
+        ];
 
+        // 2) Special rule: DUCTWORK family remainder
+        if ($familyU === 'DUCTWORK') {
+            $remainder = round(((float)$defaultAmount - (float)$amount), 2);
+
+            if ($remainder > 0.01) {
+                $rows[] = [
+                    'salesorderlog_id' => $salesorderlogId,
+                    'family'           => $familyU,
+                    'subtype'          => 'Ductwork',
+                    'amount'           => $remainder,
+                    'quotation_no'     => $quotationNo,
+                    'created_at'       => now(),
+                    'updated_at'       => now(),
+                ];
+            }
+        }
+
+        DB::table('salesorderlog_product_breakdowns')->insert($rows);
+    }
 
     public function storePo(Request $request)
     {
         $user = Auth::user();
 
         $data = $request->validate([
-            'source' => ['required', 'in:project,salesorder'],
+            'source'    => ['required', 'in:project,salesorder'],
             'record_id' => ['required', 'integer'],
 
-            // LEFT SIDE (optional informational fields)
-            'project' => ['nullable', 'string', 'max:255'],
-            'client' => ['nullable', 'string', 'max:255'],
-            'salesman' => ['nullable', 'string', 'max:255'],
-            'location' => ['nullable', 'string', 'max:255'],
-            'area' => ['nullable', 'string', 'max:255'],
-            'quotation_no' => ['nullable', 'string', 'max:255'],
-            'quotation_date' => ['nullable', 'date'],
-            'date_received' => ['nullable', 'date'],
-            'atai_products' => ['nullable', 'string', 'max:255'],
+            // LEFT SIDE (optional)
+            'project'         => ['nullable', 'string', 'max:255'],
+            'client'          => ['nullable', 'string', 'max:255'],
+            'salesman'        => ['nullable', 'string', 'max:255'],
+            'location'        => ['nullable', 'string', 'max:255'],
+            'area'            => ['nullable', 'string', 'max:255'],
+            'quotation_no'    => ['nullable', 'string', 'max:255'],
+            'quotation_date'  => ['nullable', 'date'],
+            'date_received'   => ['nullable', 'date'],
+            'atai_products'   => ['nullable', 'string', 'max:255'],
             'quotation_value' => ['nullable', 'numeric', 'min:0'],
 
-            // RIGHT SIDE
-            'job_no' => ['nullable', 'string', 'max:255'],
-            'po_no' => ['required', 'string', 'max:255'],
-            'po_date' => ['required', 'date'],
-            'po_value' => ['required', 'numeric', 'min:0'],
+            // RIGHT SIDE (PO)
+            'job_no'        => ['nullable', 'string', 'max:255'],
+            'po_no'         => ['required', 'string', 'max:255'],
+            'po_date'       => ['required', 'date'],
+            'po_value'      => ['required', 'numeric', 'min:0'],
             'payment_terms' => ['nullable', 'string', 'max:255'],
-            'remarks' => ['nullable', 'string'],
+            'remarks'       => ['nullable', 'string'],
             'attachments.*' => ['file', 'max:51200'],
-            'oaa' => ['nullable', 'string', 'max:50'],
+            'oaa'           => ['nullable', 'string', 'max:50'],
 
             // Niyas-only subtype capture (optional)
-            'atai_products_family' => ['nullable', 'string', 'max:50'],
-            'products_subtype' => ['nullable', 'string', 'max:255'],
-            'products_subtype_amount' => ['nullable', 'numeric', 'min:0'],
+            'atai_products_family'     => ['nullable', 'string', 'max:50'],
+            'products_subtype'         => ['nullable', 'string', 'max:255'],
+            'products_subtype_amount'  => ['nullable', 'numeric', 'min:0'],
         ]);
 
         // ✅ Detect Niyas (keep your rule)
@@ -520,14 +608,14 @@ class ProjectCoordinatorController extends Controller
                 || $user->hasRole('project_coordinator_western')
             );
 
-        // ✅ If not Niyas, ignore subtype inputs completely
+        // ✅ Non-Niyas => ignore subtype inputs fully
         if (!$isNiyas) {
-            $data['atai_products_family'] = null;
-            $data['products_subtype'] = null;
+            $data['atai_products_family']    = null;
+            $data['products_subtype']        = null;
             $data['products_subtype_amount'] = null;
         }
 
-        // ✅ FIX #1: Normalize subtype EARLY (before syncing)
+        // ✅ Normalize subtype early (avoid "blank string" issues)
         if (isset($data['products_subtype'])) {
             $data['products_subtype'] = trim((string)$data['products_subtype']);
             if ($data['products_subtype'] === '') {
@@ -546,15 +634,15 @@ class ProjectCoordinatorController extends Controller
                     return response()->json(['ok' => false, 'message' => 'PO number is required.'], 422);
                 }
 
-                /* ============================
-                 * UPDATE EXISTING SALES ORDER
-                 * ============================ */
+                /* ========================================================
+                 | UPDATE EXISTING SALES ORDER
+                 | ======================================================== */
                 if ($data['source'] === 'salesorder') {
 
-                    /** @var \App\Models\SalesOrderLog $so */
+                    /** @var SalesOrderLog $so */
                     $so = SalesOrderLog::findOrFail($data['record_id']);
 
-                    // Block duplicate PO No (except current)
+                    // Duplicate check (except current)
                     if ($this->poNumberExists($poNo, (int)$so->id)) {
                         return response()->json([
                             'ok' => false,
@@ -562,7 +650,7 @@ class ProjectCoordinatorController extends Controller
                         ], 422);
                     }
 
-                    // Scope enforcement
+                    // Scope enforcement (region + salesman)
                     $soRegion = strtolower(trim((string)($so->project_region ?? $so->area ?? '')));
                     if ($soRegion !== '' && !in_array($soRegion, $regionsScope, true)) {
                         return response()->json(['ok' => false, 'message' => 'Not allowed (region).'], 403);
@@ -575,12 +663,12 @@ class ProjectCoordinatorController extends Controller
                         }
                     }
 
-                    $poDate        = Carbon::parse($data['po_date'])->format('Y-m-d');
+                    $poDate         = Carbon::parse($data['po_date'])->format('Y-m-d');
                     $poValueWithVat = round(((float)$data['po_value']) * 1.15, 2);
 
-                    // Prefer request fields if provided
-                    $client      = $data['client'] ?? $so->client;
-                    $projectName = $data['project'] ?? $so->project;
+                    // Prefer request fields if provided (fallback to existing values)
+                    $client      = $data['client']   ?? $so->client;
+                    $projectName = $data['project']  ?? $so->project;
                     $salesSource = $data['salesman'] ?? $so->salesman;
                     $location    = $data['location'] ?? $so->location;
 
@@ -588,32 +676,36 @@ class ProjectCoordinatorController extends Controller
                     $quoteNo  = $data['quotation_no'] ?? $so->quotation_no;
                     $products = $data['atai_products'] ?? $so->atai_products;
 
-                    // Raw SQL update (keep working approach for dotted columns)
+                    /**
+                     * Raw SQL update (KEEP):
+                     * Needed because table has dotted/spaced columns like `PO. No.`
+                     * and Eloquent can break on those.
+                     */
                     DB::update("
-                    UPDATE `salesorderlog`
-                    SET
-                        `Client Name`      = ?,
-                        `Project Name`     = ?,
-                        `Sales Source`     = ?,
-                        `Location`         = ?,
-                        `project_region`   = ?,
-                        `region`           = ?,
-                        `Products`         = ?,
-                        `Products_raw`     = ?,
-                        `Quote No.`        = ?,
-                        `date_rec`         = ?,
-                        `PO. No.`          = ?,
-                        `PO Value`         = ?,
-                        `value_with_vat`   = ?,
-                        `Payment Terms`    = ?,
-                        `Sales OAA`        = ?,
-                        `Job No.`          = ?,
-                        `Factory Loc`      = ?,
-                        `Remarks`          = ?,
-                        created_by_id      = ?,
-                        `updated_at`       = NOW()
-                    WHERE `id` = ?
-                ", [
+                        UPDATE `salesorderlog`
+                        SET
+                            `Client Name`      = ?,
+                            `Project Name`     = ?,
+                            `Sales Source`     = ?,
+                            `Location`         = ?,
+                            `project_region`   = ?,
+                            `region`           = ?,
+                            `Products`         = ?,
+                            `Products_raw`     = ?,
+                            `Quote No.`        = ?,
+                            `date_rec`         = ?,
+                            `PO. No.`          = ?,
+                            `PO Value`         = ?,
+                            `value_with_vat`   = ?,
+                            `Payment Terms`    = ?,
+                            `Sales OAA`        = ?,
+                            `Job No.`          = ?,
+                            `Factory Loc`      = ?,
+                            `Remarks`          = ?,
+                            created_by_id      = ?,
+                            `updated_at`       = NOW()
+                        WHERE `id` = ?
+                    ", [
                         $client,
                         $projectName,
                         $salesSource,
@@ -636,8 +728,7 @@ class ProjectCoordinatorController extends Controller
                         $so->id,
                     ]);
 
-                    // ✅ Sub-product breakdown sync (ONLY if Niyas, else it will delete if subtype null)
-                    // ✅ Sub-product breakdown sync (Niyas only)
+                    // ✅ Breakdown sync (Niyas only; others become null and will cleanup)
                     $this->syncPoBreakdownRow(
                         (int)$so->id,
                         $data['atai_products_family'] ?? null,
@@ -645,10 +736,11 @@ class ProjectCoordinatorController extends Controller
                         array_key_exists('products_subtype_amount', $data) && $data['products_subtype_amount'] !== null
                             ? (float)$data['products_subtype_amount']
                             : null,
-                        (float)$data['po_value'], // full PO value for this row
+                        (float)$data['po_value'],
                         $data['quotation_no'] ?? ($so->quotation_no ?? null)
                     );
-                    // Attachments
+
+                    // Attachments upload
                     if ($request->hasFile('attachments')) {
                         $files = $request->file('attachments');
                         if (!is_array($files)) $files = [$files];
@@ -660,12 +752,12 @@ class ProjectCoordinatorController extends Controller
 
                             SalesOrderAttachment::create([
                                 'salesorderlog_id' => $so->id,
-                                'disk' => 'public',
-                                'path' => $path,
-                                'original_name' => $file->getClientOriginalName(),
-                                'size_bytes' => $file->getSize(),
-                                'mime_type' => $file->getClientMimeType(),
-                                'uploaded_by' => $user->id,
+                                'disk'             => 'public',
+                                'path'             => $path,
+                                'original_name'    => $file->getClientOriginalName(),
+                                'size_bytes'       => $file->getSize(),
+                                'mime_type'        => $file->getClientMimeType(),
+                                'uploaded_by'      => $user->id,
                             ]);
                         }
                     }
@@ -673,11 +765,11 @@ class ProjectCoordinatorController extends Controller
                     return response()->json(['ok' => true, 'message' => 'PO updated successfully.']);
                 }
 
-                /* ============================
-                 * CREATE NEW PO (FROM PROJECTS)
-                 * ============================ */
+                /* ========================================================
+                 | CREATE NEW PO (FROM PROJECTS)
+                 | ======================================================== */
 
-                // Block duplicate PO No (global)
+                // Duplicate PO No (global)
                 if ($this->poNumberExists($poNo)) {
                     return response()->json([
                         'ok' => false,
@@ -691,6 +783,7 @@ class ProjectCoordinatorController extends Controller
                 if (!in_array(strtolower((string)($mainProject->area ?? '')), $regionsScope, true)) {
                     return response()->json(['ok' => false, 'message' => 'Not allowed (region).'], 403);
                 }
+
                 if (!empty($salesmenScope)) {
                     $pSm = strtoupper(trim((string)($mainProject->salesman ?? $mainProject->salesperson ?? '')));
                     if ($pSm !== '' && !in_array($pSm, $salesmenScope, true)) {
@@ -698,20 +791,21 @@ class ProjectCoordinatorController extends Controller
                     }
                 }
 
+                // Allow multi-quotation split
                 $extraIds   = $request->input('extra_project_ids', []);
                 $projectIds = array_unique(array_filter(array_merge([$mainProject->id], (array)$extraIds)));
 
                 $projects = Project::query()->whereIn('id', $projectIds)->get();
-
                 if ($projects->isEmpty()) {
                     return response()->json(['ok' => false, 'message' => 'No projects found.'], 422);
                 }
 
-                // Ensure all selected are within scope
+                // Ensure all selected projects are within scope
                 foreach ($projects as $p) {
                     if (!in_array(strtolower((string)($p->area ?? '')), $regionsScope, true)) {
                         return response()->json(['ok' => false, 'message' => 'One of selected quotations is out of your region scope.'], 403);
                     }
+
                     if (!empty($salesmenScope)) {
                         $pSm = strtoupper(trim((string)($p->salesman ?? $p->salesperson ?? '')));
                         if ($pSm !== '' && !in_array($pSm, $salesmenScope, true)) {
@@ -723,13 +817,16 @@ class ProjectCoordinatorController extends Controller
                 $totalQuoted = (float)$projects->sum('quotation_value');
                 if ($totalQuoted < 0) $totalQuoted = 0;
 
+                // Attachments (uploaded once; reused for each created SO row)
                 $attachments = [];
                 if ($request->hasFile('attachments')) {
                     $files = $request->file('attachments');
                     $attachments = is_array($files) ? $files : [$files];
                 }
 
+                // Split PO amount across selected quotations by quotation_value ratio
                 foreach ($projects as $project) {
+
                     $ratio = ($totalQuoted > 0)
                         ? max(0, (float)$project->quotation_value) / $totalQuoted
                         : (1 / max(1, $projects->count()));
@@ -738,22 +835,22 @@ class ProjectCoordinatorController extends Controller
                     $poValueWithVat = round($poValue * 1.15, 2);
 
                     DB::insert("
-                    INSERT INTO `salesorderlog`
-                    (
-                        `Client Name`, `region`, `project_region`, `Location`, `date_rec`,
-                        `PO. No.`, `Products`, `Products_raw`, `Quote No.`, `Ref.No.`, `Cur`,
-                        `PO Value`, `value_with_vat`, `Payment Terms`,
-                        `Project Name`, `Project Location`,
-                        `Sales OAA`, `Job No.`, `Factory Loc`, `Sales Source`,
-                        `Remarks`, `created_by_id`, `created_at`
-                    )
-                    VALUES (?,?,?,?,?,
-                            ?,?,?,?,?,
-                            ?,?,?,?,
-                            ?,?,
-                            ?,?,?,?,
-                            ?,?,NOW())
-                ", [
+                        INSERT INTO `salesorderlog`
+                        (
+                            `Client Name`, `region`, `project_region`, `Location`, `date_rec`,
+                            `PO. No.`, `Products`, `Products_raw`, `Quote No.`, `Ref.No.`, `Cur`,
+                            `PO Value`, `value_with_vat`, `Payment Terms`,
+                            `Project Name`, `Project Location`,
+                            `Sales OAA`, `Job No.`, `Factory Loc`, `Sales Source`,
+                            `Remarks`, `created_by_id`, `created_at`
+                        )
+                        VALUES (?,?,?,?,?,
+                                ?,?,?,?,?,
+                                ?,?,?,?,
+                                ?,?,
+                                ?,?,?,?,
+                                ?,?,NOW())
+                    ", [
                         $project->client_name,
                         $project->area,
                         $project->area,
@@ -780,28 +877,25 @@ class ProjectCoordinatorController extends Controller
 
                     $soId = (int)DB::getPdo()->lastInsertId();
 
-                    // ✅ FIX #2: breakdown sync for CREATE branch (ratio amount)
+                    // ✅ Breakdown sync for CREATE branch (split by ratio)
                     $this->syncPoBreakdownRow(
                         (int)$soId,
                         $data['atai_products_family'] ?? null,
                         $data['products_subtype'] ?? null,
-
-                        // if user entered subtype amount for whole PO, split it by ratio per row
                         array_key_exists('products_subtype_amount', $data) && $data['products_subtype_amount'] !== null
                             ? round(((float)$data['products_subtype_amount']) * $ratio, 2)
                             : null,
-
-                        (float)$poValue,                 // this row's PO value
+                        (float)$poValue,
                         $project->quotation_no ?? null
                     );
 
-                    // Status updates (keep behavior)
+                    // Status updates (keep working behavior)
                     $project->status = 'PO-RECEIVED';
                     $project->status_current = 'PO-RECEIVED';
                     $project->coordinator_updated_by_id = $user->id;
                     $project->save();
 
-                    // Attachments
+                    // Attachments per created SO row
                     foreach ($attachments as $file) {
                         if (!$file || !$file->isValid()) continue;
 
@@ -809,12 +903,12 @@ class ProjectCoordinatorController extends Controller
 
                         SalesOrderAttachment::create([
                             'salesorderlog_id' => $soId,
-                            'disk' => 'public',
-                            'path' => $path,
-                            'original_name' => $file->getClientOriginalName(),
-                            'size_bytes' => $file->getSize(),
-                            'mime_type' => $file->getClientMimeType(),
-                            'uploaded_by' => $user->id,
+                            'disk'             => 'public',
+                            'path'             => $path,
+                            'original_name'    => $file->getClientOriginalName(),
+                            'size_bytes'       => $file->getSize(),
+                            'mime_type'        => $file->getClientMimeType(),
+                            'uploaded_by'      => $user->id,
                         ]);
                     }
                 }
@@ -830,10 +924,9 @@ class ProjectCoordinatorController extends Controller
         }
     }
 
-
     /* ============================================================
-     *  SHOW SALES ORDER
-     * ============================================================ */
+     | SHOW SALES ORDER (Modal data)
+     | ============================================================ */
 
     public function showSalesOrder(Request $request, SalesOrderLog $salesorder)
     {
@@ -841,7 +934,7 @@ class ProjectCoordinatorController extends Controller
 
         $salesorder->load('attachments', 'creator');
 
-        // ✅ fetch breakdown row (if any)
+        // Breakdown (if any) for prefill
         $breakdown = DB::table('salesorderlog_product_breakdowns')
             ->where('salesorderlog_id', $salesorder->id)
             ->first();
@@ -863,19 +956,16 @@ class ProjectCoordinatorController extends Controller
                 'created_by'    => optional($salesorder->creator)->name,
                 'created_at'    => optional($salesorder->created_at)->format('Y-m-d H:i'),
             ],
-
-            // ✅ include breakdown so frontend can auto-fill modal
             'breakdown' => $breakdown ? [
-                'family'   => $breakdown->family,
-                'subtype'  => $breakdown->subtype,
-                'amount'   => (float)$breakdown->amount,
+                'family'  => $breakdown->family,
+                'subtype' => $breakdown->subtype,
+                'amount'  => (float)$breakdown->amount,
             ] : null,
-
             'attachments' => $salesorder->attachments->map(function ($a) {
                 return [
                     'id'            => $a->id,
                     'original_name' => $a->original_name,
-                    'url'           => '/storage/' . ltrim($a->path, '/'),
+                    'url'           => route('coordinator.attachments.view', ['attachment' => $a->id]),
                     'created_at'    => optional($a->created_at)->format('Y-m-d H:i'),
                     'size_bytes'    => $a->size_bytes,
                 ];
@@ -883,10 +973,9 @@ class ProjectCoordinatorController extends Controller
         ]);
     }
 
-
     /* ============================================================
-     *  EXPORTS
-     * ============================================================ */
+     | EXPORTS
+     | ============================================================ */
 
     public function exportSalesOrders(Request $request): BinaryFileResponse
     {
@@ -895,11 +984,11 @@ class ProjectCoordinatorController extends Controller
 
         $year = (int)($request->input('year') ?: now()->year);
         $from = $request->input('from');
-        $to = $request->input('to');
+        $to   = $request->input('to');
 
         $user = $request->user();
 
-        // Use effective scope (RBAC + UI region filter for sales team)
+        // Effective scope (RBAC + UI region filter)
         $salesmenScope = $this->buildEffectiveSalesmenScope($request, $this->coordinatorSalesmenScope($user));
 
         $query = DB::table('salesorderlog')
@@ -923,7 +1012,6 @@ class ProjectCoordinatorController extends Controller
                 `Remarks`          AS remarks
             ");
 
-        // Apply enforced salesman scope once (no duplicates)
         if (!empty($salesmenScope)) {
             $query->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $salesmenScope);
         }
@@ -931,7 +1019,7 @@ class ProjectCoordinatorController extends Controller
         $query->whereYear('date_rec', $year)->whereMonth('date_rec', $month);
 
         if ($from) $query->whereDate('date_rec', '>=', $from);
-        if ($to) $query->whereDate('date_rec', '<=', $to);
+        if ($to)   $query->whereDate('date_rec', '<=', $to);
 
         $rows = collect($query->orderBy('date_rec')->get());
 
@@ -945,15 +1033,15 @@ class ProjectCoordinatorController extends Controller
 
     public function exportSalesOrdersYear(Request $request): BinaryFileResponse
     {
-        $year = (int)($request->input('year') ?: now()->year);
-        $region = strtolower((string)$request->input('region', 'all')); // 'all'|'eastern'|'central'|'western'
+        $year    = (int)($request->input('year') ?: now()->year);
+        $region  = strtolower((string)$request->input('region', 'all'));
         $salesman = trim((string)$request->input('salesman', 'all'));
-        $from = $request->input('from');
-        $to = $request->input('to');
+        $from    = $request->input('from');
+        $to      = $request->input('to');
 
         $user = $request->user();
 
-        $regionsScope = $this->coordinatorRegionScope($user);
+        $regionsScope  = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
         $filename = sprintf('sales_orders_%d_full_year.xlsx', $year);
@@ -974,8 +1062,8 @@ class ProjectCoordinatorController extends Controller
     }
 
     /* ============================================================
-     *  ATTACHMENTS LIST
-     * ============================================================ */
+     | ATTACHMENTS (List + Stream)
+     | ============================================================ */
 
     public function salesOrderAttachments(Request $request, SalesOrderLog $salesorder)
     {
@@ -985,25 +1073,52 @@ class ProjectCoordinatorController extends Controller
 
         $items = $salesorder->attachments->map(function ($a) {
             return [
-                'id' => $a->id,
+                'id'            => $a->id,
                 'original_name' => $a->original_name,
-                'url' => Storage::disk($a->disk)->url($a->path),
-                'created_at' => optional($a->created_at)->format('Y-m-d H:i'),
-                'size_bytes' => $a->size_bytes,
+                'url'           => route('coordinator.attachments.view', ['attachment' => $a->id]),
+                'created_at'    => optional($a->created_at)->format('Y-m-d H:i'),
+                'size_bytes'    => $a->size_bytes,
             ];
         })->values();
 
         return response()->json(['ok' => true, 'attachments' => $items]);
     }
 
+    /**
+     * Secure attachment viewer:
+     * - Loads parent SO
+     * - Applies RBAC scope
+     * - Streams file inline (prevents direct /storage access)
+     */
+    public function viewAttachment(Request $request, SalesOrderAttachment $attachment)
+    {
+        $salesorder = SalesOrderLog::findOrFail($attachment->salesorderlog_id);
+        $this->enforceSalesOrderScopeOr403($request, $salesorder);
+
+        $disk = $attachment->disk ?: 'public';
+        $path = $attachment->path;
+
+        if (!Storage::disk($disk)->exists($path)) {
+            abort(404, 'File not found.');
+        }
+
+        $fullPath = Storage::disk($disk)->path($path);
+
+        return response()->file($fullPath, [
+            'Content-Type'        => $attachment->mime_type ?: 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . ($attachment->original_name ?: basename($path)) . '"',
+        ]);
+    }
+
     /* ============================================================
-     *  DELETE (SOFT DELETE)
-     * ============================================================ */
+     | DELETE (SOFT DELETE)
+     | ============================================================ */
 
     public function destroyProject(Request $request, Project $project)
     {
         $user = $request->user();
-        $regionsScope = $this->coordinatorRegionScope($user);
+
+        $regionsScope  = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
         if (!in_array(strtolower((string)($project->area ?? '')), $regionsScope, true)) {
@@ -1025,7 +1140,8 @@ class ProjectCoordinatorController extends Controller
     public function destroySalesOrder(Request $request, SalesOrderLog $salesorder)
     {
         $user = $request->user();
-        $regionsScope = $this->coordinatorRegionScope($user);
+
+        $regionsScope  = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
         $soRegion = strtolower(trim((string)($salesorder->project_region ?? $salesorder->area ?? '')));
@@ -1040,7 +1156,7 @@ class ProjectCoordinatorController extends Controller
             }
         }
 
-        $poNo = $salesorder->{'PO. No.'};
+        $poNo  = $salesorder->{'PO. No.'};
         $jobNo = $salesorder->{'Job No.'} ?? null;
 
         if (!$poNo) {
@@ -1062,19 +1178,19 @@ class ProjectCoordinatorController extends Controller
     }
 
     /* ============================================================
-     *  RELATED + SEARCH QUOTATIONS (SCOPED)
-     * ============================================================ */
+     | RELATED + SEARCH QUOTATIONS (SCOPED)
+     | ============================================================ */
 
     public function relatedQuotations(Request $request)
     {
-        $projectId = (int)$request->input('project_id');
+        $projectId   = (int)$request->input('project_id');
         $quotationNo = trim((string)$request->input('quotation_no'));
 
         if (!$projectId || !$quotationNo) {
             return response()->json(['ok' => false, 'message' => 'Missing project_id or quotation_no.', 'projects' => []], 400);
         }
 
-        $user = $request->user();
+        $user         = $request->user();
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
         $base = Project::extractBaseCode($quotationNo);
@@ -1087,7 +1203,6 @@ class ProjectCoordinatorController extends Controller
             ->where('id', '<>', $projectId)
             ->where('quotation_no', 'LIKE', $base . '%');
 
-        // salesman restriction
         $this->applySalesmenScopeToProjectsQuery($q, $salesmenScope);
 
         $projects = $q->orderBy('quotation_no')->get([
@@ -1099,12 +1214,12 @@ class ProjectCoordinatorController extends Controller
             'base' => $base,
             'projects' => $projects->map(function ($p) {
                 return [
-                    'id' => $p->id,
-                    'quotation_no' => $p->quotation_no,
-                    'project' => $p->project_name,
-                    'client' => $p->client_name,
-                    'area' => $p->area,
-                    'quotation_value' => (float)$p->quotation_value,
+                    'id'             => $p->id,
+                    'quotation_no'   => $p->quotation_no,
+                    'project'        => $p->project_name,
+                    'client'         => $p->client_name,
+                    'area'           => $p->area,
+                    'quotation_value'=> (float)$p->quotation_value,
                 ];
             })->values(),
         ]);
@@ -1117,14 +1232,11 @@ class ProjectCoordinatorController extends Controller
             return response()->json(['ok' => false, 'message' => 'Search term is required.', 'results' => []], 400);
         }
 
-        $user = $request->user();
+        $user         = $request->user();
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
         $q = Project::query()
             ->whereNull('deleted_at')
-            // You intentionally commented these to show all records (keep behavior)
-            // ->whereNull('status')
-            // ->whereNull('status_current')
             ->where('quotation_no', 'LIKE', '%' . $term . '%');
 
         $this->applySalesmenScopeToProjectsQuery($q, $salesmenScope);
@@ -1137,12 +1249,12 @@ class ProjectCoordinatorController extends Controller
             'ok' => true,
             'results' => $projects->map(function ($p) {
                 return [
-                    'id' => $p->id,
-                    'quotation_no' => $p->quotation_no,
-                    'project' => $p->project_name,
-                    'client' => $p->client_name,
-                    'area' => $p->area,
-                    'quotation_value' => (float)$p->quotation_value,
+                    'id'             => $p->id,
+                    'quotation_no'   => $p->quotation_no,
+                    'project'        => $p->project_name,
+                    'client'         => $p->client_name,
+                    'area'           => $p->area,
+                    'quotation_value'=> (float)$p->quotation_value,
                 ];
             })->values(),
         ]);

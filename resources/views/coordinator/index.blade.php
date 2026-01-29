@@ -1844,31 +1844,51 @@
 
                 // for product subtype
 
-
                 const familySel  = document.getElementById('coord_products_family');
                 const subtypeSel = document.getElementById('coord_products_subtype');
                 const subtypeBlock = document.getElementById('coord_subtype_block');
                 const subtypeAmtBlock = document.getElementById('coord_subtype_amount_block');
                 const hiddenProducts = document.getElementById('coord_products_hidden');
 
-                function setSubtypesForFamily(fam) {
-                    if (!subtypeSel || !subtypeBlock || !subtypeAmtBlock) return;
-
+                function clearSubtypeValues() {
                     const amtEl = document.getElementById('coord_products_subtype_amount');
-
-                    const list = PRODUCT_SUBTYPES[fam] || [];
-                    subtypeSel.innerHTML = '<option value="">Select subtype</option>';
-
-                    // ✅ always clear current values when family changes
-                    subtypeSel.value = '';
-                    if (amtEl) amtEl.value = '';
-
-                    if (!fam || list.length === 0) {
-                        subtypeBlock.style.display = 'none';
-                        subtypeAmtBlock.style.display = 'none';
-                        return;
+                    if (subtypeSel) {
+                        subtypeSel.innerHTML = '<option value="">Select subtype</option>';
+                        subtypeSel.value = '';
                     }
+                    if (amtEl) amtEl.value = '';
+                }
 
+                function hideSubtypeUI() {
+                    if (subtypeBlock) subtypeBlock.style.display = 'none';
+                    if (subtypeAmtBlock) subtypeAmtBlock.style.display = 'none';
+                }
+
+                function showSubtypeUI() {
+                    if (subtypeBlock) subtypeBlock.style.display = '';
+                    if (subtypeAmtBlock) subtypeAmtBlock.style.display = '';
+                }
+
+
+                /**
+                 * ✅ STRICT RULE:
+                 * - Only DUCTWORK can show subtype + subtype amount.
+                 * - Anything else MUST hide + clear values.
+                 */
+                function setSubtypesForFamily(famRaw) {
+                    const fam = (famRaw || '').toString().trim().toUpperCase();
+
+                    // Always reset first (prevents stale values)
+                    clearSubtypeValues();
+                    hideSubtypeUI();
+
+                    // Only DUCTWORK has subtype UI
+                    if (fam !== 'DUCTWORK') return;
+
+                    const list = PRODUCT_SUBTYPES['DUCTWORK'] || [];
+                    if (!list.length) return;
+
+                    // Build subtype options
                     list.forEach(s => {
                         const opt = document.createElement('option');
                         opt.value = s;
@@ -1876,37 +1896,61 @@
                         subtypeSel.appendChild(opt);
                     });
 
-                    subtypeBlock.style.display = '';
-                    subtypeAmtBlock.style.display = '';
+                    showSubtypeUI();
                 }
 
 
+                /**
+                 * Reset UI when opening modal
+                 */
                 function resetSubtypeUI() {
-                    const famEl = document.getElementById('coord_products_family');
-                    const subEl = document.getElementById('coord_products_subtype');
-                    const amtEl = document.getElementById('coord_products_subtype_amount');
-
-                    const subtypeBlock = document.getElementById('coord_subtype_block');
-                    const subtypeAmtBlock = document.getElementById('coord_subtype_amount_block');
-
-                    if (famEl) famEl.value = '';
-                    if (subEl) subEl.value = '';
-                    if (amtEl) amtEl.value = ''; // ✅ THIS is the key fix
-
-                    if (subtypeBlock) subtypeBlock.style.display = 'none';
-                    if (subtypeAmtBlock) subtypeAmtBlock.style.display = 'none';
+                    if (familySel) familySel.value = '';
+                    clearSubtypeValues();
+                    hideSubtypeUI();
                 }
 
 
+                /**
+                 * When family changes:
+                 * - update subtype UI strictly
+                 * - sync hidden legacy field
+                 */
                 if (familySel) {
                     familySel.addEventListener('change', () => {
-                        const fam = familySel.value || '';
+                        const fam = (familySel.value || '').toString().trim().toUpperCase();
+
                         setSubtypesForFamily(fam);
 
                         // keep legacy atai_products stable
-                        if (hiddenProducts) hiddenProducts.value = fam ? fam.replaceAll('_',' ') : '';
+                        if (hiddenProducts) {
+                            hiddenProducts.value = fam ? fam.replaceAll('_', ' ') : '';
+                        }
                     });
                 }
+
+
+
+                /**
+                 * Extra safety:
+                 * - if subtype is cleared by user, clear subtype amount too
+                 */
+                if (subtypeSel) {
+                    subtypeSel.addEventListener('change', () => {
+                        const amtEl = document.getElementById('coord_products_subtype_amount');
+                        const v = (subtypeSel.value || '').toString().trim();
+                        if (!v && amtEl) amtEl.value = '';
+                    });
+                }
+
+
+
+
+
+
+
+
+
+
 
 
             });

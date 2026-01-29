@@ -1,12 +1,11 @@
 /* =====================================================================
-   ATAI THEME — Dark Glass App Theme (CLEANED)
+   ATAI THEME — Dark Glass App Theme (PROFESSIONAL / STABLE)
    ---------------------------------------------------------------------
-   Notes
-   - All duplicate/overlapping blocks removed.
-   - Sections are labeled clearly.
-   - Forecast table overrides live at the very end so they always win.
-   - Keep this file name or add a version query in HTML to bust cache:
-       <link rel="stylesheet" href="/css/atai-theme.css?v=2025-11-04">
+   Goals:
+   - Keep your design + keep everything working
+   - Fix navbar dropdown stacking, clipping, and collapse behavior
+   - Avoid global CSS conflicts (select, overflow, z-index)
+   - Keep sections labeled and predictable
    ===================================================================== */
 
 /* ---------------------------------------------------------------------
@@ -17,7 +16,6 @@
     --atai-green-50:#f4fbe8;
     --atai-green-100:#e7f4d1;
     --atai-green-300:#c9e6a0;
-    /* --atai-green-500:#95c53d;  --atai-green-600:#6a922e;  --atai-green-900:#10240e; */
 
     /* CTA */
     --cta:#ff6a2a;
@@ -62,16 +60,19 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
-/* subtle glow under the navbar */
 body::before {
-    content:""; position:fixed; inset:0 0 auto 0; height:110px; z-index:0;
+    content:"";
+    position:fixed;
+    inset:0 0 auto 0;
+    height:110px;
+    z-index:0;
     background:linear-gradient(180deg, rgba(255,255,255,.06), transparent 70%);
     pointer-events:none;
 }
 .container, .container-fluid { position: relative; z-index: 1; }
 
 /* ---------------------------------------------------------------------
-   3) NAVBAR (sticky glass) + LAYOUT
+   3) NAVBAR (sticky glass) + LAYOUT (FIXED)
    --------------------------------------------------------------------- */
 .navbar-atai{
     background:
@@ -80,28 +81,66 @@ body::before {
         linear-gradient(180deg, rgba(14,19,35,.96) 0%, rgba(26,34,54,.96) 100%) !important;
     border-bottom: 1px solid rgba(255,255,255,.08) !important;
     box-shadow: 0 8px 22px rgba(0,0,0,.35);
+
+    /* ✅ critical for dropdown + sticky behavior */
+    position: sticky;
+    top: 0;
+    z-index: 1035 !important; /* above .filters-bar (1029) */
 }
+
+/* logo */
 .navbar-atai img { max-height: 40px !important; width: auto !important; }
 .navbar-atai .brand-word{
-    font-weight: 900; letter-spacing:.02em;
+    font-weight: 900;
+    letter-spacing:.02em;
     background: linear-gradient(90deg,#b7ffc2 0%, #61ff87 60%, #e2ffe8 100%);
-    -webkit-background-clip:text; background-clip:text; color: transparent !important;
+    -webkit-background-clip:text;
+    background-clip:text;
+    color: transparent !important;
 }
-/* layout: brand | centered links | right-block */
-.navbar-atai .container-fluid{ display:flex; align-items:center; gap:1rem; }
-.navbar-atai .navbar-collapse{
-    display:flex !important; align-items:center; justify-content:space-between; width:100%;
+
+/* container alignment */
+.navbar-atai .container-fluid{
+    display:flex;
+    align-items:center;
+
 }
+
+/* ✅ DO NOT force collapse display:flex globally (breaks bootstrap).
+   Use desktop-only flex rules. */
+@media (min-width: 992px){
+    .navbar-atai .navbar-collapse{
+        display:flex !important;
+        align-items:center;
+        justify-content:space-between;
+        width:100%;
+    }
+}
+
+/* nav list: scroll-x but allow dropdown overflow-y */
 .navbar-atai .navbar-nav{
-    flex: 1 1 auto; justify-content: center; margin: 0 auto;
-    overflow-x: auto; overflow-y: hidden; white-space: nowrap;
-    gap:.35rem; padding:.35rem 0; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    flex: 0 1 auto !important;
+    justify-content: center;
+    margin: 0 auto;
+    overflow-x: auto;
+    overflow-y: visible !important;
+    white-space: nowrap;
+    gap:.35rem;
+    padding:.35rem 0;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    position: relative;
+    max-width: calc(100% - 420px); /* reserve space for right block */
 }
-.navbar-atai .navbar-nav::-webkit-scrollbar{ display:none; }
+
+
 /* nav pills */
 .navbar-atai .nav-link{
-    height:38px; display:inline-flex; align-items:center;
-    padding:.35rem .9rem; border-radius:3px;
+    height:38px;
+    display:inline-flex;
+    align-items:center;
+    padding:.35rem .9rem;
+    border-radius:3px;
     color:#e7eefc !important;
     background:rgba(255,255,255,.10) !important;
     border:1px solid rgba(255,255,255,.16) !important;
@@ -116,22 +155,104 @@ body::before {
 .navbar-atai .nav-link.active{
     background:linear-gradient(180deg, rgba(149,197,61,.28), rgba(149,197,61,.22)) !important;
     border-color:rgba(149,197,61,.45) !important;
-    color:#fff !important; box-shadow:0 8px 18px rgba(149,197,61,.25);
+    color:#fff !important;
+    box-shadow:0 8px 18px rgba(149,197,61,.25);
 }
-.navbar-atai .navbar-text{ color:rgba(231,238,252,.85) !important; }
+
+.navbar-atai .navbar-text{ color:rgba(231,238,252,.85) !important;white-space: nowrap; }
+
 /* right block pinned right */
-.navbar-atai .navbar-right{ margin-left:auto; display:flex; align-items:center; gap:.5rem; flex:0 0 auto; }
-/* logout */
-.navbar-atai .btn-logout{
-    height:34px; padding:.25rem .7rem; border-radius: 8px;
-    background:#fc0202 !important; border:1px solid rgba(0,0,0,.18) !important; color:#fff !important;
+.navbar-atai .navbar-right {
+    margin-left: auto !important;
+    display: flex !important;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
-.navbar-atai .btn-logout:hover{ filter:brightness(1.05); }
-/* collapse behavior */
-@media (max-width: 991.98px){
-    .navbar-atai .navbar-collapse{ flex-direction: column; align-items: stretch; gap:.5rem; }
-    .navbar-atai .navbar-nav{ justify-content: flex-start; width: 100%; }
-    .navbar-atai .navbar-right{ width:100%; justify-content:space-between; }
+
+
+/* your logout button class */
+.atai-logout-btn {
+    background: rgba(255, 0, 0, 0.18);
+    color: #ff6b6b !important;
+    border: 1px solid rgba(255, 0, 0, 0.4);
+    backdrop-filter: blur(6px);
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: 0.25s;
+}
+.atai-logout-btn:hover {
+    background: rgba(255, 0, 0, 0.32);
+    color: white !important;
+    border-color: rgba(255, 0, 0, 0.7);
+    transform: scale(1.03);
+}
+
+
+/* ✅ Fix dropdown overlay issue in glass navbar */
+
+.navbar-atai .navbar-collapse {
+    overflow: visible !important;
+}
+
+/* Anchor dropdown correctly */
+.navbar-atai .dropdown,
+.navbar-atai .dropend,
+.navbar-atai .dropstart,
+.navbar-atai .dropup{
+    position: relative;
+}
+
+/* Desktop dropdown */
+@media (min-width: 992px) {
+    .navbar-atai .dropdown-menu {
+        min-width: 220px;
+        padding: 8px 0;
+        margin-top: 8px;
+        border-radius: 10px;
+        background: rgba(17, 24, 39, 0.96);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        box-shadow: 0 18px 40px rgba(0,0,0,.35);
+        z-index: 99999 !important; /* ✅ strongest */
+    }
+    .navbar-atai .dropdown-item {
+        color: #e5e7eb;
+        font-weight: 600;
+        padding: 10px 14px;
+        background: transparent;
+    }
+    .navbar-atai .dropdown-item:hover {
+        background: rgba(255,255,255,.08);
+        color: #fff;
+    }
+}
+
+/* Mobile dropdown = inline submenu */
+@media (max-width: 991.98px) {
+    .navbar-atai .dropdown-menu {
+        position: static !important;
+        float: none !important;
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 6px 0 10px 0 !important;
+        padding: 6px 0 !important;
+        background: rgba(255,255,255,.06);
+        border: 1px solid rgba(148, 163, 184, 0.20);
+        border-radius: 10px;
+        box-shadow: none;
+        z-index: auto !important;
+    }
+    .navbar-atai .dropdown-item {
+        padding: 10px 18px;
+        color: #e5e7eb;
+        font-weight: 700;
+    }
+    .navbar-atai .dropdown-item:hover {
+        background: rgba(255,255,255,.10);
+        color: #fff;
+    }
 }
 
 /* ---------------------------------------------------------------------
@@ -153,26 +274,35 @@ body::before {
    5) FILTER BAR + FORM CONTROLS (GLOBAL LOOK)
    --------------------------------------------------------------------- */
 .form-control, .form-select{
-    background:rgb(255 255 255 / 74%); color:var(--kpi-ink);
+    background:rgb(255 255 255 / 74%);
+    color:var(--kpi-ink);
     border:1px solid var(--panel-line);
 }
 .form-control::placeholder{ color:rgba(230,238,252,.55); }
 .form-control:focus, .form-select:focus{ box-shadow:var(--ring); }
 
 .filters-bar{
-    position:sticky; top:64px; z-index:1029;
-    margin:.35rem 0 .75rem; padding:.6rem .8rem;
+    position:sticky;
+    top:64px;
+    z-index:1029;
+    margin:.35rem 0 .75rem;
+    padding:.6rem .8rem;
     background:linear-gradient(180deg, rgba(20,26,42,.72), rgba(18,23,38,.62));
     border:1px solid rgba(255,255,255,.08);
-    border-radius:12px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    border-radius:12px;
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
     box-shadow:0 10px 26px rgba(0,0,0,.35);
 }
 .filters-bar .row, .filters-bar .d-flex{ gap:.55rem; }
 .filters-bar .form-control, .filters-bar .form-select{
-    height:38px; padding:.45rem .7rem;
+    height:38px;
+    padding:.45rem .7rem;
     background:rgb(255 255 255 / 54%) !important;
     border:1px solid rgba(255,255,255,.18) !important;
-    color:#eaf0ff; font-weight:500; box-shadow:inset 0 0 6px rgba(0,0,0,.3);
+    color:#eaf0ff;
+    font-weight:500;
+    box-shadow:inset 0 0 6px rgba(0,0,0,.3);
 }
 .filters-bar .form-control::placeholder{ color:rgba(234,240,255,.55); }
 .filters-bar .form-select option{ background:#121629 !important; color:#e6eefc !important; }
@@ -181,142 +311,221 @@ body::before {
     box-shadow:0 0 0 .2rem rgba(149,197,61,.25) !important;
 }
 .filters-bar .btn, .btn-filter-apply{
-    height:38px; padding:.45rem .9rem; font-weight:700;
-    background:#4666ff; border-color:#3d57d9; color:#fff;
+    height:38px;
+    padding:.45rem .9rem;
+    font-weight:700;
+    background:#4666ff;
+    border-color:#3d57d9;
+    color:#fff;
     box-shadow:0 8px 16px rgba(70,102,255,.25);
 }
 .filters-bar .btn:hover{ filter:brightness(1.05); transform:translateY(-1px); }
 
 /* Family / Region chips */
-#familyChips, #regionChips{ display:flex; flex-wrap:wrap; gap:.5rem; padding:.4rem .1rem .1rem; }
+#familyChips, #regionChips{
+    display:flex;
+    flex-wrap:wrap;
+    gap:.5rem;
+    padding:.4rem .1rem .1rem;
+}
 #familyChips .btn, #regionChips .btn{
-    height:34px; padding:.25rem .75rem; font-weight:600;
-    border-radius:999px !important; border:1px solid rgba(255,255,255,.16) !important;
-    background:rgba(255,255,255,.10) !important; color:#e7eefc !important;
+    height:34px;
+    padding:.25rem .75rem;
+    font-weight:600;
+    border-radius:999px !important;
+    border:1px solid rgba(255,255,255,.16) !important;
+    background:rgba(255,255,255,.10) !important;
+    color:#e7eefc !important;
     box-shadow:0 3px 10px rgba(0,0,0,.25);
 }
-#familyChips .btn:hover, #regionChips .btn:hover{ transform:translateY(-1px); background:rgba(255,255,255,.16) !important; border-color:rgba(255,255,255,.24) !important; }
+#familyChips .btn:hover, #regionChips .btn:hover{
+    transform:translateY(-1px);
+    background:rgba(255,255,255,.16) !important;
+    border-color:rgba(255,255,255,.24) !important;
+}
 #familyChips .btn.active, #regionChips .btn.active{
     background:linear-gradient(180deg, rgba(149,197,61,.30), rgba(149,197,61,.22)) !important;
-    border-color:rgba(149,197,61,.45) !important; color:#fff !important;
+    border-color:rgba(149,197,61,.45) !important;
+    color:#fff !important;
     box-shadow:0 8px 18px rgba(149,197,61,.28);
 }
 
 /* ---------------------------------------------------------------------
-   6) GENERIC TABS (used on multiple pages)
+   6) GENERIC TABS
    --------------------------------------------------------------------- */
 .nav-tabs{ border:none; gap:.6rem; }
 .nav-tabs .nav-link{
     border:1px solid var(--panel-line);
     background:rgba(255,255,255,.10);
-    color:var(--kpi-ink); padding:.5rem 1rem; border-radius:10px; font-weight:700;
+    color:var(--kpi-ink);
+    padding:.5rem 1rem;
+    border-radius:10px;
+    font-weight:700;
     transition: background .2s, border-color .2s, transform .15s;
 }
 .nav-tabs .nav-link:hover{ transform:translateY(-1px); }
-.nav-tabs .nav-link.active{ background:rgba(255,255,255,.16); border-color:rgba(149,197,61,.35); }
+.nav-tabs .nav-link.active{
+    background:rgba(255,255,255,.16);
+    border-color:rgba(149,197,61,.35);
+}
 
 /* ---------------------------------------------------------------------
-   7) KPI CARDS (Home panels etc.)
+   7) KPI CARDS
    --------------------------------------------------------------------- */
 .kpi-card{
     background:linear-gradient(180deg, var(--kpi-top) 0%, var(--kpi-bottom) 100%) !important;
-    border:1px solid var(--kpi-line) !important; box-shadow:var(--kpi-shadow) !important;
+    border:1px solid var(--kpi-line) !important;
+    box-shadow:var(--kpi-shadow) !important;
 }
 .kpi-card:hover{ transform:translateY(-2px); box-shadow:var(--kpi-shadow-hover) !important; }
-.kpi-label{ font-size:.8rem; letter-spacing:.08em; text-transform:uppercase; color:var(--kpi-label); opacity:.95; }
+.kpi-label{
+    font-size:.8rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--kpi-label);
+    opacity:.95;
+}
 .kpi-value{ font-size:1.6rem; font-weight:800; color:#95c53d; }
 .kpi-card .kpi-foot,
 .kpi-card > .card-body > .text-center:last-child{
-    color:#dff4ff !important; font-weight:800 !important; letter-spacing:.06em; text-transform:uppercase;
+    color:#dff4ff !important;
+    font-weight:800 !important;
+    letter-spacing:.06em;
+    text-transform:uppercase;
     text-shadow:0 0 10px rgba(64,211,255,.45);
 }
 .kpi-card .highcharts-data-label text{
-    fill:#eaf6ff !important; font-weight:700 !important; text-shadow:0 0 8px rgba(64,211,255,.35);
+    fill:#eaf6ff !important;
+    font-weight:700 !important;
+    text-shadow:0 0 8px rgba(64,211,255,.35);
 }
 
 /* ---------------------------------------------------------------------
    8) DATATABLES (Dark theme)
    --------------------------------------------------------------------- */
 .dataTables_wrapper{
-    background:rgba(0,0,0,.25); border-radius:16px; padding:1rem;
+    background:rgba(0,0,0,.25);
+    border-radius:16px;
+    padding:1rem;
     box-shadow:inset 0 0 10px rgba(255,255,255,.05), 0 6px 20px rgba(0,0,0,.45);
 }
-.table, table.dataTable{ --bs-table-bg: transparent !important; background:transparent !important; color:#e9eefb !important; }
+.table, table.dataTable{
+    --bs-table-bg: transparent !important;
+    background:transparent !important;
+    color:#e9eefb !important;
+}
 .dt-container .table>:not(caption)>*>*,
 table.dataTable>thead>tr>th,
 table.dataTable>tbody>tr>td,
-table.dataTable>tfoot>tr>th{ background-color: transparent !important; color:#e9eefb !important; border-color: rgba(255,255,255,.08) !important; }
-/* Enhanced header look */
+table.dataTable>tfoot>tr>th{
+    background-color: transparent !important;
+    color:#e9eefb !important;
+    border-color: rgba(255,255,255,.08) !important;
+}
+/* Enhanced header */
 table.dataTable thead{
     background: linear-gradient(180deg, #626262 0%, #000 100%) !important;
     color: #cfe6ff !important;
     border-bottom: 2px solid rgba(149,197,61,0.35) !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.4);
 }
-table.dataTable thead th{ padding:.75rem 1rem; font-size:.85rem; font-weight:800 !important; text-transform:uppercase; letter-spacing:.05em; background:transparent !important; }
+table.dataTable thead th{
+    padding:.75rem 1rem;
+    font-size:.85rem;
+    font-weight:800 !important;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    background:transparent !important;
+}
 table.dataTable thead th.sorting:after,
 table.dataTable thead th.sorting_asc:after,
-table.dataTable thead th.sorting_desc:after{ color:#95c53d !important; opacity:.8; }
-table.dataTable tbody tr{ background-color: rgba(0,0,0,0.2) !important; border-bottom:1px solid rgba(255,255,255,.06); transition:background .2s, transform .2s; }
+table.dataTable thead th.sorting_desc:after{
+    color:#95c53d !important;
+    opacity:.8;
+}
+table.dataTable tbody tr{
+    background-color: rgba(0,0,0,0.2) !important;
+    border-bottom:1px solid rgba(255,255,255,.06);
+    transition:background .2s, transform .2s;
+}
 table.dataTable tbody tr:nth-child(odd){ background-color:rgba(255,255,255,.02) !important; }
 table.dataTable tbody tr:nth-child(even){ background-color:rgba(255,255,255,.05) !important; }
-table.dataTable tbody tr:hover{ background:linear-gradient(90deg, rgba(149,197,61,.12), rgba(149,197,61,.05)) !important; box-shadow:0 0 8px rgba(149,197,61,.25); transform:scale(1.002); cursor:pointer; }
+table.dataTable tbody tr:hover{
+    background:linear-gradient(90deg, rgba(149,197,61,.12), rgba(149,197,61,.05)) !important;
+    box-shadow:0 0 8px rgba(149,197,61,.25);
+    transform:scale(1.002);
+    cursor:pointer;
+}
 table.dataTable tbody td:nth-child(1){ color:#a4e869 !important; }
-.dataTables_wrapper .dataTables_paginate .paginate_button{ border-radius:6px; background:rgba(255,255,255,.08) !important; color:#e6eefc !important; margin:0 2px; padding:0 4px; border:none; transition:all .2s; }
-.dataTables_wrapper .dataTables_paginate .paginate_button:hover{ background:rgba(149,197,61,.4) !important; color:#fff !important; }
-.dataTables_wrapper .dataTables_paginate .paginate_button.current{ background:#95c53d !important; color:#0b220b !important; font-weight:700; }
-.dataTables_wrapper .dataTables_filter input, .dataTables_wrapper .dataTables_length select{ background: rgba(0,0,0,.35) !important; border: 1px solid rgba(255,255,255,.20) !important; color: #e6eefc !important; border-radius:6px; padding:4px 8px; }
+.dataTables_wrapper .dataTables_paginate .paginate_button{
+    border-radius:6px;
+    background:rgba(255,255,255,.08) !important;
+    color:#e6eefc !important;
+    margin:0 2px;
+    padding:0 4px;
+    border:none;
+    transition:all .2s;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover{
+    background:rgba(149,197,61,.4) !important;
+    color:#fff !important;
+}
+.dataTables_wrapper .dataTables_paginate .paginate_button.current{
+    background:#95c53d !important;
+    color:#0b220b !important;
+    font-weight:700;
+}
+.dataTables_wrapper .dataTables_filter input,
+.dataTables_wrapper .dataTables_length select{
+    background: rgba(0,0,0,.35) !important;
+    border: 1px solid rgba(255,255,255,.20) !important;
+    color: #e6eefc !important;
+    border-radius:6px;
+    padding:4px 8px;
+}
 .dataTables_info{ color:#cdd6f4 !important; font-weight:500; }
 
 /* ---------------------------------------------------------------------
-   9) BUTTONS (Utility styles)
+   9) BUTTONS
    --------------------------------------------------------------------- */
 .btn-atai, .btn-cta{
     --bs-btn-bg: var(--cta);
     --bs-btn-border-color: var(--cta-700);
-    --bs-btn-hover-bg:#ff6a2a; --bs-btn-hover-border-color:#e45717;
+    --bs-btn-hover-bg:#ff6a2a;
+    --bs-btn-hover-border-color:#e45717;
     --bs-btn-focus-shadow-rgb:255,106,42;
-    --bs-btn-active-bg:#e45717; --bs-btn-active-border-color:#d64f14;
-    color:#fff; font-weight:800; letter-spacing:.02em;
+    --bs-btn-active-bg:#e45717;
+    --bs-btn-active-border-color:#d64f14;
+    color:#fff;
+    font-weight:800;
+    letter-spacing:.02em;
     box-shadow:0 10px 22px rgba(255,106,42,.25);
 }
 .btn-outline-light{ color:var(--kpi-ink); border-color:var(--panel-line); }
 .btn-outline-light:hover{ background:rgba(255,255,255,.12); }
+
 /* ---------------------------------------------------------------------
    10) MODALS (dark glass look + unified backdrop)
    --------------------------------------------------------------------- */
-
-/* GLOBAL backdrop for all modals (light + transparent) */
 .modal-backdrop,
 .modal-backdrop.fade,
 .modal-backdrop.show {
     background-color: #000000 !important;
-    opacity: 0.18 !important;   /* 0.18 is quite light; change to 0.10 if you want almost no dim */
+    opacity: 0.18 !important;
     transition: none !important;
 }
+.modal { z-index: 1065 !important; }
+.modal-backdrop { z-index: 1060 !important; }
+.modal.modal-stack { z-index: 1075 !important; }
+.modal-backdrop.modal-stack { z-index: 1070 !important; }
 
-/* Z-indexes for normal & stacked modals */
-.modal {
-    z-index: 1065 !important;
-}
-.modal-backdrop {
-    z-index: 1060 !important;
-}
-.modal.modal-stack {
-    z-index: 1075 !important;
-}
-.modal-backdrop.modal-stack {
-    z-index: 1070 !important;
-}
-
-/* Glassy dark modal shell */
-.modal-atai .modal-dialog{
-    filter:drop-shadow(0 18px 50px rgba(0,0,0,.55));
-}
+.modal-atai .modal-dialog{ filter:drop-shadow(0 18px 50px rgba(0,0,0,.55)); }
 .modal-atai .modal-content{
     background:linear-gradient(180deg, rgba(18,23,38,.96), rgba(13,18,30,.94)) !important;
-    color:#eaf0ff !important; border:1px solid rgba(255,255,255,.12) !important;
-    border-radius:16px !Important; box-shadow:0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06) !important;
+    color:#eaf0ff !important;
+    border:1px solid rgba(255,255,255,.12) !important;
+    border-radius:16px !important;
+    box-shadow:0 16px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06) !important;
     overflow:hidden;
 }
 .modal-atai .modal-header,
@@ -331,8 +540,10 @@ table.dataTable tbody td:nth-child(1){ color:#a4e869 !important; }
 .modal-atai .btn-close:hover{ opacity:1; }
 .modal-atai .card{
     background:linear-gradient(180deg, #0f1526 0%, #151c2e 100%) !important;
-    color:#eaf0ff !important; border:1px solid rgba(255,255,255,.10) !important;
-    border-radius:14px !important; box-shadow:0 10px 26px rgba(0,0,0,.45) !important;
+    color:#eaf0ff !important;
+    border:1px solid rgba(255,255,255,.10) !important;
+    border-radius:14px !important;
+    box-shadow:0 10px 26px rgba(0,0,0,.45) !important;
 }
 .modal-atai dl.row{ --pad:.25rem; }
 .modal-atai dt{ color:#9fb1d6 !important; font-weight:700; opacity:.95; margin-bottom:var(--pad); }
@@ -341,21 +552,31 @@ table.dataTable tbody td:nth-child(1){ color:#a4e869 !important; }
 .modal-atai .form-control,
 .modal-atai .form-select,
 .modal-atai textarea{
-    background:rgba(255,255,255,.10) !important; border:1px solid rgba(255,255,255,.18) !important;
-    color:#eaf0ff !important; box-shadow:inset 0 0 6px rgba(0,0,0,.30);
+    background:rgba(255,255,255,.10) !important;
+    border:1px solid rgba(255,255,255,.18) !important;
+    color:#eaf0ff !important;
+    box-shadow:inset 0 0 6px rgba(0,0,0,.30);
 }
 .modal-atai .form-control::placeholder,
-.modal-atai textarea::placeholder{
-    color:rgba(234,240,255,.60) !important;
-}
+.modal-atai textarea::placeholder{ color:rgba(234,240,255,.60) !important; }
 .modal-atai .form-control:focus,
 .modal-atai .form-select:focus,
 .modal-atai textarea:focus{
-    border-color:rgba(149,197,61,.55) !important; box-shadow:0 0 0 .2rem rgba(149,197,61,.22) !important;
+    border-color:rgba(149,197,61,.55) !important;
+    box-shadow:0 0 0 .2rem rgba(149,197,61,.22) !important;
 }
 .modal-atai input[type="checkbox"]{ accent-color:#95c53d; }
-.modal-atai .progress{ height:10px; border-radius:999px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.12); }
-.modal-atai .progress-bar{ background:linear-gradient(90deg, #7fcf43, #95c53d); box-shadow:inset 0 6px 16px rgba(149,197,61,.35); border-radius:999px; }
+.modal-atai .progress{
+    height:10px;
+    border-radius:999px;
+    background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.12);
+}
+.modal-atai .progress-bar{
+    background:linear-gradient(90deg, #7fcf43, #95c53d);
+    box-shadow:inset 0 6px 16px rgba(149,197,61,.35);
+    border-radius:999px;
+}
 .modal-atai .modal-footer .btn{ border-radius:10px; font-weight:700; }
 .modal-atai .modal-footer .btn-secondary{ background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.18); color:#eaf0ff; }
 .modal-atai .modal-footer .btn-primary{ background:#4666ff; border-color:#3d57d9; box-shadow:0 8px 16px rgba(70,102,255,.25); }
@@ -364,17 +585,26 @@ table.dataTable tbody td:nth-child(1){ color:#a4e869 !important; }
 .modal-atai .modal-footer .modal-action{ margin-right:auto; display:inline-flex; gap:.5rem; align-items:center; }
 .modal-atai .modal-body::-webkit-scrollbar{ height:10px; width:10px; }
 .modal-atai .modal-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.18); border-radius:8px; }
+
 /* ---------------------------------------------------------------------
    11) ESTIMATOR / TOOLBARS
    --------------------------------------------------------------------- */
 .glass-row{
-    position:relative; display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.8rem .9rem;
+    position:relative;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:1rem;
+    padding:.8rem .9rem;
     background:
         radial-gradient(1000px 400px at 10% -80px, rgba(149,197,61,.12), transparent 55%),
         radial-gradient(1100px 420px at 90% -70px, rgba(70,102,255,.10), transparent 55%),
         linear-gradient(180deg, rgba(22,27,44,.78), rgba(20,25,40,.66));
-    border:1px solid rgba(255,255,255,.10); border-radius:12px;
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); box-shadow:0 10px 26px rgba(0,0,0,.35);
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:12px;
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    box-shadow:0 10px 26px rgba(0,0,0,.35);
 }
 .glass-row h4{ color:#eaf0ff; font-weight:800; }
 .et-left{ display:flex; align-items:center; gap:.8rem; min-width:260px; }
@@ -382,18 +612,37 @@ table.dataTable tbody td:nth-child(1){ color:#a4e869 !important; }
 .et-field{ display:flex; flex-direction:column; min-width:150px; }
 .et-field .form-label{ color:#cfe0ff; font-weight:600; margin:0 0 .15rem; }
 .et-right .form-control, .et-right .form-select{
-    height:36px; padding:.4rem .6rem; font-weight:600; color:#eaf0ff;
-    background:rgba(255,255,255,.10) !important; border:1px solid rgba(255,255,255,.18) !important;
+    height:36px;
+    padding:.4rem .6rem;
+    font-weight:600;
+    color:#eaf0ff;
+    background:rgba(255,255,255,.10) !important;
+    border:1px solid rgba(255,255,255,.18) !important;
     box-shadow:inset 0 0 6px rgba(0,0,0,.30);
 }
 .et-right .form-control::placeholder{ color:rgba(234,240,255,.60); }
-.et-right .form-control:focus, .et-right .form-select:focus{ border-color:rgba(149,197,61,.55) !important; box-shadow:0 0 0 .2rem rgba(149,197,61,.22) !important; }
-/* Dedicated estimator toolbar variant */
-.estimator-toolbar.glass-row{ display:flex; align-items:center; gap:1rem; background:#faf8f869; backdrop-filter:saturate(180%) blur(8px); border:1px solid rgba(0,0,0,.06); border-radius:12px; padding:.75rem 1rem; }
+.et-right .form-control:focus, .et-right .form-select:focus{
+    border-color:rgba(149,197,61,.55) !important;
+    box-shadow:0 0 0 .2rem rgba(149,197,61,.22) !important;
+}
+.estimator-toolbar.glass-row{
+    display:flex;
+    align-items:center;
+    gap:1rem;
+    background:#faf8f869;
+    backdrop-filter:saturate(180%) blur(8px);
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:12px;
+    padding:.75rem 1rem;
+}
 .et-left{ display:flex; align-items:center; gap:.75rem; flex:1 1 0; min-width:260px; }
 .et-right{ display:flex; align-items:end; gap:.75rem; flex:1 1 0; justify-content:flex-end; flex-wrap:wrap; }
 .et-center{ flex:0 0 auto; margin:0 auto; }
-@media (max-width:992px){ .glass-row{ flex-direction:column; align-items:stretch; gap:.75rem; } .et-left{ justify-content:space-between; } .et-right{ justify-content:flex-start; } }
+@media (max-width:992px){
+    .glass-row{ flex-direction:column; align-items:stretch; gap:.75rem; }
+    .et-left{ justify-content:space-between; }
+    .et-right{ justify-content:flex-start; }
+}
 @media (max-width:576px){ .et-field{ min-width:130px; } }
 
 /* ---------------------------------------------------------------------
@@ -401,25 +650,36 @@ table.dataTable tbody td:nth-child(1){ color:#a4e869 !important; }
    --------------------------------------------------------------------- */
 .panel, .hc-panel, .table-wrap{ border-radius:14px !important; }
 .fw-semibold{ color:#61ff87; }
-
-/* prevent vertical letter-breaking in tables */
 table, td, th{ word-break: normal !important; white-space: nowrap; hyphens: auto; }
 .table-wrap, .dataTables_wrapper{ overflow-x:auto !important; -webkit-overflow-scrolling: touch; }
-/* opt-in wrapping when needed */
 td.wrap, th.wrap{ white-space: normal !important; overflow-wrap:anywhere; word-break:break-word; }
 @media (max-width: 576px){ table.dataTable { font-size: 12px; } }
 
 /* ---------------------------------------------------------------------
-   13) SPECIAL: Region Pie warn icon (used on dashboard pie)
+   13) SPECIAL: Region Pie warn icon
    --------------------------------------------------------------------- */
 #projectsRegionPie{ position: relative; }
 .warn-pulse{
-    position:absolute; right:10px; top:10px; width:48px; height:48px; display:none; z-index:20; cursor:pointer;
+    position:absolute;
+    right:10px;
+    top:10px;
+    width:48px;
+    height:48px;
+    display:none;
+    z-index:20;
+    cursor:pointer;
     filter: drop-shadow(0 0 8px rgba(255, 0, 0, 0.9)) drop-shadow(0 0 15px rgba(255, 60, 60, 0.8));
-    animation: pulseGlow 1s ease-in-out infinite; transition: transform .2s ease-in-out;
+    animation: pulseGlow 1s ease-in-out infinite;
+    transition: transform .2s ease-in-out;
 }
-.warn-pulse:hover{ transform: scale(1.2); filter: drop-shadow(0 0 14px rgba(255, 40, 40, 1)) drop-shadow(0 0 30px rgba(255, 0, 0, 0.8)); }
-@keyframes pulseGlow{ 0%,100%{ transform:scale(1); opacity:.85; } 50%{ transform:scale(1.15); opacity:1; } }
+.warn-pulse:hover{
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 14px rgba(255, 40, 40, 1)) drop-shadow(0 0 30px rgba(255, 0, 0, 0.8));
+}
+@keyframes pulseGlow{
+    0%,100%{ transform:scale(1); opacity:.85; }
+    50%{ transform:scale(1.15); opacity:1; }
+}
 
 /* ---------------------------------------------------------------------
    14) SUBMITTAL PREVIEW (PDF frame in modals)
@@ -428,14 +688,20 @@ td.wrap, th.wrap{ white-space: normal !important; overflow-wrap:anywhere; word-b
 .submittal-preview iframe,
 .submittal-preview object,
 .submittal-preview embed{ width:100%; height:420px; display:block; border:0; }
-/* Sticky modal footer never covered by preview */
 .modal-footer{ position:sticky; bottom:0; z-index:3; background: var(--bs-body-bg); }
 
 /* ---------------------------------------------------------------------
-   15) KPI SWITCHER PANELS (cards vs charts)
+   15) KPI SWITCHER PANELS
    --------------------------------------------------------------------- */
 .kpi-switcher{ position: relative; min-height:440px; }
-.kpi-panel{ position:absolute; inset:0; opacity:0; transform:translateX(16px); transition:opacity .35s ease, transform .35s ease; pointer-events:none; }
+.kpi-panel{
+    position:absolute;
+    inset:0;
+    opacity:0;
+    transform:translateX(16px);
+    transition:opacity .35s ease, transform .35s ease;
+    pointer-events:none;
+}
 .kpi-panel--active{ opacity:1; transform:translateX(0); pointer-events:auto; }
 .kpi-cards-head{ display:flex; align-items:baseline; justify-content:space-between; gap:1rem; margin-bottom:.5rem; }
 .cards-title{ font-weight:800; font-size:1.25rem; }
@@ -452,9 +718,8 @@ td.wrap, th.wrap{ white-space: normal !important; overflow-wrap:anywhere; word-b
 .kpi-mini.dang{ box-shadow: 0 0 0 1px rgba(244,63,94,.25) inset; }
 
 /* ---------------------------------------------------------------------
-   16) FINAL FORECAST PAGE — INPUTS/SELECTS + ROW STRIPES (OVERRIDES WIN)
+   16) FINAL FORECAST PAGE — INPUTS/SELECTS + ROW STRIPES
    --------------------------------------------------------------------- */
-/* Summary/footer row brighter */
 .forecast-page .table tfoot th,
 .forecast-page .table tfoot td {
     background-color: #181d2c !important;
@@ -463,18 +728,11 @@ td.wrap, th.wrap{ white-space: normal !important; overflow-wrap:anywhere; word-b
     letter-spacing: .02em;
     text-transform: uppercase;
 }
-/* left-most label green-ish */
-.forecast-page .table tfoot th:first-child {
-    color: #b8ff8a !important;
-}
-/* Make the left-most label pop slightly green (optional) */
-.forecast-page table.table tfoot tr th:first-child {
-    color: #caff9c !important;
-}
-/* Ensure body zebra stripes never bleed into tfoot */
+.forecast-page .table tfoot th:first-child { color: #b8ff8a !important; }
+.forecast-page table.table tfoot tr th:first-child { color: #caff9c !important; }
 .forecast-page table.table tfoot tr { background: transparent !important; }
 .forecast-page table.table tfoot tr:hover { background: transparent !important; }
-/* Selects (force white + center) */
+
 .forecast-page table.table td select.form-select {
     background:#ffffff !important;
     color:#000 !important;
@@ -485,7 +743,6 @@ td.wrap, th.wrap{ white-space: normal !important; overflow-wrap:anywhere; word-b
     min-height:calc(1.5em + .5rem + 2px);
     padding-right:2rem;
 }
-/* Focus ring on all editable controls in the table */
 .forecast-page table.table td input.form-control:focus,
 .forecast-page table.table td textarea.form-control:focus,
 .forecast-page table.table td select.form-select:focus {
@@ -497,16 +754,15 @@ td.wrap, th.wrap{ white-space: normal !important; overflow-wrap:anywhere; word-b
    17) ACTIVE STATE CHIPS / SMALL UTILITIES
    --------------------------------------------------------------------- */
 .btn-chip.btn-outline-primary.active{ background:#198754; border-color:#198754; color:#fff; }
-#familyChips .btn.active, #statusTabs .nav-link.active, #regionChips .btn.active{ background:#198754; border-color:#198754; color:#fff; }
+#familyChips .btn.active,
+#statusTabs .nav-link.active,
+#regionChips .btn.active{ background:#198754; border-color:#198754; color:#fff; }
 #familyChips, #statusChips{ margin-bottom:.5rem; }
-
-/* Neutral muted color globally (not red) */
 .text-muted { color:#9aa7bd !important; }
 
 /* ---------------------------------------------------------------------
-   18) SELECT DARK THEME (GLOBAL)
+   18) SELECT DARK THEME (GLOBAL) — keep, but safe overrides below
    --------------------------------------------------------------------- */
-/* === Dark Theme Select Styling === */
 select.form-select,
 select {
     background-color: #1e1e1e !important;
@@ -524,22 +780,14 @@ select option {
     background-color: #1e1e1e;
     color: #f1f1f1;
 }
-/* Firefox */
 @-moz-document url-prefix() {
-    select {
-        background-color: #1e1e1e !important;
-        color: #f1f1f1 !important;
-    }
-    option {
-        background-color: #1e1e1e !important;
-        color: #f1f1f1 !important;
-    }
+    select { background-color: #1e1e1e !important; color: #f1f1f1 !important; }
+    option { background-color: #1e1e1e !important; color: #f1f1f1 !important; }
 }
 
 /* ---------------------------------------------------------------------
    19) AI INSIGHT BUTTON + MODAL DECORATION
    --------------------------------------------------------------------- */
-/* ====== AI Insight Fancy Button ====== */
 .btn-ai-insight {
     position: relative;
     overflow: hidden;
@@ -556,7 +804,6 @@ select option {
     transform: scale(1.05);
     box-shadow: 0 0 18px rgba(105, 255, 140, 0.6);
 }
-/* “Thinking” animation while AI is working */
 .btn-ai-insight.thinking {
     background: linear-gradient(270deg, #198754, #6f42c1, #20c997);
     background-size: 600% 600%;
@@ -567,7 +814,6 @@ select option {
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
-/* Three bouncing dots for “thinking…” effect */
 .ai-dots span {
     display: inline-block;
     opacity: 0.3;
@@ -582,10 +828,7 @@ select option {
     0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
     40% { transform: scale(1.1); opacity: 1; }
 }
-/* Icon pulse effect */
-.btn-ai-insight i {
-    animation: pulse 2s infinite;
-}
+.btn-ai-insight i { animation: pulse 2s infinite; }
 @keyframes pulse {
     0% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.2); opacity: 0.8; }
@@ -597,18 +840,22 @@ select option {
    --------------------------------------------------------------------- */
 .metric-toggle { display:flex; gap:.5rem; align-items:center; }
 .metric-toggle .chip-btn{
-    display:inline-flex; align-items:center; justify-content:center;
-    padding:.35rem .8rem; border-radius:12px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:.35rem .8rem;
+    border-radius:12px;
     background: rgba(255,255,255,.06);
     border:1px solid rgba(255,255,255,.12);
-    color:#7aa2ff; font-weight:600; cursor:pointer;
+    color:#7aa2ff;
+    font-weight:600;
+    cursor:pointer;
     transition:background .2s, color .2s, border-color .2s, transform .05s;
 }
 .metric-toggle .chip-btn:hover{ background: rgba(255,255,255,.10); }
 .metric-toggle .btn-check:focus + .chip-btn{ outline:2px solid rgba(98,132,255,.35); outline-offset:2px; }
 .metric-toggle .btn-check:active + .chip-btn,
 .metric-toggle .chip-btn:active{ transform:scale(0.98); }
-/* selected state */
 .metric-toggle .btn-check:checked + .chip-btn{
     background:#4c6ef5;
     color:#fff;
@@ -624,117 +871,63 @@ select option {
     box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
 }
 @keyframes badgePulse {
-    0% {
-        transform: translateY(0) scale(1);
-        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-    }
-    70% {
-        transform: translateY(-1px) scale(1.08);
-        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
-    }
-    100% {
-        transform: translateY(0) scale(1);
-        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
-    }
+    0% { transform: translateY(0) scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { transform: translateY(-1px) scale(1.08); box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+    100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
 }
 #gaugeGauge,
-#gaugeGauge > div {
-    min-height: 100px !important;
-}
-.gauge-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.btnDeleteCoordinator {
-    font-weight: 600;
-}
-
-.btnDeleteCoordinator i.bi-trash {
-    margin-right: 2px;
-}
-
-
-
+#gaugeGauge > div { min-height: 100px !important; }
+.gauge-wrap { display:flex; align-items:center; justify-content:center; }
+.btnDeleteCoordinator { font-weight: 600; }
+.btnDeleteCoordinator i.bi-trash { margin-right: 2px; }
 
 /* ======================================================================
  * Estimator Inquiries – 1366 x 768 tuning
  * ====================================================================*/
 @media (max-width: 1400px) and (max-height: 800px) {
-    .estimator-inquiries-page {
-        padding-top: 0.75rem !important;
-    }
-
-    .estimator-inquiries-page #projFilters {
-        gap: 0.35rem !important;
-    }
-
+    .estimator-inquiries-page { padding-top: 0.75rem !important; }
+    .estimator-inquiries-page #projFilters { gap: 0.35rem !important; }
     .estimator-inquiries-page #projFilters .form-select-sm,
     .estimator-inquiries-page #projFilters .form-control-sm {
         max-width: 150px;
         font-size: 0.8rem;
     }
-
-    .estimator-inquiries-page #projFilters #salesmanWrap .form-select-sm {
-        max-width: 180px;
-    }
-
+    .estimator-inquiries-page #projFilters #salesmanWrap .form-select-sm { max-width: 180px; }
     .estimator-inquiries-page #projFilters .btn-sm {
         padding: 0.2rem 0.5rem;
         font-size: 0.8rem;
         white-space: nowrap;
     }
+    .estimator-inquiries-page .kpi-card { padding: 0.5rem 0.75rem !important; }
+    .estimator-inquiries-page .kpi-value { font-size: 1.45rem; }
+    .estimator-inquiries-page .kpi-label { font-size: 0.7rem; }
 
-    /* KPI cards a bit more compact */
-    .estimator-inquiries-page .kpi-card {
-        padding: 0.5rem 0.75rem !important;
-    }
-
-    .estimator-inquiries-page .kpi-value {
-        font-size: 1.45rem;
-    }
-
-    .estimator-inquiries-page .kpi-label {
-        font-size: 0.7rem;
-    }
-
-    /* Tabs and chips tighter */
     .estimator-inquiries-page .nav-tabs .nav-link {
         padding: 0.25rem 0.6rem;
         font-size: 0.8rem;
         white-space: nowrap;
     }
-
     .estimator-inquiries-page #familyChips .btn-sm {
         padding: 0.15rem 0.4rem;
         font-size: 0.75rem;
     }
 
-    /* Table density (so more rows fit on 768px height) */
-    .estimator-inquiries-page table.table {
-        font-size: 0.78rem;
-    }
+    .estimator-inquiries-page table.table { font-size: 0.78rem; }
+    .estimator-inquiries-page table.table thead th { padding: 0.3rem 0.4rem; }
+    .estimator-inquiries-page table.table tbody td { padding: 0.28rem 0.4rem; }
 
-    .estimator-inquiries-page table.table thead th {
-        padding: 0.3rem 0.4rem;
-    }
-
-    .estimator-inquiries-page table.table tbody td {
-        padding: 0.28rem 0.4rem;
-    }
-
-    /* Search input group slimmer */
     .estimator-inquiries-page .input-group.w-auto .form-control {
         font-size: 0.8rem;
         padding: 0.25rem 0.4rem;
     }
-
     .estimator-inquiries-page .input-group-text {
         font-size: 0.8rem;
         padding: 0.25rem 0.4rem;
     }
+    .navbar-atai .navbar-nav {
+        max-width: calc(100% - 360px);
+    }
 }
-
 
 /* =============================================================
  * Estimator Inquiries – modal scroll on small screens
@@ -743,40 +936,115 @@ select option {
     max-width: 900px;
     width: 100%;
 }
-
-/* When height is small (e.g. 1366x768 laptops, smaller devices) */
 @media (max-height: 800px) {
     .estimator-inquiries-page #modalAddInquiry .modal-dialog {
         margin-top: 0.5rem;
         margin-bottom: 0.5rem;
     }
-
-    /* Make the modal content fit inside viewport height */
     .estimator-inquiries-page #modalAddInquiry.modal .modal-dialog-scrollable .modal-content,
     .estimator-inquiries-page #modalAddInquiry .modal-dialog-scrollable .modal-content {
         max-height: calc(100vh - 1rem);
     }
-
-    /* 🔥 Actual scrolling area */
     .estimator-inquiries-page #modalAddInquiry .modal-body {
-        max-height: calc(100vh - 200px); /* header + footer space */
+        max-height: calc(100vh - 200px);
         overflow-y: auto;
     }
 }
-.atai-logout-btn {
-    background: rgba(255, 0, 0, 0.18);
-    color: #ff6b6b !important;
-    border: 1px solid rgba(255, 0, 0, 0.4);
-    backdrop-filter: blur(6px);
-    padding: 4px 12px;
-    border-radius: 8px;
-    font-weight: 500;
-    transition: 0.25s;
+
+/* =====================================================================
+   FINAL SAFETY OVERRIDES (navbar dropdown + select conflicts)
+   ---------------------------------------------------------------------
+   - Protect navbar dropdown and menus from global select styling
+   - Ensure dropdown always renders above everything
+   ===================================================================== */
+
+/* Dropdown always above page content */
+.navbar-atai .dropdown-menu{ z-index: 99999 !important; }
+
+/* Inside navbar dropdown menus: keep readable and consistent */
+.navbar-atai .dropdown-menu .dropdown-item,
+.navbar-atai .dropdown-menu .dropdown-item *{
+    color: #e5e7eb !important;
 }
 
-.atai-logout-btn:hover {
-    background: rgba(255, 0, 0, 0.32);
-    color: white !important;
-    border-color: rgba(255, 0, 0, 0.7);
-    transform: scale(1.03);
+/* If a <select> appears inside navbar area, don't force it to pure black */
+.navbar-atai select,
+.navbar-atai select.form-select{
+    background: rgba(255,255,255,.08) !important;
+    border: 1px solid rgba(148,163,184,.30) !important;
+    color: #eaf0ff !important;
 }
+.navbar-atai select option{
+    background: rgba(17,24,39,1) !important;
+    color: #eaf0ff !important;
+}
+/* ======================================================================
+   🔧 CRITICAL INTERACTION FIXES (DO NOT REMOVE)
+   Purpose:
+   - Restore clickability
+   - Fix dropdowns, selects, filters
+   - Resolve glass/z-index conflicts
+   ====================================================================== */
+/* ==============================
+   FINAL FIXES (SAFE)
+   ============================== */
+
+/* Keep navbar on top */
+.navbar-atai{
+    position: sticky;
+    top: 0;
+    z-index: 1035 !important;
+}
+
+/* Dropdown above all */
+.navbar-atai .dropdown-menu{
+    z-index: 99999 !important;
+}
+
+/* Select2 above modals/filters */
+.select2-container{
+    z-index: 1066 !important;
+}
+.select2-container--open{
+    z-index: 1070 !important;
+}
+
+/* Do NOT let overlays block clicks */
+body::before{
+    pointer-events: none !important;
+}
+
+
+/* ============================================================
+   FINAL FIX PACK (put at the VERY END of atai-theme.css)
+   - fixes “nothing clickable”
+   - fixes dropdown behind panels
+   - fixes navbar right section wrapping
+   ============================================================ */
+
+/* ✅ Make sure overlays never block clicks */
+body::before { pointer-events: none !important; }
+
+/* ✅ Navbar must be above filters/panels */
+.navbar-atai{
+    position: sticky;
+    top: 0;
+    z-index: 1050 !important;
+}
+
+/* ✅ Dropdown must always appear on top */
+.navbar-atai .dropdown-menu{
+    z-index: 2000 !important;
+}
+
+
+/* ✅ IMPORTANT: remove “absolute dropdown forcing”
+   If you previously have: .dropdown-menu { position:absolute !important; }
+   it can break bootstrap in mobile.
+*/
+
+/* ✅ Select2 z-index (dropdown appears above modals/panels) */
+.select2-container { z-index: 2050 !important; }
+.select2-container--open { z-index: 2060 !important; }
+
+

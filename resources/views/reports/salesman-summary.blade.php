@@ -1,4 +1,6 @@
-@php use Carbon\Carbon; @endphp
+@php
+    use Carbon\Carbon;
+@endphp
     <!doctype html>
 <html lang="en">
 <head>
@@ -6,16 +8,22 @@
     <title>ATAI – Salesman Summary {{ $year }}</title>
 
     <style>
-        /* ============================================================
+        /* ======================================================================
            ATAI – DOMPDF PROFESSIONAL REPORT (A4 LANDSCAPE)
-           - DOMPDF-safe: tables/float friendly (no flex dependency)
-           - Clean + executive table theme
-           - De-duplicated (removed repeated gm3 styles)
-           - Keeps all your existing class names/behavior
-        ============================================================ */
+           ----------------------------------------------------------------------
+           Goals
+           - DOMPDF-safe layout (tables > flex; fixed col widths)
+           - Executive readability (consistent typography, zebra rows, badges)
+           - Keep existing class names + behavior (only formatting/comments)
+           ====================================================================== */
 
-        /* A4 landscape */
-        @page { margin: 14px 14px; size: A4 landscape; }
+        /* =========================
+           PAGE SETUP
+           ========================= */
+        @page {
+            margin: 14px 14px;
+            size: A4 landscape;
+        }
 
         * { box-sizing: border-box; }
 
@@ -28,10 +36,16 @@
             background: #ffffff;
         }
 
-        .page { background: #ffffff; padding: 12px 12px; }
+        .page {
+            background: #ffffff;
+            padding: 12px 12px;
+        }
+
         .page-break { page-break-before: always; }
 
-        /* ---------------- SECTION TITLES ---------------- */
+        /* =========================
+           SECTION TITLES
+           ========================= */
         .section-title {
             text-align: center;
             margin-top: 18px;
@@ -49,7 +63,9 @@
             margin-bottom: 2px;
         }
 
-        /* ---------------- HEADER (DOMPDF-safe using table) ---------------- */
+        /* =========================
+           HEADER (DOMPDF-safe table)
+           ========================= */
         .header-table {
             width: 100%;
             border-collapse: collapse;
@@ -74,9 +90,13 @@
             color: #0f172a;
         }
 
-        .report-date { font-size: 9px; color: #64748b; margin-top: 2px; }
+        .report-date {
+            font-size: 9px;
+            color: #64748b;
+            margin-top: 2px;
+        }
 
-        /* pills */
+        /* Pills (Year + Area) */
         .report-context { margin-top: 4px; white-space: nowrap; }
 
         .context-pill {
@@ -92,16 +112,46 @@
             margin-left: 6px;
         }
 
-        .context-pill.year { background: #eef2ff; border-color: #c7d2fe; color: #1e3a8a; }
-        .context-pill.area.all { background: #ede9fe; border-color: #ddd6fe; color: #4c1d95; }
-        .context-pill.area.eastern { background: #e0f2fe; border-color: #bae6fd; color: #075985; }
-        .context-pill.area.central { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
-        .context-pill.area.western { background: #ffedd5; border-color: #fed7aa; color: #9a3412; }
+        .context-pill.year {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            color: #1e3a8a;
+        }
 
-        /* ---------------- KPI STRIP ---------------- */
+        .context-pill.area.all {
+            background: #ede9fe;
+            border-color: #ddd6fe;
+            color: #4c1d95;
+        }
+
+        .context-pill.area.eastern {
+            background: #e0f2fe;
+            border-color: #bae6fd;
+            color: #075985;
+        }
+
+        .context-pill.area.central {
+            background: #dcfce7;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+
+        .context-pill.area.western {
+            background: #ffedd5;
+            border-color: #fed7aa;
+            color: #9a3412;
+        }
+
+        /* =========================
+           KPI STRIP
+           ========================= */
         .kpi-strip { margin-top: 10px; margin-bottom: 10px; width: 100%; }
 
-        .kpi-row { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .kpi-row {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
 
         .kpi-row td {
             width: 33.333%;
@@ -109,6 +159,7 @@
             padding-right: 8px;
             border: 0 !important;
         }
+
         .kpi-row td:last-child { padding-right: 0; }
 
         .kpi-card {
@@ -120,10 +171,24 @@
         }
 
         .kpi-label { font-size: 8px; color: #64748b; }
-        .kpi-value { font-size: 13px; font-weight: 900; margin-top: 3px; color: #0f172a; }
-        .kpi-footnote { font-size: 8px; color: #64748b; margin-top: 3px; line-height: 1.2; }
 
-        /* ---------------- SUMMARY CARDS ---------------- */
+        .kpi-value {
+            font-size: 13px;
+            font-weight: 900;
+            margin-top: 3px;
+            color: #0f172a;
+        }
+
+        .kpi-footnote {
+            font-size: 8px;
+            color: #64748b;
+            margin-top: 3px;
+            line-height: 1.2;
+        }
+
+        /* =========================
+           SUMMARY CARDS
+           ========================= */
         .summary-card {
             margin-top: 8px;
             margin-bottom: 10px;
@@ -171,21 +236,32 @@
             font-weight: 800;
         }
 
-        /* ---------------- TABLE BASICS (DOMPDF paging rules) ---------------- */
-        table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+        /* =========================
+           DOMPDF TABLE PAGING RULES
+           ========================= */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            page-break-inside: auto;
+        }
+
         thead { display: table-header-group; }
         tfoot { display: table-footer-group; }
-        tr { page-break-inside: auto; }
+        tr    { page-break-inside: auto; }
+
         .keep-together { page-break-inside: avoid; }
 
-        /* ---------------- DATA TABLES (Region/Salesman monthly) ---------------- */
+        /* =========================
+           DATA TABLES (Region/Salesman monthly)
+           ========================= */
         table.data {
             table-layout: fixed;
             margin-top: 6px;
             border: 1px solid #e2e8f0;
         }
 
-        table.data th, table.data td {
+        table.data th,
+        table.data td {
             border: 1px solid #e2e8f0;
             padding: 4px 6px;
             font-size: 9px;
@@ -208,17 +284,19 @@
             color: #0f172a;
         }
 
-        /* Zebra rows for readability */
         table.data tr:nth-child(even) td { background: #f8fafc; }
 
-        /* ---------------- MATRIX TABLES (Product + Performance) ---------------- */
+        /* =========================
+           MATRIX TABLES (Product + Performance)
+           ========================= */
         table.matrix {
             table-layout: fixed;
             margin-top: 6px;
             border: 1px solid #e2e8f0;
         }
 
-        table.matrix th, table.matrix td {
+        table.matrix th,
+        table.matrix td {
             border: 1px solid #e2e8f0;
             padding: 3px 4px;
             vertical-align: middle;
@@ -251,7 +329,10 @@
             padding-top: 6px;
         }
 
-        .matrix .rowLabelCell { background: #ffffff; font-weight: 900; }
+        .matrix .rowLabelCell {
+            background: #ffffff;
+            font-weight: 900;
+        }
 
         .matrix td.num,
         .matrix td.pct {
@@ -264,7 +345,9 @@
 
         .matrix td.dash { text-align: center; color: #94a3b8; }
 
-        /* ---------------- BADGES (Salesman/Region Pills) ---------------- */
+        /* =========================
+           BADGES (Salesman/Region Pills)
+           ========================= */
         .salesman-badge,
         .area-badge {
             display: inline-block;
@@ -289,7 +372,9 @@
         .eastern { background: #0ea5e9; color: #083344; }
         .western { background: #f97316; color: #7c2d12; }
 
-        /* ---------------- Product mix flags (pills) ---------------- */
+        /* =========================
+           PRODUCT MIX FLAGS (PILLS)
+           ========================= */
         .flag-pill {
             display: inline-block;
             padding: 1px 6px;
@@ -305,9 +390,16 @@
         .flag-low  { background: #ffedd5; color: #9a3412; border-color: #fed7aa; } /* orange */
         .flag-ok   { background: #dcfce7; color: #166534; border-color: #bbf7d0; } /* green */
 
-        .small-muted { font-size: 7px; color: #64748b; margin-left: 6px; white-space: nowrap; }
+        .small-muted {
+            font-size: 7px;
+            color: #64748b;
+            margin-left: 6px;
+            white-space: nowrap;
+        }
 
-        /* ---------------- Performance flags ---------------- */
+        /* =========================
+           PERFORMANCE FLAGS
+           ========================= */
         .flag {
             display: inline-block;
             padding: 2px 10px;
@@ -325,9 +417,9 @@
         .flag-danger    { background: #fee2e2; color: #7f1d1d; border: 1px solid #fca5a5; }
         .flag-na        { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
 
-        /* ============================================================
+        /* ======================================================================
            REGION DISTRIBUTION MATRIX
-        ============================================================ */
+           ====================================================================== */
         table.region-matrix {
             width: 100%;
             border-collapse: collapse;
@@ -336,7 +428,8 @@
             border: 1px solid #e2e8f0;
         }
 
-        table.region-matrix th, table.region-matrix td {
+        table.region-matrix th,
+        table.region-matrix td {
             border: 1px solid #e2e8f0;
             padding: 4px 6px;
             font-size: 9px;
@@ -366,7 +459,10 @@
             vertical-align: top;
         }
 
-        .region-matrix .regionCell { color: #475569; font-weight: 800; }
+        .region-matrix .regionCell {
+            color: #475569;
+            font-weight: 800;
+        }
 
         .pill {
             display: inline-block;
@@ -382,40 +478,11 @@
         .pill-flag { background: #fef3c7; color: #78350f; border-color: #fde68a; } /* FLAG */
         .pill-dom  { background: #fee2e2; color: #7f1d1d; border-color: #fecaca; } /* DOMINANT */
 
-        /* ---------------- One-line summary block ---------------- */
-        .one-line-summary {
-            border-left: 4px solid #0ea5e9;
-            background: #f8fafc;
-            padding: 8px 12px;
-            margin-bottom: 12px;
-            border-radius: 6px;
-        }
-
-        .summary-label {
-            display: inline-block;
-            font-size: 9px;
-            font-weight: 900;
-            letter-spacing: 0.06em;
-            color: #0369a1;
-            background: #e0f2fe;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-bottom: 4px;
-        }
-
-        .summary-text {
-            margin-top: 4px;
-            font-size: 11px;
-            font-weight: 800;
-            line-height: 1.35;
-            color: #0f172a;
-        }
-
-        /* ---------------- BI insight section (text-only) ---------------- */
+        /* =========================
+           INSIGHTS (Text-only)
+           ========================= */
         .bi { font-family: DejaVu Sans, Arial, sans-serif; font-size: 11.5px; color: #111; }
-
         .bi-title { font-size: 18px; font-weight: 900; margin: 0 0 6px 0; }
-
         .bi-debug { font-size: 10px; color: #b14a3a; margin: 0 0 10px 0; }
 
         h3 { font-size: 14px; margin: 10px 0 6px 0; font-weight: 900; }
@@ -433,14 +500,10 @@
         .sec-low  { color: #b06000; font-weight: 900; }
         .sec-attn { color: #b00020; font-weight: 900; }
 
-        /* Bullet dots */
         .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; position: relative; top: 1px; }
         .dot-green { background: #1e8e3e; }
         .dot-amber { background: #f29900; }
         .dot-red   { background: #d93025; }
-
-        /* Confidence badge */
-        .ins-title { font-weight: 500; }
 
         .badge {
             display: inline-block;
@@ -457,159 +520,161 @@
         .c-med  { color: #b26a00; border-color: #f5deb8; background: #fff6e8; }
         .c-low  { color: #b00020; border-color: #f2c2c9; background: #fff0f2; }
 
-        .action { margin-top: 2px; font-style: normal; }
-        .action strong { font-weight: 900; }
+        /* ======================================================================
+           GM CONTROL BLOCK (DOMPDF SAFE)
+           - No emoji/check characters (DOMPDF tofu)
+           - Uses border-drawn checkmark
+           ====================================================================== */
+        .gm3-wrap {
+            margin-top: 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 10px 12px;
+            background: #fff;
+        }
 
-        .one-line { margin-top: 4px; font-weight: 900; }
+        .gm3-title {
+            font-weight: 900;
+            font-size: 12px;
+            margin: 0 0 8px 0;
+            color: #111827;
+        }
+
+        table.gm3-row {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        table.gm3-row td {
+            width: 33.333%;
+            vertical-align: top;
+            padding: 0 10px 0 0;
+            border: 0 !important;
+        }
+
+        table.gm3-row td:last-child { padding-right: 0; }
+
+        .gm3-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 10px 12px;
+            background: #f9fafb;
+            height: 78px;         /* stable card height */
+            overflow: hidden;      /* prevent spill */
+        }
+
+        .gm3-titleline {
+            font-size: 10.5px;
+            font-weight: 900;
+            color: #111827;
+            margin: 0 0 6px 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .gm3-status { margin: 0 0 6px 0; white-space: nowrap; }
+
+        .gm3-check {
+            display: inline-block;
+            margin-right: 14px;
+            font-size: 9px;
+            font-weight: 800;
+            color: #111827;
+        }
+
+        .gm3-check .box {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border: 2px solid #111827;
+            margin-right: 6px;
+            vertical-align: -2px;
+            position: relative;
+            background: #fff;
+        }
+
+        /* Checked state: fill + draw check mark with borders (no "✓" char) */
+        .gm3-check.checked .box { background: #111827; }
+
+        .gm3-check.checked .box:after {
+            content: "";
+            position: absolute;
+            left: 2px;
+            top: 1px;
+            width: 4px;
+            height: 7px;
+            border-right: 2px solid #ffffff;
+            border-bottom: 2px solid #ffffff;
+            transform: rotate(45deg);
+        }
+
+        .gm3-check.muted { opacity: 0.45; }
+
+        .gm3-s {
+            font-size: 9.2px;
+            line-height: 1.25;
+            color: #374151;
+        }
 
         /* =========================
-           GM CONTROL BLOCK FIX
+           Sub-product row styling
            ========================= */
-        /* ===== GM CONTROLS (DOMPDF SAFE) ===== */
-        .gm3-wrap{
-            margin-top:10px;
-            border:1px solid #e5e7eb;
-            border-radius:12px;
-            padding:10px 12px;
-            background:#fff;
-        }
-
-        .gm3-title{
-            font-weight:900;
-            font-size:12px;
-            margin:0 0 8px 0;
-            color:#111827;
-        }
-
-        table.gm3-row{
-            width:100%;
-            border-collapse:collapse;
-            table-layout:fixed;
-        }
-
-        table.gm3-row td{
-            width:33.333%;
-            vertical-align:top;
-            padding:0 10px 0 0;
-            border:0 !important;
-        }
-
-        table.gm3-row td:last-child{
-            padding-right:0;
-        }
-
-        .gm3-card{
-            border:1px solid #e5e7eb;
-            border-radius:10px;
-            padding:10px 12px;
-            background:#f9fafb;
-            height:78px;              /* stable card height */
-            overflow:hidden;          /* prevent spill */
-        }
-
-        .gm3-titleline{
-            font-size:10.5px;
-            font-weight:900;
-            color:#111827;
-            margin:0 0 6px 0;
-            white-space:nowrap;
-            overflow:hidden;
-            text-overflow:ellipsis;
-        }
-
-        .gm3-status{
-            margin:0 0 6px 0;
-            white-space:nowrap;
-        }
-
-        .gm3-check{
-            display:inline-block;
-            margin-right:14px;
-            font-size:9px;
-            font-weight:800;
-            color:#111827;
-        }
-
-        .gm3-check .box{
-            display:inline-block;
-            width:10px;
-            height:10px;
-            border:2px solid #111827;
-            margin-right:6px;
-            vertical-align:-2px;
-            position:relative;
-            background:#fff;
-        }
-
-        /* ✅ checked state: fill + draw checkmark with borders (NO "✓" text) */
-        .gm3-check.checked .box{
-            background:#111827;
-        }
-        .gm3-check.checked .box:after{
-            content:"";
-            position:absolute;
-            left:2px;
-            top:1px;
-            width:4px;
-            height:7px;
-            border-right:2px solid #ffffff;
-            border-bottom:2px solid #ffffff;
-            transform:rotate(45deg);
-        }
-
-        .gm3-check.muted{
-            opacity:0.45;
-        }
-
-        .gm3-s{
-            font-size:9.2px;
-            line-height:1.25;
-            color:#374151;
-        }
         .subproduct-row td { font-size: 10px; }
-        .subproduct-label { padding-left: 12px;   color: #0f172a;   }
-        .flag-pill.pending { background:#334155; color:#e2e8f0; border:1px solid #475569; }
-    </style>
+        .subproduct-label { padding-left: 12px; color: #0f172a; }
 
+        .flag-pill.pending {
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+        }
+    </style>
 </head>
 
 <body>
-
 @php
-    /* ============================================================
-       Helpers
-    ============================================================ */
+    /* ======================================================================
+       VIEW HELPERS (Formatting + defensive fallbacks)
+       ====================================================================== */
+
+    /** Format SAR values. Keep "-" for zero (your current UI behavior). */
     $sar = function($v){
         $v = (float)$v;
-        return $v == 0 ? '-' : 'SAR '.number_format($v,0);
+        return $v == 0 ? '-' : 'SAR ' . number_format($v, 0);
     };
 
+    // Headline KPI inputs
     $inqTotal = (float)($kpis['inquiries_total'] ?? 0);
     $poTotal  = (float)($kpis['pos_total'] ?? 0);
 
+    // Gap metrics: safe defaults if backend didn't pass them
     $gapVal = (float)($kpis['gap_value'] ?? ($inqTotal - $poTotal));
     $gapPct = (float)($kpis['gap_percent'] ?? ($inqTotal > 0 ? round($poTotal / $inqTotal * 100, 1) : 0));
 
+    /** Map salesman name to badge class (supports partial matches). */
     $badgeClass = function($name) {
         $k = strtolower(trim((string)$name));
         if (str_contains($k, 'sohaib')) return 'sohaib';
-        if (str_contains($k, 'tariq')) return 'tariq';
-        if (str_contains($k, 'jamal')) return 'jamal';
-        if (str_contains($k, 'abdo')) return 'abdo';
-        if (str_contains($k, 'ahmed')) return 'ahmed';
+        if (str_contains($k, 'tariq'))  return 'tariq';
+        if (str_contains($k, 'jamal'))  return 'jamal';
+        if (str_contains($k, 'abdo'))   return 'abdo';
+        if (str_contains($k, 'ahmed'))  return 'ahmed';
         return 'other';
     };
 
-    /* ============================================================
-       Targets / Region-to-salesmen mapping
-    ============================================================ */
+    /* ======================================================================
+       TARGETS + Business rule: Salesman -> Region mapping
+       - Used for injecting TARGET rows in Performance Matrix.
+       - Also used for expectations in Region Concentration matrix.
+       ====================================================================== */
     $yearlyTargets = [
         'Eastern' => 50000000,
         'Central' => 50000000,
         'Western' => 36000000,
     ];
 
-    // Expected region per salesman (your business rule)
+    // Expected region per salesman (business rule)
     $salesmanToRegion = [
         'SOHAIB' => 'Eastern',
         'TARIQ'  => 'Central',
@@ -618,22 +683,26 @@
         'AHMED'  => 'Western',
     ];
 
-    // How many salesmen share each region (Central has 2)
+    // Count how many salesmen share each region target (Central = 2)
     $regionSalesmenCount = [];
     foreach ($salesmanToRegion as $s => $r) {
         $regionSalesmenCount[$r] = ($regionSalesmenCount[$r] ?? 0) + 1;
     }
 
-    // Inject TARGET rows into salesmanKpiMatrix
+    /* ======================================================================
+       Inject TARGET rows into $salesmanKpiMatrix
+       - TARGET is monthly (region yearly / 12 / salesman count in region)
+       - Adds 13 cells (Jan..Dec + Total)
+       ====================================================================== */
     foreach (($salesmanKpiMatrix ?? []) as $salesman => &$metrics) {
-        $sKey = strtoupper(trim($salesman));
+        $sKey   = strtoupper(trim($salesman));
         $region = $salesmanToRegion[$sKey] ?? null;
 
-        $yearTarget = $region ? ($yearlyTargets[$region] ?? 0) : 0;
-        $monthlyTarget = $yearTarget > 0 ? ($yearTarget / 12) : 0;
+        $yearTarget    = $region ? (float)($yearlyTargets[$region] ?? 0) : 0.0;
+        $monthlyTarget = $yearTarget > 0 ? ($yearTarget / 12) : 0.0;
 
-        // split if multiple salesmen share region target
-        $div = $region ? max(1, ($regionSalesmenCount[$region] ?? 1)) : 1;
+        // Split if multiple salesmen share region target (e.g., Central)
+        $div = $region ? max(1, (int)($regionSalesmenCount[$region] ?? 1)) : 1;
         $salesmanMonthlyTarget = $monthlyTarget / $div;
 
         $targetRow = array_fill(0, 12, $salesmanMonthlyTarget);
@@ -644,17 +713,20 @@
     unset($metrics);
 @endphp
 
-{{-- ============================================================
-   PAGE 1: Header + KPIs + Summary cards
-============================================================ --}}
+{{-- ======================================================================
+   PAGE 1: Header + KPI strip + Summary blocks + Charts + GM Controls
+   ====================================================================== --}}
 <div class="page">
 
-    <!-- ========= HEADER ========= -->
+    {{-- =========================
+       HEADER
+       ========================= --}}
     <table class="header-table">
         <tr>
             <td class="header-title">
                 <div class="h1">ATAI Sales Performance Snapshot</div>
             </td>
+
             <td class="header-meta">
                 <div class="report-date">
                     Report Date<br>
@@ -662,6 +734,7 @@
                 </div>
 
                 @php
+                    // Normalize area pill (only allow known values)
                     $areaNorm = $area ?? 'All';
                     $areaNorm = ucfirst(strtolower(trim($areaNorm)));
                     if (!in_array($areaNorm, ['Eastern','Central','Western'], true)) $areaNorm = 'All';
@@ -677,7 +750,9 @@
         </tr>
     </table>
 
-    <!-- ========= KPI STRIP ========= -->
+    {{-- =========================
+       KPI STRIP
+       ========================= --}}
     <div class="kpi-strip">
         <table class="kpi-row">
             <tr>
@@ -688,6 +763,7 @@
                         <div class="kpi-footnote">Sum of enquiry values (projects)</div>
                     </div>
                 </td>
+
                 <td>
                     <div class="kpi-card">
                         <div class="kpi-label">POs Total</div>
@@ -695,6 +771,7 @@
                         <div class="kpi-footnote">Sum of PO values (sales orders)</div>
                     </div>
                 </td>
+
                 <td>
                     <div class="kpi-card">
                         <div class="kpi-label">Gap Coverage (POs vs Quotations)</div>
@@ -709,7 +786,10 @@
         </table>
     </div>
 
-    <!-- ========= YEARLY TARGETS ========= -->
+    {{-- =========================
+       YEARLY TARGETS SUMMARY
+       - If area != All, show only that region
+       ========================= --}}
     @php
         $targetRows = [
             'Eastern' => ['badge' => 'eastern', 'target' => $yearlyTargets['Eastern'] ?? 0, 'salesmen' => ['SOHAIB' => 'sohaib']],
@@ -724,6 +804,7 @@
 
     <div class="summary-card keep-together">
         <div class="summary-title">Yearly Target (SAR) — {{ $year }}</div>
+
         <table class="summary-table">
             <thead>
             <tr>
@@ -733,12 +814,15 @@
                 <th>Salesmen</th>
             </tr>
             </thead>
+
             <tbody>
             @foreach($targetRows as $region => $info)
                 <tr>
-                    <td><span class="area-badge {{ $info['badge'] }}">{{ strtoupper($region) }}</span></td>
-                    <td class="num">SAR {{ number_format((float)$info['target'],0) }}</td>
-                    <td class="num">SAR {{ number_format((float)$info['target']/12,0) }}</td>
+                    <td>
+                        <span class="area-badge {{ $info['badge'] }}">{{ strtoupper($region) }}</span>
+                    </td>
+                    <td class="num">SAR {{ number_format((float)$info['target'], 0) }}</td>
+                    <td class="num">SAR {{ number_format((float)$info['target']/12, 0) }}</td>
                     <td>
                         @foreach($info['salesmen'] as $name => $cls)
                             <span class="salesman-badge {{ $cls }}">{{ $name }}</span>
@@ -750,19 +834,27 @@
         </table>
     </div>
 
-    <!-- ========= SUMMARY: BY SALESMAN ========= -->
+    {{-- =========================
+       SUMMARY: Quotations vs POs BY SALESMAN (Year totals)
+       ========================= --}}
     @php
         $salesmanSummary = [];
         foreach (($inquiriesBySalesman ?? []) as $salesman => $row) {
-            $inqT = (float) end($row);
+            $inqT  = (float) end($row);
             $poRow = ($posBySalesman[$salesman] ?? array_fill(0, count($row), 0));
-            $poT = (float) end($poRow);
-            $salesmanSummary[] = ['salesman'=>$salesman, 'inq'=>$inqT, 'pos'=>$poT];
+            $poT   = (float) end($poRow);
+
+            $salesmanSummary[] = [
+                'salesman' => $salesman,
+                'inq'      => $inqT,
+                'pos'      => $poT,
+            ];
         }
     @endphp
 
     <div class="summary-card">
         <div class="summary-title">Quotations vs POs by Salesman — Year {{ $year }}</div>
+
         <table class="summary-table">
             <thead>
             <tr>
@@ -771,11 +863,14 @@
                 <th class="num">POs Received (SAR)</th>
             </tr>
             </thead>
+
             <tbody>
             @foreach($salesmanSummary as $row)
                 <tr>
-                    <td><span
-                            class="salesman-badge {{ $badgeClass($row['salesman']) }}">{{ strtoupper($row['salesman']) }}</span>
+                    <td>
+                        <span class="salesman-badge {{ $badgeClass($row['salesman']) }}">
+                            {{ strtoupper($row['salesman']) }}
+                        </span>
                     </td>
                     <td class="num">{{ $sar($row['inq']) }}</td>
                     <td class="num">{{ $sar($row['pos']) }}</td>
@@ -785,19 +880,27 @@
         </table>
     </div>
 
-    <!-- ========= SUMMARY: BY REGION ========= -->
+    {{-- =========================
+       SUMMARY: Quotations vs POs BY REGION (Year totals)
+       ========================= --}}
     @php
         $regionSummary = [];
         foreach (($inqByRegion ?? []) as $region => $row) {
             $inqTot = (float) end($row);
             $poRow  = ($poByRegion[$region] ?? array_fill(0, count($row), 0));
             $poTot  = (float) end($poRow);
-            $regionSummary[] = ['region'=>$region, 'inq'=>$inqTot, 'pos'=>$poTot];
+
+            $regionSummary[] = [
+                'region' => $region,
+                'inq'    => $inqTot,
+                'pos'    => $poTot,
+            ];
         }
     @endphp
 
     <div class="summary-card">
         <div class="summary-title">Quotations vs POs by Region — Year {{ $year }}</div>
+
         <table class="summary-table">
             <thead>
             <tr>
@@ -806,11 +909,14 @@
                 <th class="num">POs Received (SAR)</th>
             </tr>
             </thead>
+
             <tbody>
             @foreach($regionSummary as $r)
                 @php $aLower = strtolower($r['region']); @endphp
                 <tr>
-                    <td><span class="area-badge {{ $aLower }}">{{ strtoupper($r['region']) }}</span></td>
+                    <td>
+                        <span class="area-badge {{ $aLower }}">{{ strtoupper($r['region']) }}</span>
+                    </td>
                     <td class="num">{{ $sar($r['inq']) }}</td>
                     <td class="num">{{ $sar($r['pos']) }}</td>
                 </tr>
@@ -819,12 +925,13 @@
         </table>
     </div>
 
-
-
+    {{-- =========================
+       CHARTS (Product mix + Monthly performance)
+       NOTE: DOMPDF likes <table> layouts for image grids.
+       ========================= --}}
     <table style="width:100%; border-collapse:collapse; margin-top:10px;">
         @foreach(($salesmen ?? []) as $s)
             <tr>
-                {{-- LEFT: Product Mix --}}
                 <td style="width:50%; padding:6px 10px 6px 0; vertical-align:top;">
                     @if(!empty($charts[$s]['product_mix']))
                         <img
@@ -835,7 +942,6 @@
                     @endif
                 </td>
 
-                {{-- RIGHT: Monthly Performance --}}
                 <td style="width:50%; padding:6px 0 6px 10px; vertical-align:top;">
                     @if(!empty($charts[$s]['monthly_perf']))
                         <img
@@ -849,11 +955,11 @@
         @endforeach
     </table>
 
-
-    {{-- ============================================================
-       PAGE 4: Gm controlless
-
-    ============================================================ --}}
+    {{-- =========================
+       GM CONTROLS
+       - Uses $gm_controls payload
+       - Strips emoji to avoid DOMPDF tofu blocks
+       ========================= --}}
     @php $gm = $gm_controls ?? []; @endphp
 
     <div class="gm3-wrap">
@@ -866,9 +972,14 @@
                         $it = $gm[$k] ?? ['title'=>'—','status'=>'—','ok'=>false,'detail'=>''];
                         $ok = (bool)($it['ok'] ?? false);
 
-                        // ✅ Safety: strip emoji/icon chars that cause black tofu in DOMPDF
-                        $title  = is_string($it['title'] ?? null)  ? preg_replace('/[\x{1F000}-\x{1FFFF}\x{2600}-\x{27BF}]/u', '', (string)$it['title']) : '—';
-                        $detail = is_string($it['detail'] ?? null) ? preg_replace('/[\x{1F000}-\x{1FFFF}\x{2600}-\x{27BF}]/u', '', (string)$it['detail']) : '';
+                        // Safety: strip emoji/icon chars that cause black tofu in DOMPDF
+                        $title  = is_string($it['title'] ?? null)
+                            ? preg_replace('/[\x{1F000}-\x{1FFFF}\x{2600}-\x{27BF}]/u', '', (string)$it['title'])
+                            : '—';
+
+                        $detail = is_string($it['detail'] ?? null)
+                            ? preg_replace('/[\x{1F000}-\x{1FFFF}\x{2600}-\x{27BF}]/u', '', (string)$it['detail'])
+                            : '';
                     @endphp
 
                     <td>
@@ -876,15 +987,13 @@
                             <div class="gm3-titleline">{{ $title !== '' ? $title : '—' }}</div>
 
                             <div class="gm3-status">
-                            <span class="gm3-check {{ $ok ? 'checked' : 'muted' }}">
-                                <span class="box"></span>
-                                <span class="lbl">YES</span>
-                            </span>
+                                <span class="gm3-check {{ $ok ? 'checked' : 'muted' }}">
+                                    <span class="box"></span><span class="lbl">YES</span>
+                                </span>
 
                                 <span class="gm3-check {{ !$ok ? 'checked' : 'muted' }}">
-                                <span class="box"></span>
-                                <span class="lbl">NO</span>
-                            </span>
+                                    <span class="box"></span><span class="lbl">NO</span>
+                                </span>
                             </div>
 
                             <div class="gm3-s">{{ $detail }}</div>
@@ -894,17 +1003,13 @@
             </tr>
         </table>
     </div>
-
 </div>
 
-
-{{-- ============================================================
-   PAGE 2: Inquiries & POs monthly + ✅ Region Distribution Matrix
-   IMPORTANT: This table MUST be inside .page for DOMPDF stability
-============================================================ --}}
+{{-- ======================================================================
+   PAGE 2: POs by Region + PO Regional Concentration Matrix
+   ====================================================================== --}}
 <div class="page-break"></div>
 <div class="page">
-
 
     <div class="section-title" style="margin-top:12px;">POs (Sales Orders Received) — sums by region</div>
     <div class="section-sub">Values by month based on PO received date (salesorderlog).</div>
@@ -918,10 +1023,11 @@
             @endforeach
         </tr>
         </thead>
+
         <tbody>
         @foreach(($poByRegion ?? []) as $region => $row)
+            @php $aLower = strtolower($region); @endphp
             <tr>
-                @php $aLower = strtolower($region); @endphp
                 <td><span class="area-badge {{ $aLower }}">{{ strtoupper($region) }}</span></td>
                 @foreach($row as $val)
                     <td class="num">{{ $sar($val) }}</td>
@@ -931,16 +1037,17 @@
         </tbody>
     </table>
 
-
-    {{-- ============================================================
-       ✅ PO REGION DISTRIBUTION MATRIX (Sohaib/Eastern rule)
-       - FLAG if expected region share < 50%
-       - DOMINANT if any other region >= 50%
-    ============================================================ --}}
+    {{-- =========================
+       PO REGIONAL CONCENTRATION
+       Rules (Blade-only):
+       - ignore low totals (noise) under MIN_GRAND_FOR_FLAG
+       - FLAG salesman if expected region share < 50% and NOT top region
+       - DOMINANT if any non-expected region share >= 50%
+       ========================= --}}
     @php
         $months  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Total'];
         $regions = ['Eastern','Central','Western'];
-        $fmt = fn($v) => number_format((float)$v, 0);
+        $fmt     = fn($v) => number_format((float)$v, 0);
 
         $expectedRegionOf = function(string $salesman){
             $s = strtoupper(trim($salesman));
@@ -951,10 +1058,7 @@
         };
     @endphp
 
-    <div class="section-title" style="margin-top:12px;">
-        PO Regional Concentration
-    </div>
-    {{--    <div class="section-sub">Rule: if expected region share is below 50% → FLAG. If any other region ≥ 50% → DOMINANT.</div>--}}
+    <div class="section-title" style="margin-top:12px;">PO Regional Concentration</div>
 
     <table class="region-matrix">
         <colgroup>
@@ -981,10 +1085,15 @@
             @php
                 $expected = $expectedRegionOf($salesman);
 
-                $totE = (float)($byRegion['Eastern'][12] ?? 0);
-                $totC = (float)($byRegion['Central'][12] ?? 0);
-                $totW = (float)($byRegion['Western'][12] ?? 0);
+                $totE  = (float)($byRegion['Eastern'][12] ?? 0);
+                $totC  = (float)($byRegion['Central'][12] ?? 0);
+                $totW  = (float)($byRegion['Western'][12] ?? 0);
                 $grand = $totE + $totC + $totW;
+
+                // Thresholds
+                $MIN_GRAND_FOR_FLAG = 250000; // ignore low volume
+                $EXPECTED_MIN_SHARE = 0.50;
+                $DOMINANT_MIN_SHARE = 0.50;
 
                 $share = function(string $rg) use ($totE,$totC,$totW,$grand){
                     if ($grand <= 0) return 0.0;
@@ -992,38 +1101,42 @@
                     return $v / $grand;
                 };
 
-                $expectedShare = $share($expected);
-                $flagSalesman  = ($grand > 0 && $expected !== 'Other' && $expectedShare < 0.50);
+                $shares = [
+                    'Eastern' => $share('Eastern'),
+                    'Central' => $share('Central'),
+                    'Western' => $share('Western'),
+                ];
+
+                $expectedShare = $shares[$expected] ?? 0.0;
+                $topRegion     = array_keys($shares, max($shares))[0] ?? null;
+
+                $allowFlags   = ($grand >= $MIN_GRAND_FOR_FLAG) && ($expected !== 'Other');
+                $flagSalesman = ($allowFlags && $expectedShare < $EXPECTED_MIN_SHARE && $topRegion !== $expected);
             @endphp
 
             @foreach($regions as $i => $rg)
                 @php
-                    $row = $byRegion[$rg] ?? array_fill(0, 13, 0);
-                    $rgShare = $share($rg);
-                    $flagRegion = ($grand > 0 && $expected !== 'Other' && $rg !== $expected && $rgShare >= 0.50);
+                    $row       = $byRegion[$rg] ?? array_fill(0, 13, 0);
+                    $rgShare   = $share($rg);
+                    $flagRegion = ($allowFlags && $rg !== $expected && $rgShare >= $DOMINANT_MIN_SHARE);
                 @endphp
 
                 <tr>
                     @if($i === 0)
                         <td rowspan="{{ count($regions) }}" class="salesmanCell">
                             <span class="salesman-badge {{ $badgeClass($salesman) }}">{{ strtoupper($salesman) }}</span>
-
                             @if($flagSalesman)
                                 <span class="pill pill-flag">FLAG</span>
                             @endif
-
-                            <br>
-                            {{--                            <span class="small-muted">--}}
-                            {{--                                Expected: {{ $expected }} @if($grand>0) ({{ round($expectedShare*100,1) }}%) @endif--}}
-                            {{--                            </span>--}}
                         </td>
                     @endif
 
                     <td class="regionCell">
                         {{ $rg }}
-                        @if($grand>0)
-                            ({{ round($rgShare*100,1) }}%)
+                        @if($grand > 0)
+                            ({{ round($rgShare*100, 1) }}%)
                         @endif
+
                         @if($flagRegion)
                             <span class="pill pill-dom">DOMINANT</span>
                         @endif
@@ -1037,15 +1150,15 @@
         @endforeach
         </tbody>
     </table>
-
 </div>
 
-
-{{-- ============================================================
-   PAGE 3: Product matrices + Product mix flags
-============================================================ --}}
+{{-- ======================================================================
+   PAGE 3: Product matrices (Inquiries + POs) + mix flags
+   ====================================================================== --}}
 @php
-    // Product mix targets (percent of TOTAL per salesman)
+    /* =========================
+       Product mix targets (% of TOTAL per salesman)
+       ========================= */
     $mixTargets = [
         'DUCTWORK'          => 60,
         'ACCESSORIES'       => 10,
@@ -1054,16 +1167,17 @@
         'LOUVERS'           => 10,
     ];
 
-    // tolerance
+    // Tolerance (+/-)
     $tolHigh = 8;
     $tolLow  = 8;
 
+    /** Returns [flagText, flagClass] */
     $mixFlag = function(string $product, float $actualPct) use ($mixTargets, $tolHigh, $tolLow) {
         $p = strtoupper(trim($product));
         $t = $mixTargets[$p] ?? null;
         if ($t === null) return ['', ''];
 
-        // HARD RULE: 0% => danger
+        // Hard rule: 0% is critical
         if ($actualPct == 0.0) return ['Critical', 'flag-high'];
 
         if ($actualPct > ($t + $tolHigh)) return ['HIGH', 'flag-high'];
@@ -1071,22 +1185,11 @@
 
         return ['', ''];
     };
-
-    $salesmanTotalFromProducts = function(array $products){
-        $sum = 0.0;
-        foreach ($products as $prod => $row) {
-            $sum += (float)($row[12] ?? 0);
-        }
-        return $sum;
-    };
 @endphp
 
 @if(($area ?? 'All') === 'All')
     <div class="page-break"></div>
 @endif
-
-
-
 
 <div class="page">
     <div class="section-title">Product Matrix — Inquiries (Projects)</div>
@@ -1095,41 +1198,36 @@
     @php
         $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Total'];
 
-        // helper: ALWAYS 13 cells
+        /** Always return exactly 13 numeric cells. */
         $pad13row = function($row){
             $row = is_array($row) ? array_values($row) : [];
             $row = array_pad($row, 13, 0);
             return array_slice($row, 0, 13);
         };
 
-        // ✅ safe month-wise addition (13 cols)
+        /** Month-wise add for 13 cols (safe numeric). */
         $sum13 = function(array $a, array $b){
             $o = [];
-            for($i=0;$i<13;$i++) $o[$i] = (float)($a[$i] ?? 0) + (float)($b[$i] ?? 0);
+            for ($i=0; $i<13; $i++) $o[$i] = (float)($a[$i] ?? 0) + (float)($b[$i] ?? 0);
             return $o;
         };
 
-        // ✅ split rule (ABDO/AHMED) — GM report issue fix
+        // Western split rule (ABDO/AHMED) for GM ALL bug fix
         $specialSplitSalesmen = ['ABDO','AHMED'];
 
         /**
-         * ✅ IMPORTANT GM FIX:
-         * In GM "ALL" mode, $canViewAll sometimes isn't passed into the PDF view,
-         * so the split never shows even though it should.
-         *
-         * We infer GM-all if:
-         * - area is ALL
-         * - and canViewAll is missing OR false
-         * - (GM is the only one who can generate ALL anyway)
+         * GM "ALL" mode issue:
+         * - sometimes $canViewAll isn't passed into PDF view
+         * - we resolve it from multiple known keys, default false
          */
-        $canViewAllResolved =
-            (bool)($canViewAll
-                ?? ($meta['canViewAll'] ?? null)
-                ?? ($meta['can_view_all'] ?? null)
-                ?? false
-            );
+        $canViewAllResolved = (bool)(
+            ($canViewAll ?? null)
+            ?? ($meta['canViewAll'] ?? null)
+            ?? ($meta['can_view_all'] ?? null)
+            ?? false
+        );
 
-        // ✅ robust getter (handles many backend key variants)
+        /** Get first matching key from uppercase product map. */
         $pickRow = function(array $productsU, array $keys){
             foreach ($keys as $k) {
                 $ku = strtoupper(trim((string)$k));
@@ -1140,7 +1238,6 @@
     @endphp
 
     <table class="matrix">
-        {{-- ✅ Fixed widths = stable layout on every page --}}
         <colgroup>
             <col style="width:70px;">   {{-- Salesman --}}
             <col style="width:145px;">  {{-- Product --}}
@@ -1171,69 +1268,47 @@
                 $areaNormPdf = strtoupper(trim((string)($area ?? 'ALL')));
                 $isAllArea   = ($areaNormPdf === 'ALL');
 
-                // ✅ Normalize product keys to uppercase so we never miss due to case/spacing
+                // Normalize product keys to UPPERCASE so we never miss due to case/spacing
                 $productsU = [];
                 foreach ($products as $k => $v) {
                     $productsU[strtoupper(trim((string)$k))] = $v;
                 }
 
-                // ✅ Pull ductwork family rows using flexible key matching
-                $rowDuct = $pad13row($pickRow($productsU, [
-                    'DUCTWORK',
-                    'DUCT WORK',
+                // Pull ductwork family rows with flexible matching
+                $rowDuct = $pad13row($pickRow($productsU, ['DUCTWORK','DUCT WORK']));
+                $rowPre  = $pad13row($pickRow($productsU, [
+                    'PRE-INSULATED DUCTWORK','PRE INSULATED DUCTWORK','PRE-INSULATED','PRE INSULATED','PREINSULATED',
                 ]));
+                $rowSpiral = $pad13row($pickRow($productsU, ['SPIRAL DUCTWORK','SPIRAL DUCT','SPIRAL']));
 
-                $rowPre = $pad13row($pickRow($productsU, [
-                    'PRE-INSULATED DUCTWORK',
-                    'PRE INSULATED DUCTWORK',
-                    'PRE-INSULATED',
-                    'PRE INSULATED',
-                    'PREINSULATED',
-                ]));
-
-                $rowSpiral = $pad13row($pickRow($productsU, [
-                    'SPIRAL DUCTWORK',
-                    'SPIRAL DUCT',
-                    'SPIRAL',
-                ]));
-
-                // ✅ Parent DUCTWORK(TOTAL) = duct + pre + spiral
+                // Parent DUCTWORK(TOTAL) = duct + pre + spiral
                 $ductTotalRow = $sum13($sum13($rowDuct, $rowPre), $rowSpiral);
 
-                // ✅ GM FIX: show split for ABDO/AHMED in ALL area as well (GM view)
-                // - For region-specific PDF (Eastern/Central/Western): always OK
-                // - For ALL: OK if canViewAll=true OR canViewAll missing in PDF (common GM bug)
+                // GM FIX: show split for ABDO/AHMED in ALL area too
                 $showSplit = in_array($salesmanU, $specialSplitSalesmen, true)
                     && (
                         !$isAllArea
                         || $canViewAllResolved
-                        || ($isAllArea && !isset($canViewAll)) // ✅ GM PDF often doesn't pass it
+                        || ($isAllArea && !isset($canViewAll)) // GM PDF often doesn't pass it
                     );
 
-                // Build display rows in correct order
+                // Build rows to render (no double counting children)
                 $displayProducts = [];
-
-                // Always show DUCTWORK parent
                 $displayProducts[] = ['DUCTWORK (TOTAL)', $ductTotalRow, 'parent'];
 
-                // Children (ONLY when split enabled)
                 if ($showSplit) {
                     $displayProducts[] = ['PRE-INSULATED DUCTWORK', $rowPre, 'child'];
                     $displayProducts[] = ['SPIRAL DUCTWORK', $rowSpiral, 'child'];
                 }
 
-                // Other families (use normalized access so keys never miss)
+                // Other families (use normalized keys)
                 foreach (['DAMPERS','LOUVERS','SOUND ATTENUATORS','ACCESSORIES'] as $k) {
                     if (isset($productsU[$k])) {
                         $displayProducts[] = [$k, $pad13row($productsU[$k]), 'normal'];
-                    } else {
-                        // tolerate variants
-                        $alt = $pickRow($productsU, [$k]);
-                        if (!empty($alt)) $displayProducts[] = [$k, $pad13row($alt), 'normal'];
                     }
                 }
 
-                // ✅ Salesman total must NOT double count child rows
+                // Salesman total MUST NOT include child rows (avoid double count)
                 $salesmanTotal = 0.0;
                 foreach ($displayProducts as [$pname, $prow, $ptype]) {
                     if ($ptype === 'child') continue;
@@ -1241,7 +1316,7 @@
                 }
             @endphp
 
-            {{-- Salesman group header row --}}
+            {{-- Salesman group header --}}
             <tr class="salesman-group">
                 <td class="salesmanCell">
                     <span class="salesman-badge {{ $badgeClass($salesmanU) }}">{{ $salesmanU }}</span>
@@ -1249,15 +1324,15 @@
                 <td colspan="14" class="group-fill">Products Breakdown</td>
             </tr>
 
-            {{-- Render rows --}}
+            {{-- Product rows --}}
             @foreach($displayProducts as [$productName, $row, $ptype])
                 @php
                     $prodTotal = (float)($row[12] ?? 0);
 
-                    // Parent/Normal share (child rows still show % of salesman for display consistency)
+                    // Parent/Normal share of salesman total
                     $actualPct = $salesmanTotal > 0 ? round(($prodTotal / $salesmanTotal) * 100, 1) : 0.0;
 
-                    // Flags/targets should use base family key (strip " (TOTAL)")
+                    // Flags: use base family key (strip " (TOTAL)")
                     $flagKey = strtoupper(trim(str_replace(' (TOTAL)', '', $productName)));
                     [$flagTxt, $flagCls] = $mixFlag($flagKey, $actualPct);
                     $target = $mixTargets[$flagKey] ?? null;
@@ -1272,7 +1347,7 @@
                             {{ $actualPct }}%{{ $target !== null ? ' (T:' . $target . '%)' : '' }}
                         </span>
 
-                        {{-- do NOT show flags on child lines --}}
+                        {{-- Do NOT show flags on child lines --}}
                         @if($flagTxt !== '' && $ptype !== 'child')
                             <span class="flag-pill {{ $flagCls }}">{{ $flagTxt }}</span>
                         @endif
@@ -1296,21 +1371,18 @@
         <div class="page-break"></div>
     @endif
 
-
-    {{-- ============================================================
-        Product Matrix — POs Received (Sales Orders)
-        ✅ GM "ALL" fix + robust key matching + NO double counting
-    ============================================================ --}}
-
+    {{-- ==================================================================
+       Product Matrix — POs Received (Sales Orders)
+       - GM "ALL" fix + robust key matching + NO double counting
+       ================================================================== --}}
     @php
         $areaNorm  = strtoupper(trim($area ?? ($meta['area'] ?? 'ALL')));
         $isWestern = ($areaNorm === 'WESTERN');
         $isAll     = ($areaNorm === 'ALL');
 
-        // ✅ Western salesmen (who need ductwork split even in ALL)
+        // Western salesmen (must show ductwork split even in ALL for GM)
         $westernSalesmen = ['ABDO','AHMED'];
 
-        // ✅ Western row order
         $westernRowOrder = [
             'DUCTWORK',
             'PRE-INSULATED DUCTWORK',
@@ -1321,7 +1393,6 @@
             'ACCESSORIES',
         ];
 
-        // ✅ Default row order
         $defaultRowOrder = [
             'DUCTWORK',
             'DAMPERS',
@@ -1330,7 +1401,6 @@
             'ACCESSORIES',
         ];
 
-        // Helpers for row math (13 cols)
         $sumRow13 = function(array $a, array $b) use ($pad13row) {
             $a = $pad13row($a);
             $b = $pad13row($b);
@@ -1339,7 +1409,6 @@
             return $out;
         };
 
-        // key-variant tolerant getter
         $pickP = function(array $map, array $keys) {
             foreach ($keys as $k) {
                 $ku = strtoupper(trim((string)$k));
@@ -1380,19 +1449,19 @@
             @php
                 $salesmanU = strtoupper(trim((string)$salesman));
 
-                // ✅ If area=ALL (GM), still apply Western split for ABDO/AHMED
+                // GM ALL: still apply Western split for ABDO/AHMED
                 $useWesternRowsForThisSalesman = $isWestern || ($isAll && in_array($salesmanU, $westernSalesmen, true));
                 $order = $useWesternRowsForThisSalesman ? $westernRowOrder : $defaultRowOrder;
 
                 $products = is_array($products) ? $products : [];
 
-                // Normalize product keys to UPPERCASE
+                // Normalize product keys to uppercase
                 $productsU = [];
                 foreach ($products as $k => $v) {
                     $productsU[strtoupper(trim((string)$k))] = $v;
                 }
 
-                // Pull rows in desired order (missing => [])
+                // Pre-fill ordered map (missing => [])
                 $orderedProducts = [];
                 foreach ($order as $p) {
                     $orderedProducts[$p] = $productsU[$p] ?? [];
@@ -1401,36 +1470,18 @@
                 $displayRows = [];
 
                 if ($useWesternRowsForThisSalesman) {
-                    // ✅ Pull duct rows from productsU with variants (THIS is what fixes GM ALL)
-                // ✅ Robust duct family picking (matches backend variants safely)
+                    // Robust duct picking (handles backend variants)
                     $ductBase = $pickP($productsU, [
-                        'DUCTWORK',
-                        'DUCT WORK',
-                        'RECTANGULAR DUCTWORK',
-                        'GI DUCTWORK',
-                        'GALVANIZED DUCTWORK',
-                        'NORMAL BLACK STEEL DUCTWORK',
-                        'BLACK STEEL DUCTWORK',
+                        'DUCTWORK','DUCT WORK','RECTANGULAR DUCTWORK','GI DUCTWORK','GALVANIZED DUCTWORK',
+                        'NORMAL BLACK STEEL DUCTWORK','BLACK STEEL DUCTWORK',
                     ]);
 
                     $ductPre = $pickP($productsU, [
-                        'PRE-INSULATED DUCTWORK',
-                        'PRE INSULATED DUCTWORK',
-                        'PRE-INSULATED',
-                        'PRE INSULATED',
-                        'PREINSULATED',
-                        'PRE INSULATED DUCT',
-                        'PRE-INSULATED DUCT',
-                        'PID',
+                        'PRE-INSULATED DUCTWORK','PRE INSULATED DUCTWORK','PRE-INSULATED','PRE INSULATED',
+                        'PREINSULATED','PRE INSULATED DUCT','PRE-INSULATED DUCT','PID',
                     ]);
 
-                    $ductSpiral = $pickP($productsU, [
-                        'SPIRAL DUCTWORK',
-                        'SPIRAL DUCT',
-                        'SPIRAL',
-                        'SPIRAL DUCTS',
-                    ]);
-
+                    $ductSpiral = $pickP($productsU, ['SPIRAL DUCTWORK','SPIRAL DUCT','SPIRAL','SPIRAL DUCTS']);
 
                     $ductTotalRow = $sumRow13($ductBase, $sumRow13($ductPre, $ductSpiral));
 
@@ -1442,7 +1493,7 @@
                         'type'  => 'parent',
                     ];
 
-                    // Children (always shown for these salesmen to keep the matrix consistent)
+                    // Children (shown only for Western rows set)
                     $displayRows[] = [
                         'key'   => 'PRE-INSULATED DUCTWORK',
                         'label' => '— PRE-INSULATED DUCTWORK',
@@ -1459,10 +1510,9 @@
                         'parent_total' => (float)($ductTotalRow[12] ?? 0),
                     ];
 
-                    // Remaining families (stable order)
+                    // Remaining families in stable order
                     foreach ($order as $p) {
                         if (in_array($p, ['DUCTWORK','PRE-INSULATED DUCTWORK','SPIRAL DUCTWORK'], true)) continue;
-
                         $displayRows[] = [
                             'key'   => $p,
                             'label' => $p,
@@ -1481,7 +1531,7 @@
                     }
                 }
 
-                // ✅ Salesman total based on parent+normal only (no double counting children)
+                // Salesman total = parent + normal only (no double counting children)
                 $salesmanTotal = 0.0;
                 foreach ($displayRows as $dr) {
                     if (($dr['type'] ?? '') === 'child') continue;
@@ -1490,7 +1540,6 @@
                 }
             @endphp
 
-            {{-- Salesman header --}}
             <tr class="salesman-group">
                 <td class="salesmanCell">
                     <span class="salesman-badge {{ $badgeClass($salesmanU) }}">{{ $salesmanU }}</span>
@@ -1498,14 +1547,12 @@
                 <td colspan="14" class="group-fill">Products Breakdown</td>
             </tr>
 
-            {{-- Product rows --}}
             @foreach($displayRows as $dr)
                 @php
                     $row = $pad13row($dr['row'] ?? []);
-
                     $prodTotal = (float)($row[12] ?? 0);
 
-                    // Parent/Normal: share of salesman
+                    // Parent/Normal: share of salesman total
                     $actualPct = $salesmanTotal > 0 ? round(($prodTotal / $salesmanTotal) * 100, 1) : 0.0;
 
                     // Child: share of ductwork total
@@ -1515,7 +1562,7 @@
                         $childPct = $pt > 0 ? round(($prodTotal / $pt) * 100, 1) : 0.0;
                     }
 
-                    // Flags/targets are for normal/parent only
+                    // Flags only for parent/normal
                     $flagTxt = '';
                     $flagCls = '';
                     $target  = null;
@@ -1560,18 +1607,16 @@
     </table>
 </div>
 
-
-
-{{-- ============================================================
-   PAGE 4: Performance Matrix (Forecast / Target / Inquiries / POs / Conversion)
-============================================================ --}}
+{{-- ======================================================================
+   PAGE 4: Performance Matrix (Forecast / Target / Achievement / Inquiries / POs / Conversion)
+   - Only show month achievement for current month (others "-")
+   - Total achievement uses Total POs / Annual Target
+   ====================================================================== --}}
 <div class="page-break"></div>
-
 <div class="page">
 
     <div class="section-title">Performance Matrix — Forecast / Target / Inquiries / POs / Conversion</div>
-    <div class="section-sub">Conversion% = POs ÷ Inquiries. Total conversion is calculated from totals (not sum of %).
-    </div>
+    <div class="section-sub">Conversion% = POs ÷ Inquiries. Total conversion is calculated from totals (not sum of %).</div>
 
     @php
         $salesmanKpiMatrix = $salesmanKpiMatrix ?? [];
@@ -1579,10 +1624,10 @@
         $labels = [
             'FORECAST'  => 'Forecast',
             'TARGET'    => 'Target',
-            'PERF'      => 'Achievement',
+            'PERF'      => 'Target Achievement',
             'INQUIRIES' => 'Inquiries',
             'POS'       => 'Sales Orders',
-            'CONV_PCT'  => 'Win rate %',
+            'CONV_PCT'  => 'Conversion rate %',
         ];
 
         $pad13 = function($arr){
@@ -1591,89 +1636,90 @@
             return array_slice($arr, 0, 13);
         };
 
+        // Build conversion % row (month-wise) + total conversion from totals
         $buildConvRow = function($inqRow, $poRow) use ($pad13){
             $inqRow = $pad13($inqRow);
             $poRow  = $pad13($poRow);
 
             $out = [];
-            for($i=0;$i<12;$i++){
+            for ($i=0; $i<12; $i++){
                 $inq = (float)$inqRow[$i];
                 $po  = (float)$poRow[$i];
                 $out[$i] = $inq > 0 ? round(($po / $inq) * 100, 1) : 0.0;
             }
+
             $tInq = (float)$inqRow[12];
             $tPo  = (float)$poRow[12];
             $out[12] = $tInq > 0 ? round(($tPo / $tInq) * 100, 1) : 0.0;
+
             return $out;
         };
 
-        // current month progress
+        // Determine report date + current month (for the achievement-only-current-month rule)
         $reportDate = null;
-        try { $reportDate = Carbon::createFromFormat('d-m-Y', (string)$today); }
-        catch (Throwable $e) { $reportDate = Carbon::now(); }
+        try {
+            $reportDate = Carbon::createFromFormat('d-m-Y', (string)$today);
+        } catch (Throwable $e) {
+            $reportDate = Carbon::now();
+        }
 
         $currentMonth = (int)$reportDate->month;
-        $daysInMonth  = (int)$reportDate->daysInMonth;
-        $dayOfMonth   = (int)$reportDate->day;
 
-        $currentMonthProgress = $daysInMonth > 0 ? ($dayOfMonth / $daysInMonth) : 1.0;
-        $currentMonthProgress = max(0.0, min(1.0, $currentMonthProgress));
-
+        // Render performance cell (flag badges)
         $perfCell = function(float $actual, float $expected, bool $isFuture) {
             if ($isFuture) return ['html' => '<span class="flag flag-na">N/A</span>'];
+
             if ($expected <= 0) {
                 if ($actual <= 0) return ['html' => '<span class="flag flag-danger">0% • DANGER</span>'];
                 return ['html' => '<span class="flag flag-na">NO TARGET</span>'];
             }
+
             if ($actual <= 0) return ['html' => '<span class="flag flag-danger">0% • DANGER</span>'];
 
             $pct = ($actual / $expected) * 100.0;
 
-            if ($pct >= 100) return ['html' => '<span class="flag flag-excellent"> ' . number_format($pct,0) . '%</span>'];
-            if ($pct >= 60)  return ['html' => '<span class="flag flag-good"> ' . number_format($pct,0) . '%</span>'];
-            if ($pct >= 50)  return ['html' => '<span class="flag flag-acceptable"> ' . number_format($pct,0) . '%</span>'];
-            if ($pct >= 20)  return ['html' => '<span class="flag flag-attn"> ' . number_format($pct,0) . '%</span>'];
+            if ($pct >= 100) return ['html' => '<span class="flag flag-excellent">' . number_format($pct,0) . '%</span>'];
+            if ($pct >= 60)  return ['html' => '<span class="flag flag-good">' . number_format($pct,0) . '%</span>'];
+            if ($pct >= 50)  return ['html' => '<span class="flag flag-acceptable">' . number_format($pct,0) . '%</span>'];
+            if ($pct >= 20)  return ['html' => '<span class="flag flag-attn">' . number_format($pct,0) . '%</span>'];
 
-            return ['html' => '<span class="flag flag-danger"> ' . number_format($pct,0) . '%</span>'];
+            return ['html' => '<span class="flag flag-danger">' . number_format($pct,0) . '%</span>'];
         };
 
-        $buildPerfRow = function($poRow, $targetRow) use ($pad13, $perfCell, $currentMonth, $currentMonthProgress) {
+        // Build PERF row:
+        // - Month-wise: ONLY current month shows achievement, others "-"
+        // - Total: Total POs / Annual Target
+        $buildPerfRow = function($poRow, $targetRow) use ($pad13, $perfCell, $currentMonth) {
             $poRow     = $pad13($poRow);
             $targetRow = $pad13($targetRow);
 
             $out = [];
 
-            for ($i=0; $i<12; $i++) {
-                $monthNo = $i + 1;
-                $isFuture = $monthNo > $currentMonth;
+            $currentIdx = max(0, min(11, (int)$currentMonth - 1));
 
-                $expected = 0.0;
-                if (!$isFuture) {
-                    $expected = ($monthNo < $currentMonth)
-                        ? (float)$targetRow[$i]
-                        : (float)$targetRow[$i] * (float)$currentMonthProgress;
+            for ($i=0; $i<12; $i++) {
+                if ($i !== $currentIdx) {
+                    $out[$i] = ['html' => '<span class="flag flag-na">-</span>'];
+                    continue;
                 }
 
-                $actual = (float)$poRow[$i];
-                $out[$i] = $perfCell($actual, $expected, $isFuture);
+                $actual   = (float)$poRow[$i];
+                $expected = (float)$targetRow[$i];
+
+                if ($expected <= 0) {
+                    $out[$i] = ['html' => '<span class="flag flag-na">-</span>'];
+                    continue;
+                }
+
+                $out[$i] = $perfCell($actual, $expected, false);
             }
 
-            // TOTAL column (YTD)
-            $actualYtd = 0.0;
-            $expectedYtd = 0.0;
+            $actualTotal = (float)$poRow[12];
+            $annualTarget = (float)$targetRow[12];
 
-            for ($i=0; $i<12; $i++) {
-                $monthNo = $i + 1;
-                if ($monthNo > $currentMonth) continue;
-
-                $actualYtd += (float)$poRow[$i];
-
-                $expectedYtd += ($monthNo < $currentMonth)
-                    ? (float)$targetRow[$i]
-                    : (float)$targetRow[$i] * (float)$currentMonthProgress;
-            }
-
-            $out[12] = $perfCell($actualYtd, $expectedYtd, false);
+            $out[12] = ($annualTarget <= 0)
+                ? ['html' => '<span class="flag flag-na">-</span>']
+                : $perfCell($actualTotal, $annualTarget, false);
 
             return $out;
         };
@@ -1768,42 +1814,38 @@
         @endforelse
         </tbody>
     </table>
-
 </div>
 
-
-{{-- ===========================
-   COMPLETE BLADE PART (COPY/PASTE)
-   Fixes: $oaAllEmpty undefined + keeps your exact rendering
-   =========================== --}}
-{{-- ✅ Business Intelligence Summary (NEW schema) --}}
-{{-- Insights Block (NEW schema only) --}}
+{{-- ======================================================================
+   PAGE 5: Business Intelligence Summary (NEW schema)
+   - If area=ALL => GM executive boxes
+   - Else => salesman text analysis
+   ====================================================================== --}}
 <div class="page-break"></div>
 
 @php
-    $ins  = $insights ?? [];
-    $meta = $ins['meta'] ?? [];
+    $ins       = $insights ?? [];
+    $meta      = $ins['meta'] ?? [];
     $areaLocal = (string)($meta['area'] ?? ($area ?? 'All'));
-    $isAll = (strtoupper(trim($areaLocal)) === 'ALL');
+    $isAll     = (strtoupper(trim($areaLocal)) === 'ALL');
 @endphp
 
 @if($isAll)
     @include('reports.partials.gm_executive_boxes', [
         'insights' => $ins,
-        'kpis' => $kpis ?? [],
-        'today' => $today ?? null,
-        'year' => $year ?? null,
-        'area' => $areaLocal,
+        'kpis'     => $kpis ?? [],
+        'today'    => $today ?? null,
+        'year'     => $year ?? null,
+        'area'     => $areaLocal,
     ])
 @else
     @include('reports.partials.salesman_text_analysis', [
         'insights' => $ins,
-        'today' => $today ?? null,
-        'year' => $year ?? null,
-        'area' => $areaLocal,
+        'today'    => $today ?? null,
+        'year'     => $year ?? null,
+        'area'     => $areaLocal,
     ])
 @endif
-
 
 </body>
 </html>

@@ -1861,10 +1861,59 @@ class SalesmanPerformanceController extends Controller
         $labelExpr = "COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
         $amtExpr   = $this->poAmountExpr('s'); // must return numeric
 
+        // ✅ Apply area filter based on salesman alias map
+        $allowedForArea = null;
+        if ($areaNorm !== 'All') {
+            $allowedForArea = $regionMap[$areaNorm] ?? [];
+        }
+
+        // Helper: should this salesman get western rowset/split?
+        $isWesternSalesman = function (string $salesman) use ($westernSalesmen): bool {
+            return in_array($salesman, $westernSalesmen, true);
+        };
+
+        // ✅ Western ductwork subtype -> identify PRE/SPIRAL
+        $ductSubtypeKind = function (?string $subtype): string {
+            $x = strtoupper(trim((string)$subtype));
+            if ($x === '') return 'BASE';
+            if (str_contains($x, 'PRE') || str_contains($x, 'INSUL')) return 'PRE';
+            if (str_contains($x, 'SPIRAL')) return 'SPIRAL';
+            return 'BASE';
+        };
+
+        // ✅ init salesman bucket (choose rowset per salesman)
+        $out = [];
+        $init = function (string $salesman, bool $useWesternRows) use (&$out, $westernFamilies, $defaultFamilies) {
+            if (isset($out[$salesman])) return;
+
+            $families = $useWesternRows ? $westernFamilies : $defaultFamilies;
+            foreach ($families as $f) {
+                $out[$salesman][$f] = array_fill(0, 13, 0.0); // 12 months + total
+            }
+        };
+
         // ============================================================
-        // A) Breakdown rows (preferred): sum b.amount by salesman + month + family + subtype
+        // A) FAMILY TOTALS (FULL PO VALUE) for rows that HAVE breakdown
+        //    ✅ Use b.family to classify
+        //    ✅ Sum PO Value (NOT b.amount)
+        //    ✅ Safe because your sync enforces 1 breakdown row per salesorderlog_id
         // ============================================================
-        $breakdownRows = DB::table('salesorderlog as s')
+        $breakdownFamilyTotals = DB::table('salesorderlog as s')
+            ->join('salesorderlog_product_breakdowns as b', 'b.salesorderlog_id', '=', 's.id')
+            ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, b.family AS family, SUM($amtExpr) AS sum_po")
+            ->whereYear('s.date_rec', $year)
+            ->whereNull('s.deleted_at')
+            ->whereRaw('`s`.`PO. No.` IS NOT NULL')
+            ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
+            ->whereRaw($amtExpr . ' > 0')
+            ->groupByRaw("$labelExpr, MONTH(s.date_rec), b.family")
+            ->get();
+
+        // ============================================================
+        // B) SUBTYPE AMOUNTS (ONLY for Western ductwork children)
+        //    ✅ Pre/Spiral should come from b.amount
+        // ============================================================
+        $breakdownSubtypeAmounts = DB::table('salesorderlog as s')
             ->join('salesorderlog_product_breakdowns as b', 'b.salesorderlog_id', '=', 's.id')
             ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, b.family AS family, b.subtype AS subtype, SUM(b.amount) AS sum_amt")
             ->whereYear('s.date_rec', $year)
@@ -1876,12 +1925,12 @@ class SalesmanPerformanceController extends Controller
             ->get();
 
         // ============================================================
-        // B) Fallback rows (no breakdown exists): use s.Products + PO amount
-        //    ✅ Goes into the real family
+        // C) FALLBACK TOTALS (NO breakdown exists) -> classify by s.Products
+        //    ✅ Uses FULL PO value
         //    ✅ whereNotExists prevents double counting
         // ============================================================
-        $fallbackRows = DB::table('salesorderlog as s')
-            ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, COALESCE(NULLIF(`s`.`Products`,''),'') AS prod, SUM($amtExpr) AS sum_amt")
+        $fallbackFamilyTotals = DB::table('salesorderlog as s')
+            ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, COALESCE(NULLIF(`s`.`Products`,''),'') AS prod, SUM($amtExpr) AS sum_po")
             ->whereYear('s.date_rec', $year)
             ->whereNull('s.deleted_at')
             ->whereRaw('`s`.`PO. No.` IS NOT NULL')
@@ -1895,83 +1944,61 @@ class SalesmanPerformanceController extends Controller
             ->groupByRaw("$labelExpr, MONTH(s.date_rec), COALESCE(NULLIF(`s`.`Products`,''),'')")
             ->get();
 
-        $out = [];
+        // ============================================================
+        // TEMP BUFFERS for Western ductwork math:
+        // totalDuctPO[salesman][idx] = full PO value for ductwork
+        // preAmt[salesman][idx], spiralAmt[salesman][idx] = subtype breakdown amounts
+        // ============================================================
+        $totalDuctPO = [];
+        $preAmt      = [];
+        $spiralAmt   = [];
 
-        // ✅ init salesman bucket (choose rowset per salesman)
-        $init = function (string $salesman, bool $useWesternRows) use (&$out, $westernFamilies, $defaultFamilies) {
-            if (isset($out[$salesman])) return;
-
-            $families = $useWesternRows ? $westernFamilies : $defaultFamilies;
-
-            foreach ($families as $f) {
-                $out[$salesman][$f] = array_fill(0, 13, 0.0); // 12 months + total
-            }
-        };
-
-        // ✅ Western ductwork subtype -> row key
-        $ductworkKey = function (?string $subtype): string {
-            $x = strtoupper(trim((string)$subtype));
-            if ($x === '') return 'DUCTWORK';
-            if (str_contains($x, 'PRE') || str_contains($x, 'INSUL')) return 'PRE-INSULATED DUCTWORK';
-            if (str_contains($x, 'SPIRAL')) return 'SPIRAL DUCTWORK';
-            return 'DUCTWORK';
-        };
-
-        // ✅ Apply area filter based on salesman alias map
-        $allowedForArea = null;
-        if ($areaNorm !== 'All') {
-            $allowedForArea = $regionMap[$areaNorm] ?? [];
-        }
-
-        // Helper: should this salesman get western rowset/split?
-        $isWesternSalesman = function (string $salesman) use ($westernSalesmen): bool {
-            return in_array($salesman, $westernSalesmen, true);
+        $addTo13 = function (&$arr, string $salesman, int $idx, float $val) {
+            if (!isset($arr[$salesman])) $arr[$salesman] = array_fill(0, 13, 0.0);
+            $arr[$salesman][$idx] += $val;
+            $arr[$salesman][12]   += $val;
         };
 
         // ============================================================
-        // 1) Apply breakdown rows first
+        // 1) Apply breakdown FAMILY totals (FULL PO VALUE)
         // ============================================================
-        foreach ($breakdownRows as $r) {
+        foreach ($breakdownFamilyTotals as $r) {
             $salesman = $this->normalizeSalesman($r->salesman);
 
-            if ($allowedForArea !== null && !in_array($salesman, $allowedForArea, true)) {
-                continue;
-            }
+            if ($allowedForArea !== null && !in_array($salesman, $allowedForArea, true)) continue;
 
             $m = (int)$r->m;
             if ($m < 1 || $m > 12) continue;
             $idx = $m - 1;
 
             $famRaw = strtoupper(trim((string)$r->family));
-            $fam    = $this->normalizeProductFamily($famRaw); // -> DUCTWORK/DAMPERS/...
+            $fam    = $this->normalizeProductFamily($famRaw);
             if (!$fam) continue;
 
-            // ✅ Decide western split per salesman (Western area OR GM ALL but salesman is western)
             $useWesternRowsForThisSalesman = ($areaNorm === 'Western') || ($areaNorm === 'All' && $isWesternSalesman($salesman));
-
-            $key = ($fam === 'DUCTWORK' && $useWesternRowsForThisSalesman)
-                ? $ductworkKey($r->subtype)
-                : $fam;
-
             $init($salesman, $useWesternRowsForThisSalesman);
 
-            // ✅ safety: only add into known rows
-            if (!isset($out[$salesman][$key])) continue;
+            $val = (float)$r->sum_po;
 
-            $val = (float)$r->sum_amt;
-            $out[$salesman][$key][$idx] += $val;
-            $out[$salesman][$key][12]   += $val;
+            // ✅ If ductwork + western split -> store in total buffer (do NOT write to out yet)
+            if ($fam === 'DUCTWORK' && $useWesternRowsForThisSalesman) {
+                $addTo13($totalDuctPO, $salesman, $idx, $val);
+                continue;
+            }
+
+            // Normal families just go straight into matrix totals
+            if (!isset($out[$salesman][$fam])) continue;
+            $out[$salesman][$fam][$idx] += $val;
+            $out[$salesman][$fam][12]   += $val;
         }
 
         // ============================================================
-        // 2) Apply fallback rows (no breakdown) -> real family via s.Products
+        // 2) Apply fallback FAMILY totals (FULL PO VALUE, no breakdown)
         // ============================================================
-        foreach ($fallbackRows as $r) {
+        foreach ($fallbackFamilyTotals as $r) {
             $salesman = $this->normalizeSalesman($r->salesman);
 
-            if ($allowedForArea !== null && !in_array($salesman, $allowedForArea, true)) {
-                continue;
-            }
+            if ($allowedForArea !== null && !in_array($salesman, $allowedForArea, true)) continue;
 
             $m = (int)$r->m;
             if ($m < 1 || $m > 12) continue;
@@ -1980,26 +2007,94 @@ class SalesmanPerformanceController extends Controller
             $fam = $this->normalizeProductFamily((string)$r->prod);
             if (!$fam) continue;
 
-            // ✅ Decide western split rowset per salesman (Western area OR GM ALL but salesman is western)
             $useWesternRowsForThisSalesman = ($areaNorm === 'Western') || ($areaNorm === 'All' && $isWesternSalesman($salesman));
-
-            // ✅ Fallback has no subtype → keep ductwork into base DUCTWORK
-            $key = ($fam === 'DUCTWORK' && $useWesternRowsForThisSalesman)
-                ? 'DUCTWORK'
-                : $fam;
-
             $init($salesman, $useWesternRowsForThisSalesman);
 
-            if (!isset($out[$salesman][$key])) continue;
+            $val = (float)$r->sum_po;
 
-            $val = (float)$r->sum_amt;
-            $out[$salesman][$key][$idx] += $val;
-            $out[$salesman][$key][12]   += $val;
+            // ✅ If ductwork + western split -> add to duct total buffer
+            if ($fam === 'DUCTWORK' && $useWesternRowsForThisSalesman) {
+                $addTo13($totalDuctPO, $salesman, $idx, $val);
+                continue;
+            }
+
+            if (!isset($out[$salesman][$fam])) continue;
+            $out[$salesman][$fam][$idx] += $val;
+            $out[$salesman][$fam][12]   += $val;
+        }
+
+        // ============================================================
+        // 3) Apply breakdown subtype AMOUNTS for Western ductwork children
+        // ============================================================
+        foreach ($breakdownSubtypeAmounts as $r) {
+            $salesman = $this->normalizeSalesman($r->salesman);
+
+            if ($allowedForArea !== null && !in_array($salesman, $allowedForArea, true)) continue;
+
+            $m = (int)$r->m;
+            if ($m < 1 || $m > 12) continue;
+            $idx = $m - 1;
+
+            $famRaw = strtoupper(trim((string)$r->family));
+            $fam    = $this->normalizeProductFamily($famRaw);
+            if ($fam !== 'DUCTWORK') continue;
+
+            $useWesternRowsForThisSalesman = ($areaNorm === 'Western') || ($areaNorm === 'All' && $isWesternSalesman($salesman));
+            if (!$useWesternRowsForThisSalesman) continue;
+
+            $init($salesman, true);
+
+            $kind = $ductSubtypeKind($r->subtype);
+            $val  = (float)$r->sum_amt;
+
+            if ($kind === 'PRE') {
+                $addTo13($preAmt, $salesman, $idx, $val);
+            } elseif ($kind === 'SPIRAL') {
+                $addTo13($spiralAmt, $salesman, $idx, $val);
+            }
+            // BASE/unknown subtype: we intentionally do nothing here.
+            // Base is computed as remainder from full PO value below.
+        }
+
+        // ============================================================
+        // 4) FINALIZE Western ductwork:
+        //    Base DUCTWORK = totalDuctPO - preAmt - spiralAmt
+        //    And also populate PRE + SPIRAL rows for printing
+        // ============================================================
+        foreach ($out as $salesman => $_rows) {
+            $useWesternRowsForThisSalesman = ($areaNorm === 'Western') || ($areaNorm === 'All' && $isWesternSalesman($salesman));
+            if (!$useWesternRowsForThisSalesman) continue;
+
+            for ($idx = 0; $idx < 12; $idx++) {
+                $tot = (float)($totalDuctPO[$salesman][$idx] ?? 0.0);
+                $pre = (float)($preAmt[$salesman][$idx] ?? 0.0);
+                $spi = (float)($spiralAmt[$salesman][$idx] ?? 0.0);
+
+                $base = $tot - $pre - $spi;
+                if ($base < 0) $base = 0.0;
+
+                $out[$salesman]['DUCTWORK'][$idx] = $base;
+                $out[$salesman]['PRE-INSULATED DUCTWORK'][$idx] = $pre;
+                $out[$salesman]['SPIRAL DUCTWORK'][$idx] = $spi;
+            }
+
+            // Totals col (index 12)
+            $totT = (float)($totalDuctPO[$salesman][12] ?? 0.0);
+            $preT = (float)($preAmt[$salesman][12] ?? 0.0);
+            $spiT = (float)($spiralAmt[$salesman][12] ?? 0.0);
+
+            $baseT = $totT - $preT - $spiT;
+            if ($baseT < 0) $baseT = 0.0;
+
+            $out[$salesman]['DUCTWORK'][12] = $baseT;
+            $out[$salesman]['PRE-INSULATED DUCTWORK'][12] = $preT;
+            $out[$salesman]['SPIRAL DUCTWORK'][12] = $spiT;
         }
 
         ksort($out, SORT_NATURAL);
         return $out;
     }
+
 
 
 
@@ -2133,8 +2228,8 @@ class SalesmanPerformanceController extends Controller
         // change weights if needed
         $weights = [
             'Eastern' => ['SOHAIB' => 1.0],
-            'Central' => ['TARIQ' => 0.5, 'JAMAL' => 0.5],
-            'Western' => ['ABDO' => 0.5, 'AHMED' => 0.5],
+            'Central' => ['TARIQ' => 1.0, 'JAMAL' => 1.0],
+            'Western' => ['ABDO' =>1.0, 'AHMED' => 1.0],
         ];
 
         $out = [];
