@@ -102,6 +102,9 @@ Route::middleware('auth')->group(function () {
     // Inquiry log page
     Route::get('/projectslog', [PageController::class, 'inquiriesLog'])->name('projects.inquiries_log');
 
+
+// ✅ Alias for old navbar links / shared partials
+    Route::get('/inquiries', [PageController::class, 'inquiriesLog'])->name('inquiries.index');
     // DataTables JSON endpoint
     Route::get('/projects/datatable', [ProjectsDatatableController::class, 'data'])
         ->name('projects.datatable');

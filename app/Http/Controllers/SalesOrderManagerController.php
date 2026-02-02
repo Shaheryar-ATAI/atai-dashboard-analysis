@@ -328,23 +328,20 @@ class SalesOrderManagerController extends Controller
      * ========================================================= */
     public function datatable(Request $r)
     {
-        // Build a clean SOL base (no selects yet)
         $soDateExpr = "COALESCE(NULLIF(s.date_rec,'0000-00-00'), DATE(s.created_at))";
 
-        // Get aliases the same way as in kpis()
         [$tmpBase, , , $applyRegion, $family, $status, $loggedUserAliases] = $this->base($r);
-        $user = $r->user();
-        $userKey = $this->resolveSalespersonCanonical($user->name ?? null);
-//        $aliases = !empty($loggedUserAliases) ? $loggedUserAliases : ($userKey ? [$userKey] : []);
+
         $aliases = $this->effectiveAliases($r);
+
         // Region chip → project_region
-        $regionChip = strtolower(trim((string)$r->query('region', '')));
+        $regionChip   = strtolower(trim((string)$r->query('region', '')));
         $regionFilter = in_array($regionChip, ['eastern', 'central', 'western'], true) ? $regionChip : '';
 
-        // Family / Status chips
-        $familySel = strtolower(trim((string)$r->query('family', $family ?? '')));
-        $selectedStatus = strtolower(trim((string)$r->query('status', $status ?? '')));
-        $filterByStatus = $selectedStatus !== '';
+        // Family / OAA filter
+        $familySel     = strtolower(trim((string)$r->query('family', $family ?? '')));
+        $selectedOaa   = strtolower(trim((string)$r->query('oaa', $r->query('status', '')))); // supports old param too
+        $filterByOaa   = $selectedOaa !== '';
 
         // Base conditions ONLY
         $base = DB::table('salesorderlog as s')
@@ -354,17 +351,17 @@ class SalesOrderManagerController extends Controller
             })
             ->when($regionFilter !== '', fn($q) => $q->whereRaw('LOWER(TRIM(s.project_region)) = ?', [$regionFilter]))
             ->when($familySel !== '', function ($q) use ($familySel) {
-                // ✅ use your robust helper
                 $this->applyFamilyFilter($q, $familySel);
             })
-            ->when($filterByStatus, fn($q) => $q->whereRaw('LOWER(TRIM(s.`Status`)) = ?', [$selectedStatus]))
+            // ✅ filter by Sales OAA (not Status)
+            ->when($filterByOaa, fn($q) => $q->whereRaw('LOWER(TRIM(s.`Sales OAA`)) = ?', [$selectedOaa]))
             // date filters
-            ->when($r->filled('year'), fn($q) => $q->whereRaw("YEAR($soDateExpr)  = ?", [(int)$r->input('year')]))
+            ->when($r->filled('year'),  fn($q) => $q->whereRaw("YEAR($soDateExpr)  = ?", [(int)$r->input('year')]))
             ->when($r->filled('month'), fn($q) => $q->whereRaw("MONTH($soDateExpr) = ?", [(int)$r->input('month')]))
-            ->when($r->filled('from'), fn($q) => $q->whereRaw("DATE($soDateExpr) >= ?", [$r->input('from')]))
-            ->when($r->filled('to'), fn($q) => $q->whereRaw("DATE($soDateExpr) <= ?", [$r->input('to')]));
+            ->when($r->filled('from'),  fn($q) => $q->whereRaw("DATE($soDateExpr) >= ?", [$r->input('from')]))
+            ->when($r->filled('to'),    fn($q) => $q->whereRaw("DATE($soDateExpr) <= ?", [$r->input('to')]));
 
-        // Selects for DataTables
+        // Selects for DataTables (✅ alias without spaces)
         $q = $base->select([
             's.id',
             DB::raw('s.`PO. No.`          AS po_no'),
@@ -375,9 +372,10 @@ class SalesOrderManagerController extends Controller
             DB::raw('s.`Project Name`     AS project_name'),
             DB::raw('s.`Project Location` AS project_location'),
             DB::raw('s.`Products`         AS product_family'),
-            's.value_with_vat',
+            DB::raw('s.`value_with_vat`   AS value_with_vat'),
             DB::raw('s.`PO Value`         AS po_value'),
             DB::raw('s.`Status`           AS status'),
+            DB::raw('s.`Sales OAA`        AS sales_oaa'),   // ✅ FIX
             DB::raw('s.`Remarks`          AS remarks'),
             DB::raw('s.`Sales Source`     AS salesperson'),
         ]);
@@ -398,6 +396,7 @@ class SalesOrderManagerController extends Controller
                         ->orWhereRaw('LOWER(s.`Project Name`) LIKE ?', ["%$search%"])
                         ->orWhereRaw('LOWER(s.`Products`) LIKE ?', ["%$search%"])
                         ->orWhereRaw('LOWER(s.`Status`) LIKE ?', ["%$search%"])
+                        ->orWhereRaw('LOWER(s.`Sales OAA`) LIKE ?', ["%$search%"])
                         ->orWhereRaw('LOWER(s.`Sales Source`) LIKE ?', ["%$search%"])
                         ->orWhereRaw('LOWER(s.`Remarks`) LIKE ?', ["%$search%"])
                         ->orWhereRaw('LOWER(s.`region`) LIKE ?', ["%$search%"])
@@ -405,7 +404,7 @@ class SalesOrderManagerController extends Controller
                 });
             })
 
-            // Order mapping
+            // Order mapping (✅ use sales_oaa key)
             ->orderColumn('po_no', 's.`PO. No.` $1')
             ->orderColumn('date_rec', 's.`date_rec` $1')
             ->orderColumn('region', 's.`region` $1')
@@ -417,6 +416,7 @@ class SalesOrderManagerController extends Controller
             ->orderColumn('value_with_vat', 's.`value_with_vat` $1')
             ->orderColumn('po_value', 's.`PO Value` $1')
             ->orderColumn('status', 's.`Status` $1')
+            ->orderColumn('sales_oaa', 's.`Sales OAA` $1')     // ✅ FIX
             ->orderColumn('remarks', 's.`Remarks` $1')
             ->orderColumn('salesperson', 's.`Sales Source` $1')
 
@@ -428,17 +428,19 @@ class SalesOrderManagerController extends Controller
             ->filterColumn('project_name', fn($q, $k) => $q->whereRaw('s.`Project Name` LIKE ?', ["%$k%"]))
             ->filterColumn('product_family', fn($q, $k) => $q->whereRaw('s.`Products` LIKE ?', ["%$k%"]))
             ->filterColumn('status', fn($q, $k) => $q->whereRaw('s.`Status` LIKE ?', ["%$k%"]))
+            ->filterColumn('sales_oaa', fn($q, $k) => $q->whereRaw('s.`Sales OAA` LIKE ?', ["%$k%"])) // ✅ FIX
             ->filterColumn('salesperson', fn($q, $k) => $q->whereRaw('s.`Sales Source` LIKE ?', ["%$k%"]))
             ->filterColumn('remarks', fn($q, $k) => $q->whereRaw('s.`Remarks` LIKE ?', ["%$k%"]))
             ->filterColumn('region', fn($q, $k) => $q->whereRaw('s.`region` LIKE ?', ["%$k%"]))
             ->filterColumn('date_rec', fn($q, $k) => $q->whereRaw('DATE_FORMAT(s.`date_rec`,"%Y-%m-%d") LIKE ?', ["%$k%"]))
 
-            // numeric cleanup
-            ->editColumn('value_with_vat', fn($row) => (int)($row->value_with_vat ?? 0))
-            ->editColumn('po_value', fn($row) => (int)($row->po_value ?? 0));
+            // numeric cleanup (keep as float)
+            ->editColumn('value_with_vat', fn($row) => (float)($row->value_with_vat ?? 0))
+            ->editColumn('po_value', fn($row) => (float)($row->po_value ?? 0));
 
         return $dt->toJson();
     }
+
 
 
     /* =========================================================
@@ -460,42 +462,55 @@ class SalesOrderManagerController extends Controller
 
         // Pull base() just for shared helpers, but we’ll drive scoping ourselves
         [$base, $dateExprSql, $valExprSql, $applyRegion, $family, $status, $loggedUserAliases] = $this->base($r);
-//        $aliases = $loggedUserAliases ?: ($userKey ? [$userKey] : []);
+
         $aliases = $this->effectiveAliases($r);
+
         /* ---------- region from UI chip ONLY ---------- */
         $regionChip = strtolower(trim((string)$r->query('region', '')));   // '', 'all', 'eastern', 'central', 'western'
         $regionFilter = in_array($regionChip, ['eastern', 'central', 'western'], true) ? $regionChip : '';
 
         /* ---------- other filters ---------- */
-        $familySel = strtolower(trim((string)$family));
-        $selectedStatus = strtolower(trim((string)$status));
-        $filterByStatus = $selectedStatus !== '';
+        // UI may send ?family=... (prefer that), otherwise fallback to base()
+        $familySel = strtolower(trim((string)$r->query('family', $family ?? '')));
+        if ($familySel === 'all') $familySel = '';   // ✅ treat ALL as no filter
+
+// UI sends ?oaa=... (preferred). Backward compatibility with ?status=
+        $oaaSel = strtolower(trim((string)$r->query('Sales OAA', $r->query('status', $status ?? ''))));
+        if ($oaaSel === 'all') $oaaSel = '';         // ✅ treat ALL as no filter
+
+        $filterByOaa = ($oaaSel !== '');
 
         /* ---------- normalized numeric & quote expressions ---------- */
-        $poNumExpr = "CAST(REPLACE(REPLACE(REPLACE(s.`PO Value`, 'SAR',''), ',', ''), ' ', '') AS DECIMAL(15,2))";
+        $poNumExprRaw = "CAST(REPLACE(REPLACE(REPLACE(s.`PO Value`, 'SAR',''), ',', ''), ' ', '') AS DECIMAL(15,2))";
+
+        // ✅ Control whether rejected PO value should be zeroed for sales users
+        // Default (sales): rejected = 0 (your current rule)
+        // Override: ?include_rejected=1 (useful for debugging / GM view / charts)
+        $includeRejected = $r->boolean('include_rejected', false);
+        $zeroRejectedForSales = (!$isAdmin && !$includeRejected);
+
+        $poNumExpr = $zeroRejectedForSales
+            ? "CASE WHEN LOWER(TRIM(s.`Sales OAA`)) = 'rejected' THEN 0 ELSE $poNumExprRaw END"
+            : $poNumExprRaw;
+
         // For “unique quotations” we normalize to base (drop .MH / .R*)
         $qnoBaseExpr = "UPPER(SUBSTRING_INDEX(SUBSTRING_INDEX(TRIM(s.`Quote No.`), '.MH', 1), '.R', 1))";
 
         /* =========================================================
          * A) SALES ORDER LOG (PO world) — salesperson + region(project_region)
          * ========================================================= */
-
-//
-//        $sum = DB::table('salesorderlog as s')
-//            ->whereIn(DB::raw("REPLACE(UPPER(TRIM(s.`Sales Source`)),' ','')"), ['SOHAIB', 'SOAHIB'])
-//            ->selectRaw("SUM(CAST(REPLACE(REPLACE(REPLACE(s.`PO Value`, 'SAR',''), ',', ''), ' ', '') AS DECIMAL(15,2))) AS t")
-//            ->value('t');
         $soDateExpr = "COALESCE(NULLIF(s.date_rec,'0000-00-00'), DATE(s.created_at))";
+
         $statusNormExpr = "
-CASE
-  WHEN LOWER(TRIM(s.`Status`)) IN ('accepted','acceptance') THEN 'Accepted'
-  WHEN LOWER(TRIM(s.`Status`)) IN ('pre-acceptance','pre acceptance','preacceptance') THEN 'Pre-Acceptance'
-  WHEN LOWER(TRIM(s.`Status`)) IN ('waiting','pending') THEN 'Waiting'
-  WHEN LOWER(TRIM(s.`Status`)) IN ('rejected','reject') THEN 'Rejected'
-  WHEN LOWER(TRIM(s.`Status`)) IN ('cancelled','canceled','cancel') THEN 'Cancelled'
-  ELSE 'Unknown'
-END
-";
+            CASE
+              WHEN LOWER(TRIM(s.`Sales OAA`)) IN ('accepted','acceptance') THEN 'Accepted'
+              WHEN LOWER(TRIM(s.`Sales OAA`)) IN ('pre-acceptance','pre acceptance','preacceptance') THEN 'Pre-Acceptance'
+              WHEN LOWER(TRIM(s.`Sales OAA`)) IN ('waiting','pending') THEN 'Waiting'
+              WHEN LOWER(TRIM(s.`Sales OAA`)) IN ('rejected','reject') THEN 'Rejected'
+              WHEN LOWER(TRIM(s.`Sales OAA`)) IN ('cancelled','canceled','cancel') THEN 'Cancelled'
+              ELSE 'Unknown'
+            END
+            ";
 
         $solBase = DB::table('salesorderlog as s')
             ->whereNull('s.deleted_at')
@@ -506,7 +521,7 @@ END
             ->when($familySel !== '', function ($q) use ($familySel) {
                 $this->applyFamilyFilter($q, $familySel);
             })
-            ->when($filterByStatus, fn($q) => $q->whereRaw('LOWER(TRIM(s.`Status`)) = ?', [$selectedStatus]))
+            ->when($filterByOaa, fn($q) => $q->whereRaw('LOWER(TRIM(s.`Sales OAA`)) = ?', [$oaaSel]))
             // Date filters
             ->when($r->filled('year'), fn($q) => $q->whereRaw("YEAR($soDateExpr)  = ?", [(int)$r->input('year')]))
             ->when($r->filled('month'), fn($q) => $q->whereRaw("MONTH($soDateExpr) = ?", [(int)$r->input('month')]))
@@ -515,15 +530,16 @@ END
 
         // ------ PO top cards: sum ALL receipts + count unique quotations ------
         $soTotalsScoped = (clone $solBase)
-            ->selectRaw("COUNT(*) AS receipts_cnt")                            // every receipt row
-            ->selectRaw("COUNT(DISTINCT $qnoBaseExpr) AS unique_quotes_cnt")   // unique quotations (base)
-            ->selectRaw("COALESCE(SUM($poNumExpr),0) AS orders_sum")           // total SAR (adds split POs)
+            ->selectRaw("COUNT(*) AS receipts_cnt")
+            ->selectRaw("COUNT(DISTINCT $qnoBaseExpr) AS unique_quotes_cnt")
+            ->selectRaw("COALESCE(SUM($poNumExpr),0) AS orders_sum")
             ->first();
 
         // ------ PO monthly (sum all receipts by month) ------
         $poByMonthRows = (clone $solBase)
             ->selectRaw("DATE_FORMAT($soDateExpr,'%Y-%m') AS ym, COALESCE(SUM($poNumExpr),0) AS val")
             ->groupBy('ym')->orderBy('ym')->get();
+
         $monthsP = $poByMonthRows->pluck('ym')->values()->all();
         $poByMonth = $poByMonthRows->pluck('val', 'ym')->all();
         $labels = array_values(array_unique($monthsP));
@@ -547,6 +563,7 @@ END
             ->selectRaw("TRIM(COALESCE(s.`project_region`,'Unknown')) AS projects_region")
             ->selectRaw("COALESCE(SUM($poNumExpr),0) AS val")
             ->groupBy('project_region')->get();
+
         $totalProjectsRegionVal = max(1.0, (float)$projRegionRows->sum('val'));
         $projectsRegionPie = $projRegionRows->map(function ($r) use ($totalProjectsRegionVal) {
             $v = (float)$r->val;

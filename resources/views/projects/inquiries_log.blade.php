@@ -1865,6 +1865,7 @@
 
             const checked = (id) => !!document.getElementById(id)?.checked;
             try {
+
                 // const r = await postChecklist(CURRENT_PROJECT_ID, 'inhand', {
                 //     submittal_approved:           checked('ih_submittal_approved'),
                 //     sample_approved:              checked('ih_sample_approved'),

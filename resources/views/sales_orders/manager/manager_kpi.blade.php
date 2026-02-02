@@ -333,17 +333,32 @@
 
 
             function filters() {
+                const year = $('#fYear').val() || DEFAULT_YEAR;
+
+                const st = (currentStatus || '').toString().trim();
+                const stLower = st.toLowerCase();
+
                 const f = {
-                    year: $('#fYear').val() || DEFAULT_YEAR,
+                    year: year,
                     month: $('#fMonth').val() || '',
                     from: $('#fFrom').val() || '',
                     to: $('#fTo').val() || '',
-                    region: currentRegion || ''
+                    region: currentRegion || '',
+
+                    // ✅ backend prefers oaa; keep status for backward compatibility
+                    oaa: st,
+                    status: st,
+
+                    // ✅ KEY FIX:
+                    // show real rejected only when explicitly viewing "Rejected"
+                    include_rejected: (stLower === 'rejected') ? 1 : 0
                 };
+
                 if (currentFamily) f.family = currentFamily;
-                if (currentStatus) f.status = currentStatus;  // ← only if not ''
+
                 return f;
             }
+
 
             function buildChips(containerId, items, activeVal, onChange, opts = {includeAll: true}) {
                 const el = document.getElementById(containerId);
@@ -435,7 +450,7 @@
                     // statuses
                     const stats = Array.isArray(payload?.allStatuses) && payload.allStatuses.length
                         ? payload.allStatuses
-                        : ['Accepted', 'Pre-Acceptance', 'Waiting', 'Rejected', 'Cancelled', 'Unknown'];
+                        : ['Acceptance', 'Pre-Acceptance', 'Waiting', 'Rejected', 'Unknown'];
 
                     if (!didInitStatus) {
                         currentStatus = '';               // ← All
@@ -600,18 +615,60 @@
 
             // ===== status chart (for switcher) =====
             function renderStatusMonthlyChart(multiMonthly) {
-                const catsIso = multiMonthly?.categories || [];
+                const catsIso = Array.isArray(multiMonthly?.categories) ? multiMonthly.categories : [];
                 const catsNice = catsIso.map(ym => {
                     const [y, m] = String(ym || '').split('-');
                     if (!y || !m) return ym || '';
-                    return new Date(Number(y), Number(m) - 1, 1).toLocaleString('en', {month: 'short'}) + ' ' + String(y).slice(-2);
+                    return new Date(Number(y), Number(m) - 1, 1).toLocaleString('en', { month: 'short' }) + ' ' + String(y).slice(-2);
                 });
 
-                const barSeries = multiMonthly?.bars || [];
+                const xCount = catsNice.length;
 
-                // --- compute Accepted MoM % (unchanged) ---
-                const acceptedBars = barSeries.find(s => String(s.name).toLowerCase() === 'accepted');
-                const acceptedVals = acceptedBars?.data || [];
+                const padTo = (arr, n) => {
+                    const a = Array.isArray(arr) ? arr.slice(0) : [];
+                    while (a.length < n) a.push(0);
+                    return a.slice(0, n).map(v => Number(v || 0));
+                };
+
+                const normName = (s) => String(s || '').trim().toLowerCase();
+
+                // ✅ Always keep these statuses in this order
+                const STATUS_ORDER = ['Accepted', 'Pre-Acceptance', 'Waiting', 'Rejected', 'Cancelled', 'Unknown'];
+
+                // Incoming bars from backend
+                const incoming = Array.isArray(multiMonthly?.bars) ? multiMonthly.bars : [];
+
+                // Build map from incoming series -> canonical series names
+                const incomingMap = {};
+                incoming.forEach(s => {
+                    const n = normName(s?.name);
+                    if (!n) return;
+
+                    let canon;
+                    if (n === 'accepted' || n === 'acceptance') canon = 'Accepted';
+                    else if (n.includes('pre') && n.includes('accept')) canon = 'Pre-Acceptance';
+                    else if (n === 'waiting' || n === 'pending') canon = 'Waiting';
+                    else if (n === 'rejected' || n === 'reject') canon = 'Rejected';
+                    else if (n === 'cancelled' || n === 'canceled' || n === 'cancel') canon = 'Cancelled';
+                    else canon = 'Unknown';
+
+                    incomingMap[normName(canon)] = {
+                        type: 'column',
+                        name: canon,
+                        data: padTo(s?.data || [], xCount)
+                    };
+                });
+
+                // ✅ Final bar series ALWAYS present (even if backend didn’t return it)
+                const barSeries = STATUS_ORDER.map(st => {
+                    const key = normName(st);
+                    return incomingMap[key] || { type: 'column', name: st, data: Array(xCount).fill(0) };
+                });
+
+                // Accepted MoM %
+                const acceptedBars = barSeries.find(s => normName(s.name) === 'accepted');
+                const acceptedVals = padTo(acceptedBars?.data || [], xCount);
+
                 const acceptedMoM = [];
                 let prev = null;
                 for (let i = 0; i < acceptedVals.length; i++) {
@@ -626,50 +683,45 @@
                     prev = cur;
                 }
 
-                // === PATCH: monthly totals across all STATUS columns ===
-                const xCount = catsNice.length;
+                // Month totals for % share labels
                 const monthTotals = Array(xCount).fill(0);
                 barSeries.forEach(s => {
-                    // safety: only sum column series
-                    if ((s.type || 'column') === 'column') {
-                        for (let i = 0; i < xCount; i++) {
-                            monthTotals[i] += Number(s.data?.[i] || 0);
-                        }
-                    }
+                    for (let i = 0; i < xCount; i++) monthTotals[i] += Number(s.data?.[i] || 0);
                 });
 
                 Highcharts.chart('kpi_status_monthly', {
-                    chart: {backgroundColor: 'transparent', spacing: [10, 20, 10, 20]},
-                    title: {text: null}, credits: {enabled: false},
+                    chart: { backgroundColor: 'transparent', spacing: [10, 20, 10, 20] },
+                    title: { text: null },
+                    credits: { enabled: false },
                     colors: ['#60a5fa', '#8b5cf6', '#34d399', '#f59e0b', '#fb7185', '#94a3b8'],
 
                     xAxis: {
-                        categories: catsNice, lineColor: 'rgba(255,255,255,.14)', tickColor: 'rgba(255,255,255,.14)',
-                        labels: {style: {color: '#C7D2FE', fontSize: '13px', fontWeight: 600}}
+                        categories: catsNice,
+                        lineColor: 'rgba(255,255,255,.14)',
+                        tickColor: 'rgba(255,255,255,.14)',
+                        labels: { style: { color: '#C7D2FE', fontSize: '13px', fontWeight: 600 } }
                     },
 
                     yAxis: [{
-                        title: {text: 'Value (SAR)', style: {color: '#C7D2FE', fontSize: '13px', fontWeight: 700}},
+                        title: { text: 'Value (SAR)', style: { color: '#C7D2FE', fontSize: '13px', fontWeight: 700 } },
                         min: 0,
                         gridLineColor: 'rgba(255,255,255,.12)',
                         labels: {
-                            style: {color: '#E0E7FF', fontSize: '12px', fontWeight: 600},
-                            formatter() {
-                                return 'SAR ' + Highcharts.numberFormat(this.value, 0);
-                            }
+                            style: { color: '#E0E7FF', fontSize: '12px', fontWeight: 600 },
+                            formatter() { return 'SAR ' + Highcharts.numberFormat(this.value, 0); }
                         }
                     }, {
-                        title: {text: 'Accepted MoM (%)', style: {color: '#F59E0B', fontSize: '13px', fontWeight: 700}},
-                        opposite: true, min: 0, gridLineColor: 'transparent',
+                        title: { text: 'Accepted MoM (%)', style: { color: '#F59E0B', fontSize: '13px', fontWeight: 700 } },
+                        opposite: true,
+                        min: null, // ✅ allow negative
+                        gridLineColor: 'transparent',
                         labels: {
-                            style: {color: '#FBBF24', fontWeight: 600, fontSize: '12px'},
-                            formatter() {
-                                return Highcharts.numberFormat(this.value, 1) + '%';
-                            }
+                            style: { color: '#FBBF24', fontWeight: 600, fontSize: '12px' },
+                            formatter() { return Highcharts.numberFormat(this.value, 1) + '%'; }
                         }
                     }],
 
-                    legend: {itemStyle: {color: '#E8F0FF', fontWeight: 600, fontSize: '13px'}},
+                    legend: { itemStyle: { color: '#E8F0FF', fontWeight: 600, fontSize: '13px' } },
 
                     tooltip: {
                         shared: true,
@@ -677,12 +729,12 @@
                         backgroundColor: 'rgba(10,15,45,0.95)',
                         borderColor: '#334155',
                         borderRadius: 8,
-                        style: {color: '#E8F0FF', fontSize: '13px'},
+                        style: { color: '#E8F0FF', fontSize: '13px' },
                         formatter() {
                             const h = `<div style="font-weight:700;margin-bottom:4px">${this.x}</div>`;
                             return h + this.points.map(p => {
-                                const isPercent = p.series.yAxis && p.series.yAxis.opposite; // MoM line
-                                const val = isPercent
+                                const isMoM = (p.series.name === 'Accepted MoM %');
+                                const val = isMoM
                                     ? Highcharts.numberFormat(p.y || 0, 1) + '%'
                                     : 'SAR ' + Highcharts.numberFormat(p.y || 0, 0);
                                 return `<div><span style="color:${p.color}">●</span> ${p.series.name}: <b>${val}</b></div>`;
@@ -692,8 +744,11 @@
 
                     plotOptions: {
                         column: {
-                            grouping: true, groupPadding: 0.14, pointPadding: 0.04, borderWidth: 0, borderRadius: 3,
-                            // === PATCH: show % share inside each column ===
+                            grouping: true,
+                            groupPadding: 0.14,
+                            pointPadding: 0.04,
+                            borderWidth: 0,
+                            borderRadius: 3,
                             dataLabels: {
                                 enabled: true,
                                 inside: true,
@@ -704,17 +759,21 @@
                                     textOutline: '1px rgba(0,0,0,.6)'
                                 },
                                 formatter: function () {
-                                    const total = monthTotals[this.point.x] || 0;
-                                    if (!total) return '';
+                                    const idx = this.point.x;
+                                    const total = monthTotals[idx] || 0;
+                                    if (!total || !this.y) return '';
                                     const pct = (this.y / total) * 100;
+                                    if (!isFinite(pct) || pct < 0.5) return ''; // ✅ hide tiny noise
                                     return Highcharts.numberFormat(pct, 1) + '%';
                                 }
                             }
                         },
                         spline: {
-                            lineWidth: 3, marker: {enabled: false},
+                            lineWidth: 3,
+                            marker: { enabled: false },
                             dataLabels: {
-                                enabled: true, y: -8,
+                                enabled: true,
+                                y: -8,
                                 style: {
                                     color: '#FBBF24',
                                     fontWeight: 700,
@@ -722,6 +781,7 @@
                                     textOutline: '1px rgba(0,0,0,.45)'
                                 },
                                 formatter() {
+                                    if (this.y === null || this.y === undefined) return '';
                                     return Highcharts.numberFormat(this.y || 0, 1) + '%';
                                 }
                             }
@@ -741,6 +801,9 @@
                     ]
                 });
             }
+
+
+
 
 
             // ===== cards + switcher logic (uses multiMonthly only) =====

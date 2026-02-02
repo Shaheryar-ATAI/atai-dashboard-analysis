@@ -129,6 +129,10 @@
         .coord-salesman-ui-disabled {
             display: none !important;
         }
+        /* Hide salesman filter immediately (no flash) */
+        .coord-salesman-ui {
+            display: none !important;
+        }
     </style>
 @endpush
 
@@ -440,7 +444,11 @@
                         </thead>
                         <tbody>
                         @foreach($salesOrders as $so)
-                            <tr>
+                            @php
+                                $rej = isset($so->rejected_at) ? $so->rejected_at : null;
+                                $rejStr = $rej ? \Illuminate\Support\Carbon::parse($rej)->format('Y-m-d H:i:s') : '';
+                            @endphp
+                            <tr data-rejected-at="{{ $rejStr }}">
                                 <td>{{ $so->client ?? '-' }}</td>
                                 <td>{{ $so->po_no ?? '-' }}</td>
                                 <td>{{ number_format($so->total_po_value ?? 0, 0) }}</td>
@@ -776,7 +784,7 @@
                                         <option value="">Select OAA status</option>
                                         <option value="Acceptance">Acceptance</option>
                                         <option value="Pre-acceptance">Pre-acceptance</option>
-                                        <option value="Rejected">Rejected</option>
+                                        <option value="Rejected">Rejected/Cancelled</option>
                                         <option value="Waiting">Waiting</option>
                                     </select>
                                 </div>
@@ -1009,7 +1017,72 @@
                 if (x === 'WESTERN') return 'Western';
                 return '';
             }
+            // ============================================================
+// Global filter (Region/Year/Month/Date-range)
+// IMPORTANT: does NOT exclude rejected rows anymore.
+// Rejected exclusion happens only in KPI calculation.
+// ============================================================
+            $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
+                const tableId = settings.nTable.id;
 
+                if (tableId !== 'tblCoordinatorProjects' && tableId !== 'tblCoordinatorSalesOrders') {
+                    return true;
+                }
+
+                let areaStr, salesmanStr, dateStr;
+
+                if (tableId === 'tblCoordinatorProjects') {
+                    areaStr     = (data[4] || '').trim();
+                    salesmanStr = (data[3] || '').trim();
+                    dateStr     = (data[6] || '').trim();
+                } else {
+                    areaStr     = (data[8] || '').trim();
+                    salesmanStr = (data[7] || '').trim();
+                    dateStr     = (data[6] || '').trim();
+                }
+
+                const cellCanonArea     = canonicalArea(areaStr);
+                const cellCanonSalesman = canonicalSalesmanCode(salesmanStr);
+
+                // ✅ Region filter (sales team scope)
+                if (filterRegion !== 'all') {
+                    const wantedRegion = canonicalArea(filterRegion);
+                    const allowedSet = REGION_ALLOWED_SALESMEN[wantedRegion];
+                    if (allowedSet && allowedSet.size > 0) {
+                        if (!allowedSet.has(cellCanonSalesman)) return false;
+                    }
+                }
+
+                // Salesman filter (kept safe)
+                if (filterSalesman !== 'all') {
+                    if (cellCanonSalesman !== filterSalesman) return false;
+                }
+
+                // Date handling
+                if (!dateStr || dateStr === '-') {
+                    return !(filterMonth || filterFrom || filterTo);
+                }
+
+                const rowDate = parseYmd(dateStr);
+                if (!rowDate) {
+                    return !(filterMonth || filterFrom || filterTo);
+                }
+
+                if (filterYear) {
+                    const y = rowDate.getFullYear();
+                    if (y !== parseInt(filterYear, 10)) return false;
+                }
+
+                if (filterMonth) {
+                    const m = rowDate.getMonth() + 1;
+                    if (m !== parseInt(filterMonth, 10)) return false;
+                }
+
+                if (filterFrom && rowDate < filterFrom) return false;
+                if (filterTo && rowDate > filterTo) return false;
+
+                return true;
+            });
             function recalcMultiTotals() {
                 const priceInput = document.getElementById('coord_price');
                 const rawMain = (priceInput?.value || '0').toString().replace(/,/g, '');
@@ -1213,82 +1286,9 @@
                  * Global filter:
                  * Applies to both tables
                  */
-                $.fn.dataTable.ext.search.push(function (settings, data) {
-                    const tableId = settings.nTable.id;
 
-                    if (tableId !== 'tblCoordinatorProjects' && tableId !== 'tblCoordinatorSalesOrders') {
-                        return true;
-                    }
 
-                    let areaStr, salesmanStr, dateStr;
 
-                    if (tableId === 'tblCoordinatorProjects') {
-                        areaStr     = (data[4] || '').trim();
-                        salesmanStr = (data[3] || '').trim();
-                        dateStr     = (data[6] || '').trim();
-                    } else {
-                        areaStr     = (data[8] || '').trim();
-                        salesmanStr = (data[7] || '').trim();
-                        dateStr     = (data[6] || '').trim();
-                    }
-
-                    const cellCanonArea     = canonicalArea(areaStr);
-                    const cellCanonSalesman = canonicalSalesmanCode(salesmanStr);
-
-                    /**
-                     * ✅ FIX A: REAL Region filter by Area
-                     */
-                    if (filterRegion !== 'all') {
-                        const wantedRegion = canonicalArea(filterRegion); // Eastern/Central/Western
-
-                        const allowedSet = REGION_ALLOWED_SALESMEN[wantedRegion];
-                        if (allowedSet && allowedSet.size > 0) {
-                            // salesman must belong to that region team
-                            if (!allowedSet.has(cellCanonSalesman)) return false;
-                        }
-                        // IMPORTANT: do NOT filter by Area column at all.
-                    }
-
-                    /**
-                     * Salesman filter is disabled as requested, but kept for future safety:
-                     * (If you ever re-enable it, just remove the forced hide+force-all)
-                     */
-                    if (filterSalesman !== 'all') {
-                        if (cellCanonSalesman !== filterSalesman) return false;
-                    }
-
-                    /**
-                     * Date behavior (kept):
-                     * - If row has no date -> include only when there are no Month/From/To filters.
-                     * - Year is always applied to valid dates only.
-                     */
-                    if (!dateStr || dateStr === '-') {
-                        return !(filterMonth || filterFrom || filterTo);
-                    }
-
-                    const rowDate = parseYmd(dateStr);
-                    if (!rowDate) {
-                        return !(filterMonth || filterFrom || filterTo);
-                    }
-
-                    // Year filter (always active) for valid dates
-                    if (filterYear) {
-                        const y = rowDate.getFullYear();
-                        if (y !== parseInt(filterYear, 10)) return false;
-                    }
-
-                    // Month filter (optional)
-                    if (filterMonth) {
-                        const m = rowDate.getMonth() + 1;
-                        if (m !== parseInt(filterMonth, 10)) return false;
-                    }
-
-                    // Date range filter (optional)
-                    if (filterFrom && rowDate < filterFrom) return false;
-                    if (filterTo && rowDate > filterTo) return false;
-
-                    return true;
-                });
 
                 /**
                  * Friendly salesman labels in table cells
@@ -1310,19 +1310,30 @@
                  */
                 function refreshKpis() {
                     const projCount = dtProjects.rows({ search: 'applied' }).count();
-                    const soCount   = dtSalesOrders.rows({ search: 'applied' }).count();
 
-                    let soTotal = 0;
-                    dtSalesOrders.column(2, { search: 'applied' }).data().each(function (value) {
-                        let num = 0;
-                        if (typeof value === 'number') num = value;
-                        else if (typeof value === 'string') num = parseFloat(value.replace(/[^0-9.-]/g, '')) || 0;
-                        if (!isNaN(num)) soTotal += num;
+                    // ✅ Sales Orders KPI: EXCLUDE rejected rows only for KPIs
+                    let soCountExRejected = 0;
+                    let soTotalExRejected = 0;
+
+                    dtSalesOrders.rows({ search: 'applied' }).every(function () {
+                        const node = this.node();  // <tr>
+                        const rejectedAt = (node && node.getAttribute('data-rejected-at')) ? node.getAttribute('data-rejected-at').trim() : '';
+
+                        // if rejected_at exists => skip for KPI
+                        if (rejectedAt) return;
+
+                        soCountExRejected++;
+
+                        const row = this.data();   // array of cells
+                        let val = row[2];          // "PO Value (SAR)" column
+
+                        if (typeof val === 'string') val = parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
+                        if (typeof val === 'number' && !isNaN(val)) soTotalExRejected += val;
                     });
 
                     if (elKpiProjects)   elKpiProjects.textContent   = projCount.toLocaleString('en-SA');
-                    if (elKpiSoCount)    elKpiSoCount.textContent    = soCount.toLocaleString('en-SA');
-                    if (elKpiSoValueNum) elKpiSoValueNum.textContent = soTotal.toLocaleString('en-SA');
+                    if (elKpiSoCount)    elKpiSoCount.textContent    = soCountExRejected.toLocaleString('en-SA');
+                    if (elKpiSoValueNum) elKpiSoValueNum.textContent = Math.round(soTotalExRejected).toLocaleString('en-SA');
                 }
 
                 // Highcharts
@@ -1389,6 +1400,12 @@
                     const sums = { 'Eastern': 0, 'Central': 0, 'Western': 0 };
 
                     dtSalesOrders.rows({ search: 'applied' }).every(function () {
+                        const node = this.node();
+                        const rejectedAt = (node && node.getAttribute('data-rejected-at')) ? node.getAttribute('data-rejected-at').trim() : '';
+
+                        // ✅ Exclude rejected from chart totals
+                        if (rejectedAt) return;
+
                         const row = this.data();
                         const areaKey = canonicalArea(row[8] || '');
                         let val = row[2];
@@ -1402,7 +1419,6 @@
                     const cats = ['Eastern', 'Central', 'Western'];
                     regionChart.series[0].setData(cats.map(r => sums[r] || 0), true);
                 }
-
                 // redraw hooks
                 $('#tblCoordinatorProjects').on('draw.dt', () => { repaintSalesmanCells(); refreshKpis(); });
                 $('#tblCoordinatorSalesOrders').on('draw.dt', () => { repaintSalesmanCells(); refreshKpis(); refreshChartFromTable(); });

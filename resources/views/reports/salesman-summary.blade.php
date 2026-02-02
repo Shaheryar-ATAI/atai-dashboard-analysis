@@ -5,7 +5,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>ATAI – Salesman Summary {{ $year }}</title>
+    <title>ATAI – SalesSource Summary {{ $year }}</title>
 
     <style>
         /* ======================================================================
@@ -723,8 +723,14 @@
        ========================= --}}
     <table class="header-table">
         <tr>
+            @php
+                // Normalize area pill (only allow known values)
+                $areaNorm = $area ?? 'All';
+                $areaNorm = ucfirst(strtolower(trim($areaNorm)));
+                if (!in_array($areaNorm, ['Eastern','Central','Western'], true)) $areaNorm = 'All';
+            @endphp
             <td class="header-title">
-                <div class="h1">ATAI Sales Performance Snapshot</div>
+                <div class="h1">ATAI Sales Performance Snapshot : {{ strtoupper($areaNorm) }}</div>
             </td>
 
             <td class="header-meta">
@@ -733,12 +739,7 @@
                     <strong>{{ $today }}</strong>
                 </div>
 
-                @php
-                    // Normalize area pill (only allow known values)
-                    $areaNorm = $area ?? 'All';
-                    $areaNorm = ucfirst(strtolower(trim($areaNorm)));
-                    if (!in_array($areaNorm, ['Eastern','Central','Western'], true)) $areaNorm = 'All';
-                @endphp
+
 
                 <div class="report-context">
                     <span class="context-pill year">Year: {{ $year }}</span>
@@ -811,7 +812,7 @@
                 <th>Region</th>
                 <th class="num">Target (Year)</th>
                 <th class="num">Target (Monthly)</th>
-                <th>Salesmen</th>
+                <th>Sales Source</th>
             </tr>
             </thead>
 
@@ -853,12 +854,12 @@
     @endphp
 
     <div class="summary-card">
-        <div class="summary-title">Quotations vs POs by Salesman — Year {{ $year }}</div>
+        <div class="summary-title">Quotations vs POs by SALE Source — Year {{ $year }}</div>
 
         <table class="summary-table">
             <thead>
             <tr>
-                <th>Salesman</th>
+                <th>SALE Source</th>
                 <th class="num">Quotations (SAR)</th>
                 <th class="num">POs Received (SAR)</th>
             </tr>
@@ -1072,7 +1073,7 @@
 
         <thead>
         <tr>
-            <th>Salesman</th>
+            <th>SALE Source</th>
             <th>Project Region</th>
             @foreach($months as $m)
                 <th style="text-align:right;">{{ strtoupper($m) }}</th>
@@ -1193,7 +1194,7 @@
 
 <div class="page">
     <div class="section-title">Product Matrix — Inquiries (Projects)</div>
-    <div class="section-sub">Rows: Salesman → Product. Columns: Month-wise sums (SAR).</div>
+    <div class="section-sub">Rows: SALE Source → Product. Columns: Month-wise sums (SAR).</div>
 
     @php
         $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Total'];
@@ -1249,7 +1250,7 @@
 
         <thead>
         <tr>
-            <th rowspan="2">Salesman</th>
+            <th rowspan="2">SALE Source</th>
             <th rowspan="2">Product</th>
             <th colspan="13" class="num">Inquiries (SAR)</th>
         </tr>
@@ -1419,7 +1420,7 @@
     @endphp
 
     <div class="section-title" style="margin-top:14px;">Product Matrix — POs Received (Sales Orders)</div>
-    <div class="section-sub">Rows: Salesman → Product. Columns: Month-wise sums (SAR).</div>
+    <div class="section-sub">Rows: SALE Source → Product. Columns: Month-wise sums (SAR).</div>
 
     <table class="matrix">
         <colgroup>
@@ -1433,7 +1434,7 @@
 
         <thead>
         <tr>
-            <th rowspan="2">Salesman</th>
+            <th rowspan="2">SALE Source</th>
             <th rowspan="2">Product</th>
             <th colspan="13" class="num">POs (SAR)</th>
         </tr>
@@ -1606,17 +1607,16 @@
         </tbody>
     </table>
 </div>
-
-{{-- ======================================================================
-   PAGE 4: Performance Matrix (Forecast / Target / Achievement / Inquiries / POs / Conversion)
-   - Only show month achievement for current month (others "-")
-   - Total achievement uses Total POs / Annual Target
-   ====================================================================== --}}
+{{-- ============================================================
+   PAGE 4: Performance Matrix (Forecast / Target / Inquiries / POs / Conversion)
+============================================================ --}}
 <div class="page-break"></div>
+
 <div class="page">
 
     <div class="section-title">Performance Matrix — Forecast / Target / Inquiries / POs / Conversion</div>
-    <div class="section-sub">Conversion% = POs ÷ Inquiries. Total conversion is calculated from totals (not sum of %).</div>
+    <div class="section-sub">Conversion% = POs ÷ Inquiries. Total conversion is calculated from totals (not sum of %).
+    </div>
 
     @php
         $salesmanKpiMatrix = $salesmanKpiMatrix ?? [];
@@ -1624,7 +1624,7 @@
         $labels = [
             'FORECAST'  => 'Forecast',
             'TARGET'    => 'Target',
-            'PERF'      => 'Target Achievement',
+            'PERF'      => 'Target-Achievement',
             'INQUIRIES' => 'Inquiries',
             'POS'       => 'Sales Orders',
             'CONV_PCT'  => 'Conversion rate %',
@@ -1636,99 +1636,115 @@
             return array_slice($arr, 0, 13);
         };
 
-        // Build conversion % row (month-wise) + total conversion from totals
         $buildConvRow = function($inqRow, $poRow) use ($pad13){
             $inqRow = $pad13($inqRow);
             $poRow  = $pad13($poRow);
 
             $out = [];
-            for ($i=0; $i<12; $i++){
+            for($i=0;$i<12;$i++){
                 $inq = (float)$inqRow[$i];
                 $po  = (float)$poRow[$i];
                 $out[$i] = $inq > 0 ? round(($po / $inq) * 100, 1) : 0.0;
             }
-
             $tInq = (float)$inqRow[12];
             $tPo  = (float)$poRow[12];
             $out[12] = $tInq > 0 ? round(($tPo / $tInq) * 100, 1) : 0.0;
-
             return $out;
         };
 
-        // Determine report date + current month (for the achievement-only-current-month rule)
+        // current month progress
         $reportDate = null;
-        try {
-            $reportDate = Carbon::createFromFormat('d-m-Y', (string)$today);
-        } catch (Throwable $e) {
-            $reportDate = Carbon::now();
-        }
+        try { $reportDate = Carbon::createFromFormat('d-m-Y', (string)$today); }
+        catch (Throwable $e) { $reportDate = Carbon::now(); }
 
         $currentMonth = (int)$reportDate->month;
+        $daysInMonth  = (int)$reportDate->daysInMonth;
+        $dayOfMonth   = (int)$reportDate->day;
 
-        // Render performance cell (flag badges)
-        $perfCell = function(float $actual, float $expected, bool $isFuture) {
-            if ($isFuture) return ['html' => '<span class="flag flag-na">N/A</span>'];
+        $currentMonthProgress = $daysInMonth > 0 ? ($dayOfMonth / $daysInMonth) : 1.0;
+        $currentMonthProgress = max(0.0, min(1.0, $currentMonthProgress));
 
-            if ($expected <= 0) {
-                if ($actual <= 0) return ['html' => '<span class="flag flag-danger">0% • DANGER</span>'];
-                return ['html' => '<span class="flag flag-na">NO TARGET</span>'];
-            }
+        $perfCell = function(float $actual, float $expected, bool $isFuture, bool $isCurrentMonth) {
+    if ($isFuture) {
+        return ['html' => '<span class="flag flag-na">N/A</span>'];
+    }
 
-            if ($actual <= 0) return ['html' => '<span class="flag flag-danger">0% • DANGER</span>'];
+    // No target case
+    if ($expected <= 0) {
+        if ($actual <= 0) return ['html' => '<span class="flag flag-na">N/A</span>'];
+        return ['html' => '<span class="flag flag-na">NO TARGET</span>'];
+    }
 
-            $pct = ($actual / $expected) * 100.0;
+    // ✅ If current month and still 0, DO NOT call it danger (data may not be updated yet)
+    if ($actual <= 0) {
+        if ($isCurrentMonth) {
+            return ['html' => '<span class="flag flag-attn">0%</span>']; // or flag-na if you prefer
+        }
+        // ✅ Past months: 0 against expected target is a real performance gap
+        return ['html' => '<span class="flag flag-danger">0% • DANGER</span>'];
+    }
 
-            if ($pct >= 100) return ['html' => '<span class="flag flag-excellent">' . number_format($pct,0) . '%</span>'];
-            if ($pct >= 60)  return ['html' => '<span class="flag flag-good">' . number_format($pct,0) . '%</span>'];
-            if ($pct >= 50)  return ['html' => '<span class="flag flag-acceptable">' . number_format($pct,0) . '%</span>'];
-            if ($pct >= 20)  return ['html' => '<span class="flag flag-attn">' . number_format($pct,0) . '%</span>'];
+    $pct = ($actual / $expected) * 100.0;
 
-            return ['html' => '<span class="flag flag-danger">' . number_format($pct,0) . '%</span>'];
-        };
+    if ($pct >= 100) return ['html' => '<span class="flag flag-excellent">' . number_format($pct,0) . '%</span>'];
+    if ($pct >= 60)  return ['html' => '<span class="flag flag-good">' . number_format($pct,0) . '%</span>'];
+    if ($pct >= 50)  return ['html' => '<span class="flag flag-acceptable">' . number_format($pct,0) . '%</span>'];
+    if ($pct >= 20)  return ['html' => '<span class="flag flag-attn">' . number_format($pct,0) . '%</span>'];
 
-        // Build PERF row:
-        // - Month-wise: ONLY current month shows achievement, others "-"
-        // - Total: Total POs / Annual Target
-        $buildPerfRow = function($poRow, $targetRow) use ($pad13, $perfCell, $currentMonth) {
-            $poRow     = $pad13($poRow);
-            $targetRow = $pad13($targetRow);
+    return ['html' => '<span class="flag flag-danger">' . number_format($pct,0) . '%</span>'];
+};
 
-            $out = [];
+$buildPerfRow = function($poRow, $targetRow) use ($pad13, $perfCell, $currentMonth, $currentMonthProgress) {
+    $poRow     = $pad13($poRow);
+    $targetRow = $pad13($targetRow);
 
-            $currentIdx = max(0, min(11, (int)$currentMonth - 1));
+    $out = [];
 
-            for ($i=0; $i<12; $i++) {
-                if ($i !== $currentIdx) {
-                    $out[$i] = ['html' => '<span class="flag flag-na">-</span>'];
-                    continue;
-                }
+    for ($i=0; $i<12; $i++) {
+        $monthNo = $i + 1;
 
-                $actual   = (float)$poRow[$i];
-                $expected = (float)$targetRow[$i];
+        $isFuture       = $monthNo > $currentMonth;
+        $isCurrentMonth = $monthNo === $currentMonth;
 
-                if ($expected <= 0) {
-                    $out[$i] = ['html' => '<span class="flag flag-na">-</span>'];
-                    continue;
-                }
+        $expected = 0.0;
+        if (!$isFuture) {
+            $expected = ($monthNo < $currentMonth)
+                ? (float)$targetRow[$i]
+                : (float)$targetRow[$i] * (float)$currentMonthProgress;
+        }
 
-                $out[$i] = $perfCell($actual, $expected, false);
-            }
+        $actual = (float)$poRow[$i];
 
-            $actualTotal = (float)$poRow[12];
-            $annualTarget = (float)$targetRow[12];
+        // ✅ Pass current-month flag into perfCell
+        $out[$i] = $perfCell($actual, $expected, $isFuture, $isCurrentMonth);
+    }
 
-            $out[12] = ($annualTarget <= 0)
-                ? ['html' => '<span class="flag flag-na">-</span>']
-                : $perfCell($actualTotal, $annualTarget, false);
+    // TOTAL column (YTD)
+    $actualYtd = 0.0;
+    $expectedYtd = 0.0;
 
-            return $out;
-        };
+    for ($i=0; $i<12; $i++) {
+        $monthNo = $i + 1;
+        if ($monthNo > $currentMonth) continue;
+
+        $actualYtd += (float)$poRow[$i];
+
+        $expectedYtd += ($monthNo < $currentMonth)
+            ? (float)$targetRow[$i]
+            : (float)$targetRow[$i] * (float)$currentMonthProgress;
+    }
+
+    // Total is not "future", and not "current month"
+    $out[12] = $perfCell($actualYtd, $expectedYtd, false, false);
+
+    return $out;
+};
     @endphp
 
     <table class="matrix">
         <thead>
         <tr>
-            <th rowspan="2">Salesman</th>
+            <th rowspan="2">Sales Source</th>
             <th rowspan="2">Metric</th>
             <th colspan="13" class="num">Month-wise</th>
         </tr>
@@ -1814,6 +1830,7 @@
         @endforelse
         </tbody>
     </table>
+
 </div>
 
 {{-- ======================================================================

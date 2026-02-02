@@ -77,7 +77,7 @@
             background: linear-gradient(180deg, rgba(149, 197, 61, .30), rgba(149, 197, 61, .22)) !important;
             border-color: rgba(149, 197, 61, .45) !important;
             color: #fff !important;
-            box-shadow: 0 8px 18px rgba(149, 197, 61, .2); /* ✅ close it */
+            box-shadow: 0 8px 18px rgba(149, 197, 61, .2);
             position: relative;
         }
     </style>
@@ -117,6 +117,13 @@
             @endif
 
             <button id="btnApply" class="btn btn-primary btn-sm">Update</button>
+
+            <div class="form-check ms-2">
+                <input class="form-check-input" type="checkbox" id="fIncludeRejected">
+                <label class="form-check-label text-muted" for="fIncludeRejected">
+                    Include Rejected Value
+                </label>
+            </div>
         </div>
 
         <div class="row g-3 mb-4 text-center justify-content-center">
@@ -160,7 +167,7 @@
                             <button class="nav-link active" data-status="" type="button">All</button>
                         </li>
                         <li class="nav-item">
-                            <button class="nav-link" data-status="Accepted" type="button">Accepted</button>
+                            <button class="nav-link" data-status="Acceptance" type="button">Acceptance</button>
                         </li>
                         <li class="nav-item">
                             <button class="nav-link" data-status="Pre-Acceptance" type="button">Pre-Acceptance</button>
@@ -331,17 +338,36 @@
         const DEFAULT_YEAR = '2026';
 
         function buildFilters() {
+            const st = (currentStatus || '').toString().trim();
+            const stLower = st.toLowerCase();
+
+            // ✅ Read checkbox state (this is the missing part)
+            const includeRejectedChecked = $('#fIncludeRejected').is(':checked');
+
+            // ✅ Rule:
+            // - Always include rejected if user is on "Rejected" tab
+            // - Otherwise, include rejected only if checkbox is ticked
+            const includeRejected = (stLower === 'rejected' || includeRejectedChecked) ? 1 : 0;
+
             return {
                 year: $year.val() || DEFAULT_YEAR,
                 month: $month.val() || '',
                 from: $from.val() || '',
                 to: $to.val() || '',
-                family: currentFamily,
-                status: currentStatus,
+                family: currentFamily || '',
+
+                // backend reads these
+                oaa: st,
+                status: st,
+
                 region: currentRegion || '',
-                salesman: IS_MANAGER ? (currentSalesman || '') : ''   // ✅ only for GM/Admin
+                salesman: IS_MANAGER ? (currentSalesman || '') : '',
+
+                // ✅ FIXED
+                include_rejected: includeRejected
             };
         }
+
         async function loadSalesmenDropdown() {
             if (!IS_MANAGER || !$salesman.length) return;
 
@@ -733,7 +759,7 @@
                     className: 'text-end',
                     render: d => 'SAR ' + Number(d || 0).toLocaleString()
                 },
-                {data: 'status', title: 'Status'},
+                {data: 'sales_oaa', title: 'Sales OAA'},
                 {data: 'salesperson', title: 'Salesperson'},
                 {data: 'remarks', title: 'Remarks'}
             ]
@@ -761,6 +787,10 @@
             await loadKpisAndCharts();
         });
 
+        $('#fIncludeRejected').off('change').on('change', async function () {
+            dt.ajax.reload(null, false);
+            await loadKpisAndCharts();
+        });
         function renderProjectsRegionPie(data) {
             if (!Array.isArray(data)) return;
 
