@@ -320,7 +320,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/bnc/export/pdf', [BncProjectController::class, 'exportPdf'])->name('bnc.export.pdf');
     Route::get('/bnc-projects/{id}/quotes', [BncProjectController::class, 'quotesForBnc'])->name('bnc.quotes');
 
-
+    Route::post('/bnc/quotes/lookup', [BncProjectController::class, 'lookupQuotes'])
+        ->name('bnc.quotes.lookup');
     /* ====================================================================
      | GM / ADMIN ONLY
      | ==================================================================== */

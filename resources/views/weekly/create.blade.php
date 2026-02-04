@@ -1,17 +1,20 @@
 {{-- resources/views/weekly/create.blade.php --}}
-    <!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
-<head>
+
+
+@extends('layouts.app')
+
+@section('title', 'ATAI Projects — Live')
+@push('head')
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>ATAI — Weekly Sales Activities Report</title>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+{{--    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
           crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link rel="stylesheet"
-          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
+          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">--}}
 
     <style>
         .section-card {
@@ -79,53 +82,14 @@
         }
 
     </style>
-</head>
-<body>
+@endpush
+
+@section('content')
 @php
     /** @var \App\Models\User|null $u */
     $u   = auth()->user();
     $rid = session('report_id'); // set by controller after save
 @endphp
-
-<nav class="navbar navbar-atai navbar-expand-lg">
-    <div class="container-fluid">
-        <a class="navbar-brand d-flex align-items-center" href="{{ route('projects.index') }}">
-            <img src="{{ asset('images/atai-logo.png') }}" alt="ATAI" class="brand-logo me-2">
-            <span class="brand-word">ATAI</span>
-        </a>
-
-        <div class="collapse navbar-collapse show">
-            <ul class="navbar-nav mx-lg-auto mb-2 mb-lg-0">
-                <li class="nav-item"><a class="nav-link" href="{{ route('projects.index') }}">Quotation KPI</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('projects.inquiries_log') }}">Quotation Log</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.manager.kpi') }}">Sales Order Log
-                        KPI</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('salesorders.manager.index') }}">Sales Order
-                        Log</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('estimation.index') }}">Estimation</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ route('forecast.create') }}">Forecast</a></li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('weekly.*') ? 'active' : '' }}"
-                       href="{{ route('weekly.create') }}">
-                        Weekly Reports
-                    </a>
-                </li>
-            </ul>
-
-            <div class="navbar-right">
-                <div class="navbar-text me-2">
-                    Logged in as <strong>{{ $u->name ?? '' }}</strong>
-                    @if(!empty($u->region))
-                        · <small>{{ $u->region }}</small>
-                    @endif
-                </div>
-                <form method="POST" action="{{ route('logout') }}" class="m-0">@csrf
-                    <button class="btn btn-logout btn-sm" type="submit">Logout</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</nav>
 
 <main class="container-fluid py-4">
 
@@ -150,8 +114,9 @@
         </div>
     @endif
 
-    <form id="weeklyForm" class="section-card card" method="POST" action="{{ route('weekly.save') }}">
-        @csrf
+    <form id="weeklyForm" novalidate class="section-card card" method="POST" action="{{ route('weekly.save') }}">
+
+    @csrf
 
         <div class="card-header">
             <div class="row g-3 align-items-center">
@@ -228,9 +193,10 @@
         </div>
     </form>
 </main>
+@endsection
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-        crossorigin="anonymous"></script>
+@push('scripts')
+
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -290,21 +256,7 @@
         };
 
 // block submit if any invalid quotation present
-        form?.addEventListener('submit', function (e) {
-            let bad = false;
-            document.querySelectorAll('input.qtn').forEach((el) => {
-                // trigger validation one last time
-                el.dispatchEvent(new Event('input', {bubbles: false}));
-                if (!el.checkValidity()) bad = true;
-            });
-            if (bad) {
-                e.preventDefault();
-                e.stopPropagation();
-                // focus the first bad one
-                const firstBad = document.querySelector('input.qtn.is-invalid');
-                if (firstBad) firstBad.focus();
-            }
-        });
+
 
         // Normalize old non-ISO dates if any
         if (weekDate.value && weekDate.value.includes('/')) weekDate.value = '';
@@ -342,31 +294,45 @@
         const STATUS = ['Inquiry', 'Quoted', 'Follow-up', 'Negotiation', 'In-Hand', 'Lost', 'On Hold', 'Postponed', 'Closed'];
 
         function statusSelect(name) {
-            // First option: empty value, human text “Select Status”
             let opts = '<option value="">Select Status</option>';
             for (const v of STATUS) opts += `<option value="${v}">${v}</option>`;
             return `<select name="${name}" class="form-select form-select-sm thin-input">${opts}</select>`;
         }
-
         function makeRow(i) {
             const base = 'rows[' + i + ']';
             const tr = document.createElement('tr');
             tr.innerHTML =
                 '<td class="serial text-secondary fw-semibold">' + (i + 1) + '</td>' +
+
                 '<td><input name="' + base + '[customer]" class="form-control form-control-sm thin-input" placeholder="Customer"></td>' +
                 '<td><input name="' + base + '[project]" class="form-control form-control-sm thin-input" placeholder="Project"></td>' +
-                '<td><input name="' + base + '[quotation_no]"class="form-control form-control-sm thin-input qtn" placeholder="S.0000.0.0000.XX.R0"  maxlength="64" inputmode="text" pattern="^S\\.\\d{4}\\.\\d+\\.\\d{4}\\.[A-Z]{2}\\.R\\d+$" title="Format: S.&lt;num&gt;.&lt;num&gt;.&lt;num&gt;.MH.R&lt;num&gt; e.g., S.4135.1.2605.MH.R0"></td>' +
+
+                '<td><input name="' + base + '[quotation_no]" class="form-control form-control-sm thin-input qtn" ' +
+                'placeholder="S.0000.0.0000.XX.R0" maxlength="64" inputmode="text" ' +
+                'pattern="^S\\.\\d{4}\\.\\d+\\.\\d{4}\\.[A-Z]{2}\\.R\\d+$" ' +
+                'title="Format: S.4135.1.2605.MH.R0"></td>' +
+
                 '<td><input name="' + base + '[location]" class="form-control form-control-sm thin-input" placeholder="Location"></td>' +
-                '<td><input name="' + base + '[value]" class="form-control form-control-sm thin-input text-end" placeholder="SAR 0"></td>' +
+
+                '<td><input name="' + base + '[value]" type="number" step="0.01" min="0" ' +
+                'class="form-control form-control-sm thin-input text-end" placeholder="0"></td>' +
+
                 '<td>' + statusSelect(base + '[status]') + '</td>' +
+
                 '<td><input name="' + base + '[contact_name]" class="form-control form-control-sm thin-input" placeholder="Contact"></td>' +
-                '<td><input name="' + base + '[contact_mobile]" type="tel" class="form-control form-control-sm thin-input phone-field" placeholder="+966-5XXXXXXXX" inputmode="numeric" maxlength="16"></td>' +
+
+                '<td><input name="' + base + '[contact_mobile]" type="tel" class="form-control form-control-sm thin-input phone-field" ' +
+                'placeholder="+9665XXXXXXXX" inputmode="numeric" maxlength="16"></td>' +
+
                 '<td><input type="date" name="' + base + '[visit_date]" class="form-control form-control-sm thin-input"></td>' +
+
                 '<td><input name="' + base + '[notes]" class="form-control form-control-sm thin-input" placeholder="Notes"></td>' +
-                // NEW: delete button
+
                 '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger del" title="Delete row"><i class="bi bi-x-lg"></i></button></td>';
+
             return tr;
         }
+
 
         function renumber() {
             const trs = body.children;
@@ -454,13 +420,7 @@
             if (e.key === 'Enter') e.preventDefault();
         });
 
-        // Save: prevent double submit
-        form?.addEventListener('submit', function () {
-            if (saveBtn) {
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
-            }
-        });
+
 
         // PDF open + optional auto-reload (like Forecast)
         let shouldReloadAfterPdf = false;
@@ -483,7 +443,142 @@
                 location.reload();
             }
         });
+
+// ============================================================
+// ✅ Weekly rows validation
+// Rule:
+// - Allow empty rows (seed rows should not block)
+// - BUT any row that has ANY data must be FULLY filled
+// - Must have at least ONE completed row
+// - Quotation format validated (if filled)
+// - Value must be > 0
+// ============================================================
+        function isBlank(v) {
+            return v === null || v === undefined || String(v).trim() === '';
+        }
+
+        function getRowFields(tr) {
+            return [
+                { key: 'Customer Name', el: tr.querySelector('input[name*="[customer]"]') },
+                { key: 'Project Name', el: tr.querySelector('input[name*="[project]"]') },
+                { key: 'Quotation #', el: tr.querySelector('input[name*="[quotation_no]"]') },
+                { key: 'Project Location', el: tr.querySelector('input[name*="[location]"]') },
+                { key: 'Value', el: tr.querySelector('input[name*="[value]"]') },
+                { key: 'Status', el: tr.querySelector('select[name*="[status]"]') },
+                { key: 'Contact Name', el: tr.querySelector('input[name*="[contact_name]"]') },
+                { key: 'Contact Mobile', el: tr.querySelector('input[name*="[contact_mobile]"]') },
+                { key: 'Visiting Date', el: tr.querySelector('input[name*="[visit_date]"]') },
+                { key: 'Notes', el: tr.querySelector('input[name*="[notes]"]') },
+            ];
+        }
+
+        function rowHasAnyData(tr) {
+            return getRowFields(tr).some(f => f.el && !isBlank(f.el.value));
+        }
+
+        function clearRowError(tr) {
+            tr.classList.remove('row-error');
+            tr.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        }
+
+        function setRowError(tr) {
+            tr.classList.add('row-error');
+        }
+
+        function validateWeeklyRows() {
+            let ok = true;
+            const messages = [];
+            let completedRows = 0;
+
+            const trs = Array.from(body.querySelectorAll('tr'));
+
+            trs.forEach((tr, idx) => {
+                clearRowError(tr);
+
+                // ✅ Ignore fully empty rows
+                if (!rowHasAnyData(tr)) return;
+
+                const rowNo = idx + 1;
+                const fields = getRowFields(tr);
+
+                let rowBad = false;
+                const missing = [];
+
+                // ✅ Required: if row has any data, ALL fields must be filled
+                fields.forEach(f => {
+                    if (!f.el || isBlank(f.el.value)) {
+                        rowBad = true;
+                        missing.push(f.key);
+                        if (f.el) f.el.classList.add('is-invalid');
+                    }
+                });
+
+                // ✅ Quotation format check (only if filled)
+                const qtn = tr.querySelector('input.qtn');
+                if (qtn && !isBlank(qtn.value) && !QTN_RE.test(qtn.value)) {
+                    rowBad = true;
+                    qtn.classList.add('is-invalid');
+                    messages.push(`Row ${rowNo}: Quotation format invalid (e.g., S.4135.1.2605.MH.R0)`);
+                }
+
+                // ✅ Value must be > 0
+                const val = tr.querySelector('input[name*="[value]"]');
+                if (val && !isBlank(val.value)) {
+                    const num = Number(val.value);
+                    if (!Number.isFinite(num) || num <= 0) {
+                        rowBad = true;
+                        val.classList.add('is-invalid');
+                        messages.push(`Row ${rowNo}: Value must be greater than 0`);
+                    }
+                }
+
+                if (rowBad) {
+                    ok = false;
+                    setRowError(tr);
+                    if (missing.length) messages.push(`Row ${rowNo}: Missing → ${missing.join(', ')}`);
+                } else {
+                    completedRows++;
+                }
+            });
+
+            // ✅ Must have at least one completed row
+            if (completedRows === 0) {
+                ok = false;
+                messages.unshift('Please enter at least ONE weekly activity row (all columns required in that row).');
+            }
+
+            return { ok, messages };
+        }
+
+// ============================================================
+// ✅ SINGLE submit handler (ONLY ONE)
+// - validates rows + quotation + value
+// - disables button ONLY if validation passes
+// ============================================================
+        form?.addEventListener('submit', function (e) {
+            const res = validateWeeklyRows();
+            if (!res.ok) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                alert(
+                    res.messages.slice(0, 12).join("\n") +
+                    (res.messages.length > 12 ? "\n\n…and more." : "")
+                );
+
+                const firstBad = document.querySelector('#weeklyTbl .is-invalid');
+                if (firstBad) firstBad.focus();
+                return;
+            }
+
+            // ✅ Now safe to disable button (after passing validation)
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+            }
+        });
     });
+
+
 </script>
-</body>
-</html>
+@endpush

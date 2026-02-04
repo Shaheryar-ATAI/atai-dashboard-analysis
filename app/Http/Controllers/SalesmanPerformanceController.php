@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Cache;
 use App\Services\Reports\SalesmanSummaryInsightService;
 use App\Services\Reports\SalesmanSummaryLlmService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class SalesmanPerformanceController extends Controller
 {
@@ -66,7 +67,7 @@ class SalesmanPerformanceController extends Controller
         9 => 'sep',
         10 => 'oct',
         11 => 'nov',
-        12 => 'december',
+        12 => 'dec',
     ];
 
 
@@ -137,28 +138,37 @@ class SalesmanPerformanceController extends Controller
         $kind = $r->query('kind', 'inq');
         $year = (int)$r->query('year', now()->year);
         $area = (string)$r->query('area', 'All');
+
         if ($kind === 'po') {
             // ---------- Sales Order Log ----------
             $labelExpr = "COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
             $amount = $this->poAmountExpr('s');
             $monthly = $this->monthlySums('s.date_rec', $amount);
 
-            // base rows: one row per *raw* label
             $baseQuery = DB::table('salesorderlog as s')
                 ->selectRaw("$labelExpr AS salesman,$monthly")
                 ->whereYear('s.date_rec', $year)
                 ->whereNull('s.deleted_at')
                 ->whereRaw('`s`.`PO. No.` IS NOT NULL')
                 ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
-                ->whereRaw($amount . ' > 0')
-                ->groupByRaw($labelExpr);
+                ->whereRaw($amount . ' > 0');
 
-            $sum = (float)DB::table('salesorderlog as s')
+            // ✅ EXCLUDE rejected/cancelled using Status OAA
+            $baseQuery = $this->applyPoStatusOaaAcceptedFilter($baseQuery, 's');
+
+            $baseQuery = $baseQuery->groupByRaw($labelExpr);
+
+            $sumQ = DB::table('salesorderlog as s')
                 ->whereYear('s.date_rec', $year)
                 ->whereNull('s.deleted_at')
                 ->whereRaw('`s`.`PO. No.` IS NOT NULL')
                 ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
-                ->whereRaw($amount . ' > 0')
+                ->whereRaw($amount . ' > 0');
+
+            // ✅ EXCLUDE rejected/cancelled using Status OAA
+            $sumQ = $this->applyPoStatusOaaAcceptedFilter($sumQ, 's');
+
+            $sum = (float)$sumQ
                 ->selectRaw("SUM($amount) AS s")
                 ->value('s');
         } else {
@@ -178,21 +188,20 @@ class SalesmanPerformanceController extends Controller
                 ->value('s');
         }
 
-        // (optional) loosen ONLY_FULL_GROUP_BY, safe to keep
         $this->relaxGroupBy();
-        // --------- PHP-side aggregation by alias ----------
+
         $rows = $baseQuery->get();
         $agg = [];
-        $months = array_values($this->monthAliases);   // ['jan','feb',...,'december']
+        $months = array_values($this->monthAliases);
 
         foreach ($rows as $row) {
             $alias = $this->normalizeSalesman($row->salesman);
-            // ✅ APPLY AREA FILTER HERE
+
             if (!$this->areaPasses($alias, $area)) {
                 continue;
             }
+
             if (!isset($agg[$alias])) {
-                // initialise row for this alias
                 $agg[$alias] = (object)array_merge(
                     ['salesman' => $alias],
                     array_fill_keys($months, 0.0),
@@ -200,32 +209,34 @@ class SalesmanPerformanceController extends Controller
                 );
             }
 
-            // accumulate month values + total
             foreach ($months as $m) {
                 $agg[$alias]->$m += (float)$row->$m;
             }
             $agg[$alias]->total += (float)$row->total;
         }
+
         $sumFiltered = 0.0;
-        foreach ($agg as $r) {
-            $sumFiltered += (float)$r->total;
+        foreach ($agg as $r2) {
+            $sumFiltered += (float)$r2->total;
         }
-        // convert to collection for Yajra
+
         $collection = collect(array_values($agg));
 
         return DataTables::of($collection)
-            ->editColumn('salesman', fn($row) => '<span class="badge text-bg-secondary">' . e($row->salesman) . '</span>'
+            ->editColumn('salesman', fn($row) =>
+                '<span class="badge text-bg-secondary">' . e($row->salesman) . '</span>'
             )
             ->rawColumns(['salesman'])
             ->with(['sum_total' => $sumFiltered])
             ->make(true);
     }
 
+
     public function kpis(Request $r)
     {
         $year = (int)$r->query('year', now()->year);
         $area = (string)$r->query('area', 'All');
-        // disable strict grouping
+
         $this->relaxGroupBy();
 
         // --- Inquiries ---
@@ -238,28 +249,30 @@ class SalesmanPerformanceController extends Controller
             ->groupByRaw("$projNorm,$projLabel")
             ->get();
 
-        // --- POs (using PO Value, no Status filter) ---
+        // --- POs ---
         $poLabel = "COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
         $poNorm = $this->norm($poLabel);
         $amt = $this->poAmountExpr('s');
 
-        $po = DB::table('salesorderlog as s')
+        $poQ = DB::table('salesorderlog as s')
             ->selectRaw("$poNorm AS norm,$poLabel AS label,SUM($amt) AS total")
             ->whereYear('s.date_rec', $year)
             ->whereNull('s.deleted_at')
             ->whereRaw('`s`.`PO. No.` IS NOT NULL')
             ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
-            ->whereRaw($amt . ' > 0')
-            ->groupByRaw("$poNorm,$poLabel")
-            ->get();
+            ->whereRaw($amt . ' > 0');
 
-        // --- Merge by alias (SOHAIB, SOAHIB -> SOHAIB etc.) ---
+        // ✅ EXCLUDE rejected/cancelled using Status OAA
+        $poQ = $this->applyPoStatusOaaAcceptedFilter($poQ, 's');
+
+        $po = $poQ->groupByRaw("$poNorm,$poLabel")->get();
+
+        // --- Merge by alias ---
         $inqAgg = [];
         $poAgg = [];
 
         foreach ($inq as $row) {
             $label = $this->normalizeSalesman($row->label);
-
             if (!$this->areaPasses($label, $area)) continue;
             $inqAgg[$label] = ($inqAgg[$label] ?? 0) + (float)$row->total;
         }
@@ -270,8 +283,7 @@ class SalesmanPerformanceController extends Controller
             $poAgg[$label] = ($poAgg[$label] ?? 0) + (float)$row->total;
         }
 
-        // Build final categories and series in the same order
-        $allLabels = array_keys($inqAgg + $poAgg);   // union of keys
+        $allLabels = array_keys($inqAgg + $poAgg);
         sort($allLabels, SORT_NATURAL);
 
         $categories = [];
@@ -294,6 +306,7 @@ class SalesmanPerformanceController extends Controller
     }
 
 
+
     /* ============================================================
    NEW: Salesman -> Project Region -> Month pivot (POs)
    - Area filter applies to SALESMAN REGION (assigned regionMap)
@@ -311,26 +324,26 @@ class SalesmanPerformanceController extends Controller
     {
         $areaNorm = $this->normalizeArea($area);
 
-        // ✅ salesman label (same as your PO pivots)
         $salesLabel = "COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
-
-        // ✅ project_region column (per your note)
-        // If your actual column name differs, change it here only.
         $projRegionCol = "COALESCE(NULLIF(`s`.`project_region`,''),'')";
 
         $amtExpr = $this->poAmountExpr('s');
 
-        $rows = DB::table('salesorderlog as s')
+        $q = DB::table('salesorderlog as s')
             ->selectRaw("$salesLabel AS salesman,
-                    MONTH(s.date_rec) AS m,
-                    $projRegionCol AS project_region,
-                    SUM($amtExpr) AS v")
+                MONTH(s.date_rec) AS m,
+                $projRegionCol AS project_region,
+                SUM($amtExpr) AS v")
             ->whereYear('s.date_rec', $year)
             ->whereNull('s.deleted_at')
             ->whereRaw('`s`.`PO. No.` IS NOT NULL')
             ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
-            ->whereRaw($amtExpr . ' > 0')
-            ->groupByRaw("$salesLabel, MONTH(s.date_rec), $projRegionCol")
+            ->whereRaw($amtExpr . ' > 0');
+
+        // ✅ EXCLUDE rejected/cancelled using Status OAA
+        $q = $this->applyPoStatusOaaAcceptedFilter($q, 's');
+
+        $rows = $q->groupByRaw("$salesLabel, MONTH(s.date_rec), $projRegionCol")
             ->get();
 
         $regions = ['Eastern', 'Central', 'Western', 'Other'];
@@ -339,7 +352,6 @@ class SalesmanPerformanceController extends Controller
         foreach ($rows as $r) {
             $s = $this->normalizeSalesman($r->salesman);
 
-            // ✅ Area filter is based on salesman assigned region
             if ($areaNorm !== 'All') {
                 $allowed = $regionMap[$areaNorm] ?? [];
                 if (!in_array($s, $allowed, true)) continue;
@@ -358,12 +370,13 @@ class SalesmanPerformanceController extends Controller
             $val = (float)$r->v;
 
             $out[$s][$pr][$idx] += $val;
-            $out[$s][$pr][12] += $val; // total
+            $out[$s][$pr][12] += $val;
         }
 
         ksort($out, SORT_NATURAL);
         return $out;
     }
+
 
     public function matrix(Request $r)
     {
@@ -1448,16 +1461,33 @@ class SalesmanPerformanceController extends Controller
         };
 
         /* ============================================================
-         | 1) WEEKLY REPORT SUBMITTED
-         | weekly_reports columns (from your screenshot):
-         | - engineer_name, week_start, week_end, status
-         | We assume: status='submitted' means submitted
-         ============================================================ */
+    | 1) WEEKLY REPORT SUBMITTED (CREATED/SAVED)
+    | We treat: draft/submitted/approved as "done"
+    ============================================================ */
+        $today = now(); // optionally ->timezone('Asia/Riyadh')
+
+// Current week Sun–Thu
+        $curStart = $today->copy()->startOfWeek(\Carbon\Carbon::SUNDAY);
+        $curEnd   = $curStart->copy()->addDays(4);
+
+// Last completed week Sun–Thu
+        $prevStart = $curStart->copy()->subWeek();
+        $prevEnd   = $prevStart->copy()->addDays(4);
+
+        $validStatuses = ['draft','submitted','approved'];
+
         $submitted = DB::table('weekly_reports')
             ->selectRaw("UPPER(TRIM(engineer_name)) AS salesman")
-            ->whereDate('week_start', $weekStart->toDateString())
-            ->whereDate('week_end', $weekEnd->toDateString())
-            ->whereIn(DB::raw("LOWER(TRIM(status))"), ['submitted', 'approved']) // adjust if you use different text
+            ->whereIn(DB::raw("LOWER(TRIM(status))"), $validStatuses)
+            ->where(function ($q) use ($prevStart, $prevEnd, $curStart, $curEnd) {
+                $q->where(function ($q2) use ($prevStart, $prevEnd) {
+                    $q2->whereDate('week_start', $prevStart->toDateString())
+                        ->whereDate('week_end',   $prevEnd->toDateString());
+                })->orWhere(function ($q2) use ($curStart, $curEnd) {
+                    $q2->whereDate('week_start', $curStart->toDateString())
+                        ->whereDate('week_end',   $curEnd->toDateString());
+                });
+            })
             ->pluck('salesman')
             ->toArray();
 
@@ -1470,13 +1500,15 @@ class SalesmanPerformanceController extends Controller
         }
 
         $weekly_report = [
-            'title' => 'Weekly report submitted',
-            'ok' => empty($missing),
+            'title'  => 'Weekly report submitted',
+            'ok'     => empty($missing),
             'status' => empty($missing) ? 'YES' : 'NO',
             'detail' => empty($missing)
-                ? "Week {$weekStart->format('d-M')} → {$weekEnd->format('d-M-Y')} submitted."
-                : "Missing ({$weekStart->format('d-M')} → {$weekEnd->format('d-M-Y')}): " . implode(', ', $missing),
+                ? "Saved for week {$prevStart->format('d-M')} → {$prevEnd->format('d-M-Y')} ."
+                : "Missing ({$prevStart->format('d-M')} → {$prevEnd->format('d-M-Y')} : " . implode(', ', $missing),
         ];
+
+
 
         /* ============================================================
          | 2) QUOTATION → PO NOT UPDATED (14+ days, >= 500k, no PO)
@@ -1626,14 +1658,18 @@ class SalesmanPerformanceController extends Controller
         $labelExpr = "COALESCE(NULLIF(`s`.`Sales Source`,''), 'Not Mentioned')";
         $amtExpr = $this->poAmountExpr('s');
 
-        $rows = DB::table('salesorderlog as s')
+        $q = DB::table('salesorderlog as s')
             ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, SUM($amtExpr) AS s")
             ->whereYear('s.date_rec', $year)
             ->whereNull('s.deleted_at')
             ->whereRaw('`s`.`PO. No.` IS NOT NULL')
             ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
-            ->whereRaw($amtExpr . ' > 0')
-            ->groupByRaw("$labelExpr, MONTH(s.date_rec)")
+            ->whereRaw($amtExpr . ' > 0');
+
+        // ✅ EXCLUDE rejected/cancelled using Status OAA
+        $q = $this->applyPoStatusOaaAcceptedFilter($q, 's');
+
+        $rows = $q->groupByRaw("$labelExpr, MONTH(s.date_rec)")
             ->get();
 
         return $this->pivotNormalizeSalesmanRows($rows);
@@ -1836,10 +1872,8 @@ class SalesmanPerformanceController extends Controller
     {
         $areaNorm = $this->normalizeArea($area);
 
-        // ✅ Western salesmen (must show ductwork split even in ALL for GM)
         $westernSalesmen = ['ABDO','AHMED'];
 
-        // ✅ Row sets
         $westernFamilies = [
             'DUCTWORK',
             'PRE-INSULATED DUCTWORK',
@@ -1859,20 +1893,17 @@ class SalesmanPerformanceController extends Controller
         ];
 
         $labelExpr = "COALESCE(NULLIF(`s`.`Sales Source`,''),'Not Mentioned')";
-        $amtExpr   = $this->poAmountExpr('s'); // must return numeric
+        $amtExpr   = $this->poAmountExpr('s');
 
-        // ✅ Apply area filter based on salesman alias map
         $allowedForArea = null;
         if ($areaNorm !== 'All') {
             $allowedForArea = $regionMap[$areaNorm] ?? [];
         }
 
-        // Helper: should this salesman get western rowset/split?
         $isWesternSalesman = function (string $salesman) use ($westernSalesmen): bool {
             return in_array($salesman, $westernSalesmen, true);
         };
 
-        // ✅ Western ductwork subtype -> identify PRE/SPIRAL
         $ductSubtypeKind = function (?string $subtype): string {
             $x = strtoupper(trim((string)$subtype));
             if ($x === '') return 'BASE';
@@ -1881,55 +1912,58 @@ class SalesmanPerformanceController extends Controller
             return 'BASE';
         };
 
-        // ✅ init salesman bucket (choose rowset per salesman)
         $out = [];
         $init = function (string $salesman, bool $useWesternRows) use (&$out, $westernFamilies, $defaultFamilies) {
             if (isset($out[$salesman])) return;
 
             $families = $useWesternRows ? $westernFamilies : $defaultFamilies;
             foreach ($families as $f) {
-                $out[$salesman][$f] = array_fill(0, 13, 0.0); // 12 months + total
+                $out[$salesman][$f] = array_fill(0, 13, 0.0);
             }
         };
 
         // ============================================================
         // A) FAMILY TOTALS (FULL PO VALUE) for rows that HAVE breakdown
-        //    ✅ Use b.family to classify
-        //    ✅ Sum PO Value (NOT b.amount)
-        //    ✅ Safe because your sync enforces 1 breakdown row per salesorderlog_id
         // ============================================================
-        $breakdownFamilyTotals = DB::table('salesorderlog as s')
+        $qA = DB::table('salesorderlog as s')
             ->join('salesorderlog_product_breakdowns as b', 'b.salesorderlog_id', '=', 's.id')
             ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, b.family AS family, SUM($amtExpr) AS sum_po")
             ->whereYear('s.date_rec', $year)
             ->whereNull('s.deleted_at')
             ->whereRaw('`s`.`PO. No.` IS NOT NULL')
             ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
-            ->whereRaw($amtExpr . ' > 0')
+            ->whereRaw($amtExpr . ' > 0');
+
+        // ✅ EXCLUDE rejected/cancelled using Status OAA
+        $qA = $this->applyPoStatusOaaAcceptedFilter($qA, 's');
+
+        $breakdownFamilyTotals = $qA
             ->groupByRaw("$labelExpr, MONTH(s.date_rec), b.family")
             ->get();
 
         // ============================================================
         // B) SUBTYPE AMOUNTS (ONLY for Western ductwork children)
-        //    ✅ Pre/Spiral should come from b.amount
         // ============================================================
-        $breakdownSubtypeAmounts = DB::table('salesorderlog as s')
+        $qB = DB::table('salesorderlog as s')
             ->join('salesorderlog_product_breakdowns as b', 'b.salesorderlog_id', '=', 's.id')
             ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, b.family AS family, b.subtype AS subtype, SUM(b.amount) AS sum_amt")
             ->whereYear('s.date_rec', $year)
             ->whereNull('s.deleted_at')
             ->whereRaw('`s`.`PO. No.` IS NOT NULL')
             ->whereRaw('TRIM(`s`.`PO. No.`) <> ""')
-            ->whereRaw('b.amount > 0')
+            ->whereRaw('b.amount > 0');
+
+        // ✅ EXCLUDE rejected/cancelled using Status OAA
+        $qB = $this->applyPoStatusOaaAcceptedFilter($qB, 's');
+
+        $breakdownSubtypeAmounts = $qB
             ->groupByRaw("$labelExpr, MONTH(s.date_rec), b.family, b.subtype")
             ->get();
 
         // ============================================================
         // C) FALLBACK TOTALS (NO breakdown exists) -> classify by s.Products
-        //    ✅ Uses FULL PO value
-        //    ✅ whereNotExists prevents double counting
         // ============================================================
-        $fallbackFamilyTotals = DB::table('salesorderlog as s')
+        $qC = DB::table('salesorderlog as s')
             ->selectRaw("$labelExpr AS salesman, MONTH(s.date_rec) AS m, COALESCE(NULLIF(`s`.`Products`,''),'') AS prod, SUM($amtExpr) AS sum_po")
             ->whereYear('s.date_rec', $year)
             ->whereNull('s.deleted_at')
@@ -1940,15 +1974,15 @@ class SalesmanPerformanceController extends Controller
                 $q->selectRaw('1')
                     ->from('salesorderlog_product_breakdowns as b')
                     ->whereColumn('b.salesorderlog_id', 's.id');
-            })
+            });
+
+        // ✅ EXCLUDE rejected/cancelled using Status OAA
+        $qC = $this->applyPoStatusOaaAcceptedFilter($qC, 's');
+
+        $fallbackFamilyTotals = $qC
             ->groupByRaw("$labelExpr, MONTH(s.date_rec), COALESCE(NULLIF(`s`.`Products`,''),'')")
             ->get();
 
-        // ============================================================
-        // TEMP BUFFERS for Western ductwork math:
-        // totalDuctPO[salesman][idx] = full PO value for ductwork
-        // preAmt[salesman][idx], spiralAmt[salesman][idx] = subtype breakdown amounts
-        // ============================================================
         $totalDuctPO = [];
         $preAmt      = [];
         $spiralAmt   = [];
@@ -1959,9 +1993,6 @@ class SalesmanPerformanceController extends Controller
             $arr[$salesman][12]   += $val;
         };
 
-        // ============================================================
-        // 1) Apply breakdown FAMILY totals (FULL PO VALUE)
-        // ============================================================
         foreach ($breakdownFamilyTotals as $r) {
             $salesman = $this->normalizeSalesman($r->salesman);
 
@@ -1980,21 +2011,16 @@ class SalesmanPerformanceController extends Controller
 
             $val = (float)$r->sum_po;
 
-            // ✅ If ductwork + western split -> store in total buffer (do NOT write to out yet)
             if ($fam === 'DUCTWORK' && $useWesternRowsForThisSalesman) {
                 $addTo13($totalDuctPO, $salesman, $idx, $val);
                 continue;
             }
 
-            // Normal families just go straight into matrix totals
             if (!isset($out[$salesman][$fam])) continue;
             $out[$salesman][$fam][$idx] += $val;
             $out[$salesman][$fam][12]   += $val;
         }
 
-        // ============================================================
-        // 2) Apply fallback FAMILY totals (FULL PO VALUE, no breakdown)
-        // ============================================================
         foreach ($fallbackFamilyTotals as $r) {
             $salesman = $this->normalizeSalesman($r->salesman);
 
@@ -2012,7 +2038,6 @@ class SalesmanPerformanceController extends Controller
 
             $val = (float)$r->sum_po;
 
-            // ✅ If ductwork + western split -> add to duct total buffer
             if ($fam === 'DUCTWORK' && $useWesternRowsForThisSalesman) {
                 $addTo13($totalDuctPO, $salesman, $idx, $val);
                 continue;
@@ -2023,9 +2048,6 @@ class SalesmanPerformanceController extends Controller
             $out[$salesman][$fam][12]   += $val;
         }
 
-        // ============================================================
-        // 3) Apply breakdown subtype AMOUNTS for Western ductwork children
-        // ============================================================
         foreach ($breakdownSubtypeAmounts as $r) {
             $salesman = $this->normalizeSalesman($r->salesman);
 
@@ -2052,15 +2074,8 @@ class SalesmanPerformanceController extends Controller
             } elseif ($kind === 'SPIRAL') {
                 $addTo13($spiralAmt, $salesman, $idx, $val);
             }
-            // BASE/unknown subtype: we intentionally do nothing here.
-            // Base is computed as remainder from full PO value below.
         }
 
-        // ============================================================
-        // 4) FINALIZE Western ductwork:
-        //    Base DUCTWORK = totalDuctPO - preAmt - spiralAmt
-        //    And also populate PRE + SPIRAL rows for printing
-        // ============================================================
         foreach ($out as $salesman => $_rows) {
             $useWesternRowsForThisSalesman = ($areaNorm === 'Western') || ($areaNorm === 'All' && $isWesternSalesman($salesman));
             if (!$useWesternRowsForThisSalesman) continue;
@@ -2078,7 +2093,6 @@ class SalesmanPerformanceController extends Controller
                 $out[$salesman]['SPIRAL DUCTWORK'][$idx] = $spi;
             }
 
-            // Totals col (index 12)
             $totT = (float)($totalDuctPO[$salesman][12] ?? 0.0);
             $preT = (float)($preAmt[$salesman][12] ?? 0.0);
             $spiT = (float)($spiralAmt[$salesman][12] ?? 0.0);
@@ -2094,6 +2108,7 @@ class SalesmanPerformanceController extends Controller
         ksort($out, SORT_NATURAL);
         return $out;
     }
+
 
 
 
@@ -2252,6 +2267,50 @@ class SalesmanPerformanceController extends Controller
 
         ksort($out, SORT_NATURAL);
         return $out;
+    }
+    /**
+     * Exclude rejected/cancelled POs.
+     * Priority:
+     * 1) If rejected_at exists -> exclude rejected_at NOT NULL
+     * 2) Else, use OAA status column (Sales OAA / Status OAA) if present
+     * 3) Else, do nothing (fail-safe)
+     */
+    private function applyPoStatusOaaAcceptedFilter($query, string $alias = 's')
+    {
+        // ✅ Best signal: rejected_at
+        if (Schema::hasColumn('salesorderlog', 'rejected_at')) {
+            $query->whereNull("$alias.rejected_at");
+        }
+
+        // ✅ OAA column name differs across databases (Sales OAA vs Status OAA)
+        $oaaColName = null;
+
+        if (Schema::hasColumn('salesorderlog', 'Sales OAA')) {
+            $oaaColName = 'Sales OAA';
+        } elseif (Schema::hasColumn('salesorderlog', 'Status OAA')) {
+            $oaaColName = 'Status OAA';
+        }
+
+        // If neither exists, don't filter by OAA (avoid SQL 500)
+        if (!$oaaColName) {
+            return $query;
+        }
+
+        // Column has space -> must be backticked
+        $col = "COALESCE(NULLIF(TRIM(`$alias`.`$oaaColName`),''),'')";
+
+        // Allow blank, exclude reject/cancel keywords
+        return $query->whereRaw("
+        (
+            $col = ''
+            OR (
+                LOWER($col) NOT LIKE '%reject%'
+                AND LOWER($col) NOT LIKE '%rejected%'
+                AND LOWER($col) NOT LIKE '%cancel%'
+                AND LOWER($col) NOT LIKE '%cancell%'
+            )
+        )
+    ");
     }
 
 

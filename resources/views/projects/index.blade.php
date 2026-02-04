@@ -5,10 +5,10 @@
 
 @push('head')
     {{-- DataTables (Bootstrap 5 build) --}}
-    <link href="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.css" rel="stylesheet">
-    {{-- Theme (keep your version busting) --}}
+{{--    <link href="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.css" rel="stylesheet">
+    --}}{{-- Theme (keep your version busting) --}}{{--
     <link rel="stylesheet"
-          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">
+          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">--}}
 
     <style>
         /* KPI Gauge Card Layout Fix */

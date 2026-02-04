@@ -23,7 +23,7 @@
 
     @stack('head')
 </head>
-<body>
+<body class="@yield('body-class')">
 
 {{-- NAVBAR --}}
 @include('partials.navbar')
