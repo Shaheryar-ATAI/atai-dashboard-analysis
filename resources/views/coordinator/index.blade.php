@@ -936,6 +936,16 @@
             const btnProj         = document.getElementById('btnShowProjects');
             const btnSO           = document.getElementById('btnShowSalesOrders');
 
+            // Ensure modal sits under <body> to avoid z-index/stacking clipping by page containers
+            function moveModalToBody(id) {
+                const el = document.getElementById(id);
+                if (el && el.parentElement !== document.body) {
+                    document.body.appendChild(el);
+                }
+            }
+
+            moveModalToBody('coordinatorModal');
+
             const coordModalEl      = document.getElementById('coordinatorModal');
             const coordModal        = coordModalEl ? new bootstrap.Modal(coordModalEl) : null;
             const btnSave           = document.getElementById('btnCoordinatorSave');
