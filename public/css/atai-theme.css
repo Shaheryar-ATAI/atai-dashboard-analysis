@@ -59,7 +59,15 @@ body {
     background: var(--app-grad);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: auto;
+    overflow-y: auto;
 }
+body.modal-open{
+    overflow: hidden !important;
+    padding-right: 0 !important;
+}
+/* Make media always shrink to container */
+img, svg, canvas { max-width: 100%; height: auto; }
 body::before {
     content:"";
     position:fixed;
@@ -70,6 +78,9 @@ body::before {
     pointer-events:none;
 }
 .container, .container-fluid { position: relative; z-index: 1; }
+/* Prevent hidden overflow due to min-width on children */
+.row > * { min-width: 0; }
+.card { min-width: 0; }
 
 /* ---------------------------------------------------------------------
    3) NAVBAR (sticky glass) + LAYOUT (FIXED)
@@ -189,6 +200,11 @@ body::before {
     border-color: rgba(255, 0, 0, 0.7);
     transform: scale(1.03);
 }
+/* Safety: ensure logout text is visible even if Bootstrap styles differ */
+.navbar-atai .atai-logout-btn,
+.navbar-atai .atai-logout-btn * {
+    color: #ff6b6b !important;
+}
 
 
 /* ✅ Fix dropdown overlay issue in glass navbar */
@@ -207,7 +223,7 @@ body::before {
 
 /* Desktop dropdown */
 @media (min-width: 992px) {
-    .navbar-atai .dropdown-menu {
+.navbar-atai .dropdown-menu {
         min-width: 220px;
         padding: 8px 0;
         margin-top: 8px;
@@ -226,6 +242,157 @@ body::before {
     .navbar-atai .dropdown-item:hover {
         background: rgba(255,255,255,.08);
         color: #fff;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   3B) NAVBAR MOBILE RESPONSIVE FIXES
+   --------------------------------------------------------------------- */
+@media (max-width: 991.98px){
+    .navbar-atai .container-fluid{
+        flex-wrap: wrap;
+    }
+
+    .navbar-atai .navbar-toggler{
+        margin-left: auto;
+        border-color: rgba(255,255,255,.25);
+    }
+    .navbar-atai .navbar-toggler-icon{
+        filter: invert(1) grayscale(1) brightness(1.2);
+    }
+
+    .navbar-atai .navbar-collapse{
+        width: 100%;
+        margin-top: .6rem;
+        padding: .6rem .6rem .8rem;
+        border-radius: 12px;
+        background: rgba(10,14,26,.92);
+        border: 1px solid rgba(255,255,255,.10);
+        box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    }
+
+    .navbar-atai .navbar-nav{
+        max-width: 100% !important;
+        overflow-x: visible;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: .4rem .6rem;
+        padding: .4rem 0;
+    }
+
+    .navbar-atai .navbar-right{
+        width: 100%;
+        margin-left: 0 !important;
+        margin-top: .5rem;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: .5rem;
+        white-space: normal;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   3C) CARD + KPI MOBILE TWEAKS (general)
+   --------------------------------------------------------------------- */
+@media (max-width: 991.98px){
+    .kpi-card, .coordinator-kpi-card{
+        border-radius: 14px;
+    }
+    .kpi-card .kpi-value, .coordinator-kpi-value{
+        font-size: 1.2rem;
+    }
+}
+
+@media (max-width: 575.98px){
+    .kpi-card, .coordinator-kpi-card{
+        padding: .9rem !important;
+    }
+    .kpi-card .kpi-label{
+        font-size: .75rem;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   3D) GLOBAL RESPONSIVE LAYOUT HELPERS
+   --------------------------------------------------------------------- */
+main.container-fluid{
+    padding-left: clamp(12px, 2vw, 24px);
+    padding-right: clamp(12px, 2vw, 24px);
+}
+.card .card-body{
+    min-width: 0;
+}
+
+/* Tables: always scroll instead of breaking layout */
+.table-responsive,
+.table-wrap,
+.dataTables_wrapper,
+.matrix-wrap{
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Charts: keep within card on small screens */
+.chart-panel,
+#coordinatorRegionStacked,
+#chartSalesman{
+    width: 100% !important;
+}
+@media (max-width: 991.98px){
+    #coordinatorRegionStacked,
+    #chartSalesman{
+        height: 280px !important;
+    }
+}
+
+/* KPI shell / filter rows on small screens */
+@media (max-width: 991.98px){
+    .kpi-shell .row,
+    .filters-bar .row,
+    .filters-bar .d-flex{
+        flex-wrap: wrap;
+        gap: .6rem;
+    }
+}
+
+/* Prevent cards from overflowing on mobile */
+@media (max-width: 991.98px){
+    .card, .kpi-card, .coordinator-kpi-card{
+        width: 100%;
+    }
+}
+
+/* KPI / filter rows: stack cleanly on tablets/phones */
+@media (max-width: 1199.98px){
+    .kpi-shell .row > [class*="col-"]{
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    .kpi-shell .justify-content-md-end{
+        justify-content: flex-start !important;
+    }
+}
+
+@media (max-width: 991.98px){
+    .kpi-shell .form-select,
+    .kpi-shell .form-control,
+    .filters-bar .form-select,
+    .filters-bar .form-control{
+        width: 100%;
+    }
+    .kpi-shell .btn,
+    .filters-bar .btn{
+        width: auto;
+    }
+}
+
+@media (max-width: 575.98px){
+    .navbar-atai .nav-link{
+        font-size: .8rem;
+        padding: .3rem .6rem;
+    }
+    .navbar-atai .navbar-text{
+        font-size: .85rem;
     }
 }
 
@@ -1046,5 +1213,3 @@ body::before { pointer-events: none !important; }
 /* ✅ Select2 z-index (dropdown appears above modals/panels) */
 .select2-container { z-index: 2050 !important; }
 .select2-container--open { z-index: 2060 !important; }
-
-

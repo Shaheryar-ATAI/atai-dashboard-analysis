@@ -83,6 +83,32 @@
             font-variant-numeric: tabular-nums;
         }
 
+        /* Zebra striping (keep sticky columns readable) */
+        .matrix-table tbody tr:nth-child(odd) td:not(.matrix-left-sticky):not(.matrix-left-sticky-2){
+            background: rgba(255,255,255,.02);
+        }
+        .matrix-table tbody tr:nth-child(even) td:not(.matrix-left-sticky):not(.matrix-left-sticky-2){
+            background: rgba(255,255,255,.01);
+        }
+
+        /* Performance flags (match PDF feel) */
+        .flag{
+            display:inline-block;
+            padding:2px 6px;
+            border-radius:999px;
+            font-size:10px;
+            font-weight:700;
+            letter-spacing:.02em;
+            border:1px solid transparent;
+            white-space:nowrap;
+        }
+        .flag-excellent { background:#0f2b19; color:#8bffb5; border-color:#14532d; }
+        .flag-good      { background:#0a2233; color:#8fd4ff; border-color:#1e3a5f; }
+        .flag-acceptable{ background:#2d2a10; color:#ffe08a; border-color:#6b5b19; }
+        .flag-attn      { background:#2a1c0f; color:#ffb37a; border-color:#7a4b20; }
+        .flag-danger    { background:#2a1010; color:#ff9a9a; border-color:#7f1d1d; }
+        .flag-na        { background:#1f2433; color:#aab4c8; border-color:#374151; }
+
         /* Sticky left columns */
         .matrix-left-sticky{
             position: sticky;
@@ -350,13 +376,14 @@
         const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Total'];
 
         const money = (n) => {
-            n = Number(n || 0);
-            if (!n) return '–';
-            return 'SAR ' + n.toLocaleString('en-SA', { maximumFractionDigits: 0 });
+            const v = Number(n);
+            if (!isFinite(v)) return 'SAR 0';
+            return 'SAR ' + v.toLocaleString('en-SA', { maximumFractionDigits: 0 });
         };
         const pct = (n) => {
-            n = Number(n || 0);
-            return n.toFixed(1) + '%';
+            const v = Number(n);
+            if (!isFinite(v)) return '0.0%';
+            return v.toFixed(1) + '%';
         };
 
         function currentYear(){ return document.getElementById('yearSelect')?.value || YEAR_INIT; }
@@ -367,6 +394,52 @@
             const a = Array.isArray(arr) ? arr.slice(0, 13) : [];
             while (a.length < 13) a.push(0);
             return a;
+        }
+
+        // Performance flags (match PDF logic)
+        function perfCell(actual, expected, isFuture, isCurrentMonth){
+            if (isFuture) {
+                return { html: '<span class="flag flag-na">N/A</span>' };
+            }
+
+            if (expected <= 0) {
+                if (actual <= 0) return { html: '<span class="flag flag-na">N/A</span>' };
+                return { html: '<span class="flag flag-na">NO TARGET</span>' };
+            }
+
+            if (actual <= 0) {
+                if (isCurrentMonth) return { html: '<span class="flag flag-attn">0%</span>' };
+                return { html: '<span class="flag flag-danger">0% • DANGER</span>' };
+            }
+
+            const pctVal = (actual / expected) * 100.0;
+
+            if (pctVal >= 100) return { html: `<span class="flag flag-excellent">${Math.round(pctVal)}%</span>` };
+            if (pctVal >= 60)  return { html: `<span class="flag flag-good">${Math.round(pctVal)}%</span>` };
+            if (pctVal >= 50)  return { html: `<span class="flag flag-acceptable">${Math.round(pctVal)}%</span>` };
+            if (pctVal >= 20)  return { html: `<span class="flag flag-attn">${Math.round(pctVal)}%</span>` };
+            return { html: `<span class="flag flag-danger">${Math.round(pctVal)}%</span>` };
+        }
+
+        function buildPerfRow(poRow, targetRow){
+            const po = pad13(poRow);
+            const target = pad13(targetRow);
+
+            const now = new Date();
+            const selectedYear = parseInt(currentYear(), 10);
+            const currentYearNum = now.getFullYear();
+            const currentMonth = now.getMonth(); // 0-11
+
+            const out = [];
+            for (let i = 0; i < 12; i++) {
+                const isFuture = (selectedYear > currentYearNum) || (selectedYear === currentYearNum && i > currentMonth);
+                const isCurrentMonth = (selectedYear === currentYearNum && i === currentMonth);
+                out[i] = perfCell(po[i], target[i], isFuture, isCurrentMonth);
+            }
+
+            // Total cell
+            out[12] = perfCell(po[12], target[12], false, false);
+            return out;
         }
 
         // =========================
@@ -598,7 +671,7 @@
                 const row = pad13(objBySalesman[s]);
                 html += `<tr>
                     <td class="matrix-left-sticky matrix-salesman">${s}</td>
-                    ${row.map(v => `<td class="text-end">${money(v)}</td>`).join('')}
+                    ${row.map(v => `<td class="num">${money(v)}</td>`).join('')}
                 </tr>`;
             });
 
@@ -642,8 +715,9 @@
             } else {
                 salesmanKeys.forEach(s => {
                     const m = obj[s] || {};
+                    const perfRow = buildPerfRow(m['POS'], m['TARGET']);
                     metricOrder.forEach(([key, label, kind], idx) => {
-                        const row = pad13(m[key]);
+                        const row = (key === 'PERF') ? perfRow : pad13(m[key]);
 
                         html += `<tr>
                             <td class="matrix-left-sticky matrix-salesman">${idx===0 ? s : ''}</td>
@@ -653,9 +727,10 @@
                         if (kind === 'pct') {
                             html += row.map(v => `<td class="pct">${pct(v)}</td>`).join('');
                         } else if (kind === 'perfHtml') {
-                            // if controller returns HTML pills per cell: [{html:"<span...>"}]
                             html += row.map(cell => {
-                                const h = (cell && typeof cell === 'object' && cell.html) ? cell.html : '–';
+                                const h = (cell && typeof cell === 'object' && cell.html)
+                                    ? cell.html
+                                    : '<span class="flag flag-na">N/A</span>';
                                 return `<td class="pct">${h}</td>`;
                             }).join('');
                         } else {

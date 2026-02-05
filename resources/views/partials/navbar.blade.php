@@ -155,7 +155,7 @@
 
                 <a href="{{ route('logout') }}"
                    onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
-                   class="btn btn-sm atai-logout-btn">
+                   class="btn btn-sm btn-outline-danger atai-logout-btn">
                     <i class="bi bi-box-arrow-right me-1"></i> Logout
                 </a>
 

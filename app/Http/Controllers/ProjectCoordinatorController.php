@@ -12,7 +12,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProjectCoordinatorController extends Controller
@@ -47,7 +49,12 @@ class ProjectCoordinatorController extends Controller
 
         // Eastern coordinator: ALL salesmen (no restriction)
         if (method_exists($user, 'hasRole') && $user->hasRole('project_coordinator_eastern')) {
-            return [];
+            // Eastern coordinator can see Eastern + Western + Central salesmen
+            return array_values(array_unique(array_merge(
+                $this->salesmenForRegionSelection('eastern'),
+                $this->salesmenForRegionSelection('western'),
+                $this->salesmenForRegionSelection('central')
+            )));
         }
 
         // Western coordinator: ONLY ABDO + AHMED (with aliases)
@@ -122,7 +129,11 @@ class ProjectCoordinatorController extends Controller
     private function salesmanAliasMap(): array
     {
         return [
-            'SOHAIB'    => ['SOHAIB', 'SOAHIB', 'SOAIB', 'SOHIB'],
+            // Eastern: ALL related names map to SOHAIB
+            'SOHAIB'    => [
+                'SOHAIB', 'SOAHIB', 'SOAIB', 'SOHIB', 'SOHAI',
+                'RAVINDER', 'WASEEM', 'FAISAL', 'CLIENT', 'EXPORT',
+            ],
             'TAREQ'     => ['TARIQ', 'TAREQ', 'TAREQ '],
             'JAMAL'     => ['JAMAL'],
             'ABU_MERHI' => ['M.ABU MERHI', 'M. ABU MERHI', 'M.MERHI', 'MERHI', 'ABU MERHI', 'M ABU MERHI', 'MOHAMMED'],
@@ -132,13 +143,60 @@ class ProjectCoordinatorController extends Controller
     }
 
     /**
+     * Canonical salesman code from any alias (UPPER).
+     */
+    private function canonicalSalesmanCode(?string $raw): string
+    {
+        $v = strtoupper(trim((string)$raw));
+        if ($v === '') return '';
+
+        foreach ($this->salesmanAliasMap() as $canon => $aliases) {
+            foreach ($aliases as $a) {
+                if ($v === strtoupper(trim((string)$a))) {
+                    return $canon;
+                }
+            }
+        }
+
+        return $v;
+    }
+
+    /**
+     * Resolve region (Eastern/Central/Western) from salesman or area text.
+     */
+    private function resolveRegionForRow(?string $salesmanRaw, ?string $areaRaw): ?string
+    {
+        $canon = $this->canonicalSalesmanCode($salesmanRaw);
+        $regionMap = $this->regionSalesmenCanonicalMap();
+
+        foreach ($regionMap as $regionKey => $canonList) {
+            if (in_array($canon, $canonList, true)) {
+                return ucfirst($regionKey);
+            }
+        }
+
+        $area = strtoupper(trim((string)$areaRaw));
+        if ($area !== '') {
+            if (str_contains($area, 'EAST')) return 'Eastern';
+            if (str_contains($area, 'CENT')) return 'Central';
+            if (str_contains($area, 'WEST')) return 'Western';
+            if (str_contains($area, 'EXPORT') || str_contains($area, 'QATAR') || str_contains($area, 'BAHRAIN') || str_contains($area, 'KUWAIT')) {
+                return 'Eastern';
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Region => canonical salesmen list
      * Used when UI "Region" filter is selected.
      */
     private function regionSalesmenCanonicalMap(): array
     {
         return [
-            'eastern' => ['SOHAIB', 'RAVINDER', 'WASEEM', 'FAISAL', 'CLIENT', 'EXPORT'],
+            // Eastern is now canonicalized under SOHAIB only (aliases handled in salesmanAliasMap)
+            'eastern' => ['SOHAIB'],
             'central' => ['TAREQ', 'JAMAL'],
             'western' => ['ABDO', 'AHMED'],
         ];
@@ -204,6 +262,97 @@ class ProjectCoordinatorController extends Controller
             'DECLINED',
             'CLOSED LOST',
         ], true);
+    }
+
+    /**
+     * Normalize status for coordinator PDF summary.
+     */
+    private function extractCoordinatorStatus(?string $oaa, ?string $status): ?string
+    {
+        $raw = '';
+
+        if ($oaa !== null && trim((string)$oaa) !== '') {
+            $raw = (string)$oaa;
+        } elseif ($status !== null && trim((string)$status) !== '') {
+            $raw = (string)$status;
+        }
+
+        if ($raw === '') return null;
+
+        $rawUpper = strtoupper(trim($raw));
+
+        if (str_contains($rawUpper, 'PRE'))    return 'PRE-ACCEPTANCE';
+        if (str_contains($rawUpper, 'ACCEPT')) return 'ACCEPTANCE';
+        if (str_contains($rawUpper, 'REJECT')) return 'REJECTED';
+        if (str_contains($rawUpper, 'CANCEL')) return 'CANCELLED';
+
+        return null;
+    }
+
+    /**
+     * Build DOMPDF-safe SVG data URI.
+     */
+    private function svgToDataUri(string $svg): string
+    {
+        $svg = trim($svg);
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+    }
+
+    /**
+     * Simple server-side bar chart (SVG) for coordinator PDF.
+     */
+    private function makeCoordinatorRegionChartBase64(array $regionTotals, string $yearLabel): string
+    {
+        $labels = ['KSA Eastern', 'KSA Western', 'KSA Central'];
+        $values = [
+            (float)($regionTotals['Eastern'] ?? 0),
+            (float)($regionTotals['Western'] ?? 0),
+            (float)($regionTotals['Central'] ?? 0),
+        ];
+
+        $w = 760;
+        $h = 260;
+        $padL = 60;
+        $padR = 20;
+        $padT = 30;
+        $padB = 30;
+        $plotW = $w - $padL - $padR;
+        $plotH = $h - $padT - $padB;
+
+        $maxVal = max(1, max($values));
+        $slot = $plotW / 3;
+        $barW = $slot * 0.6;
+
+        $grid = '';
+        $ticks = 4;
+        for ($i = 0; $i <= $ticks; $i++) {
+            $y = $padT + ($plotH - ($plotH * $i / $ticks));
+            $grid .= '<line x1="'.$padL.'" y1="'.$y.'" x2="'.($w-$padR).'" y2="'.$y.'" stroke="#2a2a2a" stroke-width="1"/>';
+        }
+
+        $bars = '';
+        for ($i = 0; $i < 3; $i++) {
+            $val = $values[$i];
+            $barH = ($val / $maxVal) * $plotH;
+            $x = $padL + ($slot * $i) + (($slot - $barW) / 2);
+            $y = $padT + ($plotH - $barH);
+
+            $bars .= '<rect x="'.$x.'" y="'.$y.'" width="'.$barW.'" height="'.$barH.'" fill="#79b74a" stroke="#5b8f33" stroke-width="1"/>';
+            $bars .= '<text x="'.($x + $barW/2).'" y="'.($y - 6).'" text-anchor="middle" font-size="9" fill="#e5e7eb">'.number_format($val, 0).'</text>';
+            $bars .= '<text x="'.($x + $barW/2).'" y="'.($h - 10).'" text-anchor="middle" font-size="9" fill="#e5e7eb">'.$labels[$i].'</text>';
+        }
+
+        $title = 'Sales Order Log Overview ' . $yearLabel;
+
+        $svg = '
+<svg xmlns="http://www.w3.org/2000/svg" width="'.$w.'" height="'.$h.'" viewBox="0 0 '.$w.' '.$h.'">
+  <rect x="0" y="0" width="'.$w.'" height="'.$h.'" fill="#3e3e3e" stroke="#111" stroke-width="2"/>
+  <text x="'.($w/2).'" y="18" text-anchor="middle" font-size="12" fill="#ffffff" font-weight="700">'.$title.'</text>
+  '.$grid.'
+  '.$bars.'
+</svg>';
+
+        return $this->svgToDataUri($svg);
     }
 
     /**
@@ -309,7 +458,7 @@ class ProjectCoordinatorController extends Controller
     private function fetchSalesOrdersForIndex(
         array $regionsScope,
         array $salesmenScope,
-        int $year,
+        ?int $year,
         ?int $month,
         ?string $from,
         ?string $to
@@ -323,7 +472,9 @@ class ProjectCoordinatorController extends Controller
         if ($to)   $q->whereDate('date_rec', '<=', $to);
 
         if (!$from && !$to) {
-            $q->whereYear('date_rec', $year);
+            if ($year) {
+                $q->whereYear('date_rec', $year);
+            }
             if ($month) {
                 $q->whereMonth('date_rec', $month);
             }
@@ -382,7 +533,9 @@ class ProjectCoordinatorController extends Controller
             if ($to)   $fallback->whereDate('date_rec', '<=', $to);
 
             if (!$from && !$to) {
-                $fallback->whereYear('date_rec', $year);
+                if ($year) {
+                    $fallback->whereYear('date_rec', $year);
+                }
                 if ($month) {
                     $fallback->whereMonth('date_rec', $month);
                 }
@@ -416,7 +569,8 @@ class ProjectCoordinatorController extends Controller
          * - does not change any DB logic
          */
         $dropdownCanonicalMap = [
-            'SOHAIB' => ['SOHAIB', 'SOAHIB'],
+            // Eastern: all related names show as SOHAIB
+            'SOHAIB' => ['SOHAIB', 'SOAHIB', 'SOAIB', 'SOHIB', 'SOHAI', 'RAVINDER', 'WASEEM', 'FAISAL', 'CLIENT', 'EXPORT'],
             'TARIQ'  => ['TARIQ', 'TAREQ'],
             'JAMAL'  => ['JAMAL'],
             'ABDO'   => ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF'],
@@ -467,7 +621,9 @@ class ProjectCoordinatorController extends Controller
         // Your existing base query (model decides what appears)
         $projectsQuery = Project::coordinatorBaseQuery($regionsScope, $salesmenScope);
         $projects      = (clone $projectsQuery)->orderByDesc('quotation_date')->get();
-        $year  = (int)($request->input('year') ?: now()->year);
+
+        $selectedYear = (int)($request->input('year') ?: now()->year); // UI default
+        $year  = $request->filled('year') ? (int)$request->input('year') : null; // filter only if provided
         $month = $request->filled('month') ? (int)$request->input('month') : null;
         $from  = $request->input('from');
         $to    = $request->input('to');
@@ -543,6 +699,7 @@ debugging format
             'regionsScope'          => $regionsScope,
             'salesmenScope'         => $salesmenScope,
             'salesmenFilterOptions' => $salesmenFilterOptions,
+            'selectedYear'          => $selectedYear,
 
             'kpiProjectsCount'     => $kpiProjectsCount,
             'kpiSalesOrdersCount'  => $kpiSalesOrdersCount,
@@ -1174,6 +1331,221 @@ debugging format
             ),
             $filename
         );
+    }
+
+    /* ============================================================
+     | COORDINATOR GRAPH PDF (Eastern only)
+     | ============================================================ */
+
+    public function saveCoordinatorGraph(Request $request)
+    {
+        $user = $request->user();
+        if (!($user && method_exists($user, 'hasRole') && $user->hasRole('project_coordinator_eastern'))) {
+            abort(403, 'Not allowed.');
+        }
+
+        $image = $request->input('image');
+        if (!$image || !str_starts_with($image, 'data:image/png;base64,')) {
+            return response()->json(['ok' => false, 'message' => 'Invalid image'], 422);
+        }
+
+        $token = (string) $request->input('token', '');
+        $token = preg_replace('/[^A-Za-z0-9_-]/', '', $token);
+        if ($token === '') {
+            $token = (string) Str::uuid();
+        }
+
+        $prefix = 'data:image/png;base64,';
+        $base64 = substr($image, strlen($prefix));
+        $binary = base64_decode($base64);
+
+        if ($binary === false) {
+            return response()->json(['ok' => false, 'message' => 'Decode failed'], 422);
+        }
+
+        $relativePath = "reports/coordinator_chart_{$token}.png";
+        Storage::disk('public')->put($relativePath, $binary);
+
+        // Also ensure file exists under public/storage for DomPDF lookup
+        $publicPath = public_path("storage/{$relativePath}");
+        $publicDir  = dirname($publicPath);
+        if (!is_dir($publicDir)) {
+            @mkdir($publicDir, 0755, true);
+        }
+        @file_put_contents($publicPath, $binary);
+
+        return response()->json([
+            'ok'    => true,
+            'token' => $token,
+            'path'  => $relativePath,
+        ]);
+    }
+
+    public function coordinatorGraphPdf(Request $request)
+    {
+        $user = $request->user();
+        if (!($user && method_exists($user, 'hasRole') && $user->hasRole('project_coordinator_eastern'))) {
+            abort(403, 'Not allowed.');
+        }
+
+        $token = (string) $request->input('token', '');
+        $token = preg_replace('/[^A-Za-z0-9_-]/', '', $token);
+
+        $chartImagePath = null;
+        if ($token !== '') {
+            $relative   = "reports/coordinator_chart_{$token}.png";
+            $publicPath = public_path("storage/{$relative}");
+            if (file_exists($publicPath)) {
+                $chartImagePath = $publicPath;
+            }
+            if (!$chartImagePath) {
+                $storagePath = storage_path("app/public/{$relative}");
+                if (file_exists($storagePath)) {
+                    // copy to public/storage so DomPDF can read
+                    $publicDir = dirname($publicPath);
+                    if (!is_dir($publicDir)) {
+                        @mkdir($publicDir, 0755, true);
+                    }
+                    @copy($storagePath, $publicPath);
+                    if (file_exists($publicPath)) {
+                        $chartImagePath = $publicPath;
+                    }
+                }
+            }
+        }
+
+        $yearParam = $request->input('year');
+        $month  = $request->input('month');
+        $from   = $request->input('from');
+        $to     = $request->input('to');
+        $region = $request->input('region', 'all');
+
+        $yearInt  = $yearParam ? (int) $yearParam : null;
+        $monthInt = $month ? (int) $month : null;
+        $yearLabel = $yearInt ? (string)$yearInt : 'All Years';
+
+        // Scope (RBAC + UI region)
+        $salesmenScope = $this->buildEffectiveSalesmenScope($request, $this->coordinatorSalesmenScope($user));
+
+        $q = DB::table('salesorderlog')
+            ->whereNull('deleted_at')
+            ->selectRaw("
+                `Sales Source` AS salesman,
+                `project_region` AS area,
+                `region` AS region,
+                `date_rec` AS date_rec,
+                `PO Value` AS po_value,
+                `Sales OAA` AS oaa,
+                `Status` AS status,
+                `rejected_at` AS rejected_at
+            ");
+
+        if (!empty($salesmenScope)) {
+            $q->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $salesmenScope);
+        }
+
+        // Date filter logic (from/to overrides year/month)
+        if ($from) $q->whereDate('date_rec', '>=', $from);
+        if ($to)   $q->whereDate('date_rec', '<=', $to);
+
+        if (!$from && !$to) {
+            if ($yearInt) {
+                $q->whereYear('date_rec', $yearInt);
+            }
+            if ($monthInt) {
+                $q->whereMonth('date_rec', $monthInt);
+            }
+        }
+
+        $rows = $q->orderBy('date_rec')->get();
+
+        // Totals by region
+        $regionTotals = [
+            'Eastern' => 0.0,
+            'Central' => 0.0,
+            'Western' => 0.0,
+        ];
+
+        // Monthly totals by region (year view)
+        $monthlyByRegion = [
+            'Eastern' => array_fill(1, 12, 0.0),
+            'Central' => array_fill(1, 12, 0.0),
+            'Western' => array_fill(1, 12, 0.0),
+        ];
+
+        // Status counts + values
+        $statusCounts = [
+            'ACCEPTANCE'     => 0,
+            'PRE-ACCEPTANCE' => 0,
+            'REJECTED'       => 0,
+            'CANCELLED'      => 0,
+        ];
+        $statusValues = [
+            'ACCEPTANCE'     => 0.0,
+            'PRE-ACCEPTANCE' => 0.0,
+            'REJECTED'       => 0.0,
+            'CANCELLED'      => 0.0,
+        ];
+
+        foreach ($rows as $r) {
+            // ✅ Match KPI behavior: ignore rejected rows entirely
+            if (!empty($r->rejected_at)) {
+                continue;
+            }
+
+            $po = (float) ($r->po_value ?? 0);
+            if ($po < 0) $po = 0;
+
+            $areaRaw = $r->area ?? $r->region ?? null;
+            $reg = $this->resolveRegionForRow($r->salesman ?? null, $areaRaw);
+            if ($reg && isset($regionTotals[$reg])) {
+                $regionTotals[$reg] += $po;
+
+                $m = $r->date_rec ? (int) date('n', strtotime($r->date_rec)) : null;
+                if ($m && isset($monthlyByRegion[$reg][$m])) {
+                    $monthlyByRegion[$reg][$m] += $po;
+                }
+            }
+
+            $status = $this->extractCoordinatorStatus($r->oaa ?? null, $r->status ?? null);
+            if (!$status) {
+                // ✅ Count unknown/blank as Acceptance so totals match KPI
+                $status = 'ACCEPTANCE';
+            }
+            if (isset($statusCounts[$status])) {
+                $statusCounts[$status] += 1;
+                $statusValues[$status] += $po;
+            }
+        }
+
+        $totalOrdersCount = array_sum($statusCounts);
+        $totalOrdersValue = array_sum($statusValues);
+
+        $payload = [
+            'user'           => $user,
+            'today'          => now()->format('d-m-Y'),
+            'year'           => $yearInt,
+            'month'          => $monthInt,
+            'from'           => $from,
+            'to'             => $to,
+            'region'         => $region,
+            'chartImagePath' => $chartImagePath,
+            'chartDataUri'   => $this->makeCoordinatorRegionChartBase64($regionTotals, $yearLabel),
+            'regionTotals'   => $regionTotals,
+            'monthlyByRegion'=> $monthlyByRegion,
+            'statusCounts'   => $statusCounts,
+            'statusValues'   => $statusValues,
+            'totalOrdersCount' => $totalOrdersCount,
+            'totalOrdersValue' => $totalOrdersValue,
+            'yearLabel'      => $yearLabel,
+        ];
+
+        $pdf = Pdf::loadView('reports.coordinator-graph-pdf', $payload)
+            ->setPaper('a4', 'landscape');
+
+        $fileName = 'Coordinator_Graph_' . now()->format('Ymd_His') . '.pdf';
+
+        return $pdf->download($fileName);
     }
 
     /* ============================================================

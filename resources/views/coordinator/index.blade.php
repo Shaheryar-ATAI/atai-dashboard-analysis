@@ -213,10 +213,10 @@
                     <div>
                         <div class="coord-filter-label">Year</div>
                         <select id="coord_year" class="form-select form-select-sm" style="min-width: 120px;">
-                            <option value="" selected>All Years</option>
-                            @php $cy = now()->year; @endphp
+                            <option value="">All Years</option>
+                            @php $cy = now()->year; $selYear = $selectedYear ?? $cy; @endphp
                             @for($y = $cy; $y >= $cy - 3; $y--)
-                                <option value="{{ $y }}">{{ $y }}</option>
+                                <option value="{{ $y }}" @if((int)$selYear === $y) selected @endif>{{ $y }}</option>
                             @endfor
                         </select>
                     </div>
@@ -263,6 +263,11 @@
                         <button id="coord_download_excel_year" type="button" class="btn btn-outline-primary btn-sm">
                             Download Full Year
                         </button>
+                        @hasrole('project_coordinator_eastern')
+                        <button id="coord_download_graph_pdf" type="button" class="btn btn-outline-info btn-sm">
+                            <i class="bi bi-bar-chart-line me-1"></i> Graph PDF
+                        </button>
+                        @endhasrole
                     </div>
                 </div>
 
@@ -860,6 +865,10 @@
                 return;
             }
             const $ = window.jQuery;
+            const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const COORD_GRAPH_SAVE_URL = @json(route('coordinator.graph.save'));
+            const COORD_GRAPH_PDF_URL  = @json(route('coordinator.graph.pdf'));
+            let regionChart = null;
 
             const fmtSAR = value => {
                 if (value === null || value === undefined) return '0';
@@ -875,13 +884,8 @@
              * - Canonical code is used for filtering scope (Region -> Allowed Salesmen).
              */
             const SALESMAN_ALIASES = {
-                // Eastern
-                'SOHAIB':     ['SOHAIB', 'SOAHIB'],
-                'RAVINDER':   ['RAVINDER'],
-                'WASEEM':     ['WASEEM'],
-                'FAISAL':     ['FAISAL'],
-                'CLIENT':     ['CLIENT'],
-                'EXPORT':     ['EXPORT'],
+                // Eastern (all related names map to SOHAIB)
+                'SOHAIB':     ['SOHAIB', 'SOAHIB', 'SOAIB', 'SOHIB', 'SOHAI', 'RAVINDER', 'WASEEM', 'FAISAL', 'CLIENT', 'EXPORT'],
 
                 // Central
                 'TAREQ':      ['TARIQ', 'TAREQ', 'TAREQ '],
@@ -904,7 +908,7 @@
              * Region -> Allowed canonical salesmen (YOUR FINAL RULES)
              */
             const REGION_ALLOWED_SALESMEN = {
-                'Eastern': new Set(['SOHAIB','RAVINDER','WASEEM','FAISAL','CLIENT','EXPORT']),
+                'Eastern': new Set(['SOHAIB']),
                 'Central': new Set(['TAREQ','JAMAL','ABU_MERHI']),
                 'Western': new Set(['ABDO','AHMED']),
             };
@@ -1151,6 +1155,7 @@
 
             const btnDownloadExcelMonth = document.getElementById('coord_download_excel_month');
             const btnDownloadExcelYear  = document.getElementById('coord_download_excel_year');
+            const btnDownloadGraphPdf   = document.getElementById('coord_download_graph_pdf');
 
             /**
              * Build export params:
@@ -1181,6 +1186,96 @@
                 if (toInput && toInput.value)     params.set('to', toInput.value);
 
                 return params;
+            }
+
+            // ===== Coordinator Graph PDF (Eastern only button) =====
+            function makeGraphToken() {
+                if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                    return window.crypto.randomUUID();
+                }
+                return 'g' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+            }
+
+            function exportChartToPng(chart) {
+                return new Promise(resolve => {
+                    if (!chart) return resolve(null);
+                    try {
+                        let svg = '';
+
+                        if (typeof chart.getSVG === 'function') {
+                            svg = chart.getSVG();
+                        } else {
+                            const svgEl = chart.renderTo ? chart.renderTo.querySelector('svg') : null;
+                            if (!svgEl) return resolve(null);
+
+                            if (!svgEl.getAttribute('xmlns')) {
+                                svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                            }
+                            if (!svgEl.getAttribute('xmlns:xlink')) {
+                                svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+                            }
+
+                            const serializer = new XMLSerializer();
+                            svg = serializer.serializeToString(svgEl);
+                        }
+
+                        const w = (chart.chartWidth || 800);
+                        const h = (chart.chartHeight || 420);
+
+                        if (!/width=/.test(svg)) {
+                            svg = svg.replace('<svg', `<svg width="${w}" height="${h}"`);
+                        }
+                        if (!/height=/.test(svg)) {
+                            svg = svg.replace('<svg', `<svg height="${h}"`);
+                        }
+
+                        const img = new Image();
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+
+                        img.onload = function () {
+                            canvas.width = w;
+                            canvas.height = h;
+                            ctx.fillStyle = '#0f172a';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0);
+                            resolve(canvas.toDataURL('image/png'));
+                        };
+                        img.onerror = function () {
+                            resolve(null);
+                        };
+
+                        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+                    } catch (e) {
+                        console.error('Chart export failed', e);
+                        resolve(null);
+                    }
+                });
+            }
+
+            async function saveCoordinatorChartImage(token) {
+                if (!CSRF_TOKEN) return null;
+
+                const dataUrl = await exportChartToPng(regionChart);
+                if (!dataUrl) return null;
+
+                try {
+                    const resp = await fetch(COORD_GRAPH_SAVE_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': CSRF_TOKEN,
+                        },
+                        body: JSON.stringify({ token, image: dataUrl }),
+                    });
+
+                    const data = await resp.json().catch(() => null);
+                    if (!resp.ok || !data || !data.ok) return null;
+                    return data.token || token;
+                } catch (err) {
+                    console.error('Graph save failed', err);
+                    return null;
+                }
             }
 
             async function performMultiSearch() {
@@ -1347,7 +1442,7 @@
                 }
 
                 // Highcharts
-                let regionChart = Highcharts.chart('coordinatorRegionStacked', {
+                regionChart = Highcharts.chart('coordinatorRegionStacked', {
                     chart: { type: 'column', backgroundColor: '#0f172a' },
                     title: { text: 'PO Value by Region', style: { color: '#e5e7eb' } },
                     xAxis: { categories: ['Eastern', 'Central', 'Western'], labels: { style: { color: '#cbd5e1' } } },
@@ -1528,6 +1623,34 @@
                         const params = buildExportParams({ requireMonth: false });
                         if (!params) return;
                         window.location.href = "{{ route('coordinator.salesorders.exportYear') }}" + '?' + params.toString();
+                    });
+                }
+
+                // Graph PDF button (Eastern coordinator only)
+                if (btnDownloadGraphPdf) {
+                    btnDownloadGraphPdf.addEventListener('click', async () => {
+                        const originalHtml = btnDownloadGraphPdf.innerHTML;
+                        btnDownloadGraphPdf.disabled = true;
+                        btnDownloadGraphPdf.textContent = 'Preparing...';
+
+                        try {
+                            const token = makeGraphToken();
+                            const savedToken = await saveCoordinatorChartImage(token);
+
+                            if (!savedToken) {
+                                alert('Chart image could not be captured. Please reload the page and try again.');
+                                return;
+                            }
+
+                            const params = buildExportParams({ requireMonth: false }) || new URLSearchParams();
+                            params.set('token', savedToken);
+
+                            const url = COORD_GRAPH_PDF_URL + '?' + params.toString();
+                            window.location.href = url;
+                        } finally {
+                            btnDownloadGraphPdf.disabled = false;
+                            btnDownloadGraphPdf.innerHTML = originalHtml;
+                        }
                     });
                 }
 

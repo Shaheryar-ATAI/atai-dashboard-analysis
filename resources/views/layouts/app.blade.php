@@ -57,6 +57,74 @@
 {{-- Select2 --}}
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.full.min.js"></script>
 
+{{-- GLOBAL SCROLL + MODAL BODY FIX --}}
+<script>
+    (function () {
+        const isEditable = (el) => {
+            if (!el) return false;
+            const tag = (el.tagName || '').toLowerCase();
+            return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+        };
+
+        const syncBodyScroll = () => {
+            const hasOpenModal = !!document.querySelector('.modal.show');
+            if (hasOpenModal) {
+                document.body.classList.add('modal-open');
+                return;
+            }
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        };
+
+        document.addEventListener('shown.bs.modal', syncBodyScroll);
+        document.addEventListener('hidden.bs.modal', syncBodyScroll);
+        window.addEventListener('load', syncBodyScroll);
+        window.addEventListener('resize', syncBodyScroll);
+
+        document.addEventListener('keydown', function (e) {
+            if (isEditable(e.target)) return;
+            const step = e.altKey ? 200 : 60;
+            switch (e.key) {
+                case 'ArrowDown':
+                    window.scrollBy({ top: step, left: 0, behavior: 'auto' });
+                    e.preventDefault();
+                    break;
+                case 'ArrowUp':
+                    window.scrollBy({ top: -step, left: 0, behavior: 'auto' });
+                    e.preventDefault();
+                    break;
+                case 'ArrowRight':
+                    window.scrollBy({ top: 0, left: step, behavior: 'auto' });
+                    e.preventDefault();
+                    break;
+                case 'ArrowLeft':
+                    window.scrollBy({ top: 0, left: -step, behavior: 'auto' });
+                    e.preventDefault();
+                    break;
+                case 'PageDown':
+                    window.scrollBy({ top: window.innerHeight * 0.9, left: 0, behavior: 'auto' });
+                    e.preventDefault();
+                    break;
+                case 'PageUp':
+                    window.scrollBy({ top: -window.innerHeight * 0.9, left: 0, behavior: 'auto' });
+                    e.preventDefault();
+                    break;
+                case 'Home':
+                    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+                    e.preventDefault();
+                    break;
+                case 'End':
+                    window.scrollTo({ top: document.body.scrollHeight, left: 0, behavior: 'auto' });
+                    e.preventDefault();
+                    break;
+                default:
+                    break;
+            }
+        }, { passive: false });
+    })();
+</script>
+
 {{-- PAGE-SPECIFIC JS --}}
 @stack('scripts')
 
