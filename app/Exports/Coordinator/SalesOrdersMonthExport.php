@@ -35,6 +35,7 @@ class SalesOrdersMonthExport implements
     protected int $year;
     protected int $month;
     protected string $regionLabel;
+    protected int $startRow = 9;
 
     public function __construct(Collection $rows, int $year, int $month)
     {
@@ -51,11 +52,11 @@ class SalesOrdersMonthExport implements
     }
 
     /**
-     * Start table after the header block (row 9).
+     * Start table after the header block.
      */
     public function startCell(): string
     {
-        return 'A9';
+        return 'A' . $this->startRow;
     }
 
     public function headings(): array
@@ -82,6 +83,34 @@ class SalesOrdersMonthExport implements
             'Sales Source',
             'Remarks',
         ];
+    }
+
+    public function collection(): Collection
+    {
+        return $this->rows->map(function ($so) {
+            return [
+                $so->client,
+                $so->area,
+                $so->location,
+                $so->date_rec,
+                $so->po_no,
+                $so->atai_products,
+                $so->quotation_no,
+                $so->ref_no ?? '',
+                $so->cur ?? 'SAR',
+                (float) ($so->po_value),
+                (float) ($so->value_with_vat ?? 0),
+                $so->payment_terms,
+                $so->project,
+                $so->project_location,
+                $so->status,
+                $so->oaa ?? '',
+                $so->job_no,
+                // ❌ Removed $so->factory_loc
+                $so->salesman,
+                $so->remarks,
+            ];
+        });
     }
 
     /**
@@ -156,34 +185,6 @@ class SalesOrdersMonthExport implements
         return $summary;
     }
 
-    public function collection(): Collection
-    {
-        return $this->rows->map(function ($so) {
-            return [
-                $so->client,
-                $so->area,
-                $so->location,
-                $so->date_rec,
-                $so->po_no,
-                $so->atai_products,
-                $so->quotation_no,
-                $so->ref_no ?? '',
-                $so->cur ?? 'SAR',
-                (float) ($so->po_value),
-                (float) ($so->value_with_vat ?? 0),
-                $so->payment_terms,
-                $so->project,
-                $so->project_location,
-                $so->status,
-                $so->oaa ?? '',
-                $so->job_no,
-                // ❌ Removed $so->factory_loc
-                $so->salesman,
-                $so->remarks,
-            ];
-        });
-    }
-
     public function columnWidths(): array
     {
         return [
@@ -211,8 +212,11 @@ class SalesOrdersMonthExport implements
 
     public function styles(Worksheet $sheet)
     {
+        $headerRow    = $this->startRow;
+        $dataStartRow = $headerRow + 1;
+
         // header row (A..S)
-        $sheet->getStyle('A9:S9')->applyFromArray([
+        $sheet->getStyle("A{$headerRow}:S{$headerRow}")->applyFromArray([
             'font' => ['bold' => true],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             'fill' => [
@@ -224,32 +228,29 @@ class SalesOrdersMonthExport implements
             ],
         ]);
 
-        $sheet->freezePane('A10');
+        $sheet->freezePane("A{$dataStartRow}");
 
         $highestRow = $sheet->getHighestRow();
-        $sheet->getStyle("A9:S{$highestRow}")
+        $sheet->getStyle("A{$headerRow}:S{$highestRow}")
             ->getBorders()
             ->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN);
 
-        return [];
-    }
+        // Alternating row colors for the data rows
+        $altFill = [
+            'fillType' => Fill::FILL_SOLID,
+            'color'    => ['rgb' => 'F7F7F7'],
+        ];
 
-    public function drawings()
-    {
-        $logoPath = public_path('images/atai-logo.png');
-        if (! file_exists($logoPath)) {
-            return [];
+        for ($row = $dataStartRow; $row <= $highestRow; $row++) {
+            if ((($row - $dataStartRow) % 2) === 1) {
+                $sheet->getStyle("A{$row}:S{$row}")->applyFromArray([
+                    'fill' => $altFill,
+                ]);
+            }
         }
 
-        $drawing = new Drawing();
-        $drawing->setName('ATAI Logo');
-        $drawing->setDescription('ATAI');
-        $drawing->setPath($logoPath);
-        $drawing->setHeight(45);
-        $drawing->setCoordinates('A1');
-
-        return [$drawing];
+        return [];
     }
 
     public function registerEvents(): array
@@ -261,81 +262,14 @@ class SalesOrdersMonthExport implements
                 $provSummary = $this->buildProvinceSummary();
                 $order       = ['EASTERN', 'WESTERN', 'CENTRAL', 'EXPORT'];
 
-                $totPre       = 0.0;
-                $totAccepted  = 0.0;
-                $totRejected  = 0.0;
-                $totCancelled = 0.0;
-
                 $totalPerProvince = [];
-
                 foreach ($order as $key) {
-                    $rowSummary = $provSummary[$key] ?? [
-                        'pre'       => 0,
-                        'accepted'  => 0,
-                        'rejected'  => 0,
-                        'cancelled' => 0,
-                        'total'     => 0,
-                    ];
-
-                    $totPre       += $rowSummary['pre'];
-                    $totAccepted  += $rowSummary['accepted'];
-                    $totRejected  += $rowSummary['rejected'];
-                    $totCancelled += $rowSummary['cancelled'];
-
-                    $totalPerProvince[$key] = $rowSummary['total'] ?? 0;
+                    $totalPerProvince[$key] = $provSummary[$key]['total'] ?? 0;
                 }
 
                 $totalAllProvinces = array_sum($totalPerProvince);
 
-                // LEFT BLOCK
-                $sheet->setCellValue('A2', 'Province');
-                $sheet->setCellValue('B2', 'Pre-Acceptance');
-                $sheet->setCellValue('C2', 'Accepted');
-                $sheet->setCellValue('D2', 'Rejected');
-                $sheet->setCellValue('E2', 'Cancelled');
-
-                $sheet->getStyle('A2:E2')->applyFromArray([
-                    'fill' => [
-                        'fillType' => Fill::FILL_SOLID,
-                        'color'    => ['rgb' => 'FFFF00'],
-                    ],
-                    'font' => ['bold' => true],
-                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-                    'borders' => [
-                        'allBorders' => ['borderStyle' => Border::BORDER_THIN],
-                    ],
-                ]);
-
-                $row = 3;
-                foreach ($order as $key) {
-                    $s = $provSummary[$key];
-
-                    $sheet->setCellValue("A{$row}", $s['label']);
-                    $sheet->setCellValue("B{$row}", $s['pre']);
-                    $sheet->setCellValue("C{$row}", $s['accepted']);
-                    $sheet->setCellValue("D{$row}", $s['rejected']);
-                    $sheet->setCellValue("E{$row}", $s['cancelled']);
-
-                    $row++;
-                }
-
-                $sheet->getStyle('A2:E6')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-
-                $sheet->setCellValue('A7', 'Total Orders Received');
-                $sheet->setCellValue('B7', $totPre);
-                $sheet->setCellValue('C7', $totAccepted);
-                $sheet->setCellValue('D7', $totRejected);
-                $sheet->setCellValue('E7', $totCancelled);
-
-                $sheet->getStyle('A7:E7')->applyFromArray([
-                    'font' => ['bold' => true, 'color' => ['rgb' => 'FF0000']],
-                    'borders' => [
-                        'top'    => ['borderStyle' => Border::BORDER_THIN],
-                        'bottom' => ['borderStyle' => Border::BORDER_THIN],
-                    ],
-                ]);
-
-                // RIGHT BLOCK
+                // RIGHT BLOCK (keep)
                 $sheet->setCellValue('H2', 'Province');
                 $sheet->setCellValue('I2', 'Total Orders ( Accepted & Pre Acceptance)');
                 $sheet->mergeCells('I2:K2');
@@ -378,6 +312,23 @@ class SalesOrdersMonthExport implements
         ];
     }
 
+    public function drawings()
+    {
+        $logoPath = public_path('images/atai-logo.png');
+        if (! file_exists($logoPath)) {
+            return [];
+        }
+
+        $drawing = new Drawing();
+        $drawing->setName('ATAI Logo');
+        $drawing->setDescription('ATAI');
+        $drawing->setPath($logoPath);
+        $drawing->setHeight(45);
+        $drawing->setCoordinates('A1');
+
+        return [$drawing];
+    }
+
     protected function extractStatus($row): string
     {
         $raw = '';
@@ -399,4 +350,5 @@ class SalesOrdersMonthExport implements
 
         return $rawUpper;
     }
+
 }
