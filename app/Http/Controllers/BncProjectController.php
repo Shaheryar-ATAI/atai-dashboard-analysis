@@ -43,7 +43,6 @@ class BncProjectController extends Controller
           //  'total_value'       => $totalValueUsd,
             'total_value_Sar'   => $totalValueSar,
             'approached'        => (clone $kpiQuery)->where('approached', true)->count(),
-            'qualified'         => (clone $kpiQuery)->whereIn('lead_qualified', ['Hot', 'Warm'])->count(),
             'expected_close30'  => (clone $kpiQuery)
                 ->whereNotNull('expected_close_date')
                 ->whereBetween('expected_close_date', [now(), now()->addDays(30)])
@@ -743,7 +742,6 @@ class BncProjectController extends Controller
         // Filters from modal
         $minSar   = (float) ($request->input('min_value_sar', 0) ?? 0);
         $stage    = trim((string) $request->input('stage', ''));
-        $lead     = trim((string) $request->input('lead_qualified', ''));
         $approached = $request->input('approached', '');
 
         // region: GM/Admin can choose; sales fixed
@@ -801,8 +799,6 @@ class BncProjectController extends Controller
         // Apply filters
         if ($region !== '') $q->where('bnc_projects.region', $region);
         if ($stage !== '')  $q->where('bnc_projects.stage', $stage);
-        if ($lead !== '')   $q->where('bnc_projects.lead_qualified', $lead);
-
         if ($approached !== '' && $approached !== null) {
             $q->where('bnc_projects.approached', (bool)$approached);
         }
@@ -924,7 +920,7 @@ class BncProjectController extends Controller
             SUM(COALESCE(s.`PO Value`,0)) as po_value_sum,
             MAX(s.`date_rec`) as last_po_date
         ")
-            ->whereIn(DB::raw($salesNorm), $qnosNorm)
+            //->whereIn(DB::raw($salesNorm), $qnosNorm)
             ->groupBy('q_norm', 'sales_source')
             ->get();
 
@@ -969,7 +965,7 @@ class BncProjectController extends Controller
                 COALESCE(NULLIF(TRIM(p.`area`),''),'') as area,
                 COALESCE(NULLIF(TRIM(p.`salesman`),''),'Not Mentioned') as sales_source
             ")
-                ->whereIn(DB::raw($projNorm), $missing)
+                //->whereIn(DB::raw($projNorm), $missing)
                 ->get();
 
             foreach ($inqRows as $r) {

@@ -123,6 +123,18 @@ class ProjectCoordinatorController extends Controller
     }
 
     /**
+     * File-safe region slug for export names.
+     */
+    private function regionSlugFromKey(?string $regionKey): string
+    {
+        $key = strtolower(trim((string)$regionKey));
+        if (in_array($key, ['eastern', 'central', 'western'], true)) {
+            return $key . '_region';
+        }
+        return 'all_regions';
+    }
+
+    /**
      * Canonical salesman => aliases list.
      * Used for normalization + region selection filtering.
      */
@@ -356,6 +368,84 @@ class ProjectCoordinatorController extends Controller
     }
 
     /**
+     * Province summary for Sales Order Log exports (PDF).
+     * Totals exclude rejected values (match Excel rules).
+     */
+    private function buildSalesOrdersProvinceSummary($rows): array
+    {
+        $provinces = [
+            'EASTERN' => 'KSA Eastern Province',
+            'WESTERN' => 'KSA Western Province',
+            'CENTRAL' => 'KSA Central Province',
+            'EXPORT'  => 'Export ( Qatar, Bahrain & Kuwait)',
+        ];
+
+        $summary = [];
+        foreach ($provinces as $key => $label) {
+            $summary[$key] = [
+                'label'     => $label,
+                'pre'       => 0.0,
+                'accepted'  => 0.0,
+                'rejected'  => 0.0,
+                'cancelled' => 0.0,
+                'total'     => 0.0,
+            ];
+        }
+
+        foreach ($rows as $row) {
+            $regionRaw = strtoupper(trim((string) ($row->area ?? $row->region ?? '')));
+
+            if (str_contains($regionRaw, 'EAST')) {
+                $provKey = 'EASTERN';
+            } elseif (str_contains($regionRaw, 'WEST')) {
+                $provKey = 'WESTERN';
+            } elseif (str_contains($regionRaw, 'CENT')) {
+                $provKey = 'CENTRAL';
+            } elseif (
+                str_contains($regionRaw, 'EXPORT') ||
+                str_contains($regionRaw, 'QATAR') ||
+                str_contains($regionRaw, 'BAHRAIN') ||
+                str_contains($regionRaw, 'KUWAIT')
+            ) {
+                $provKey = 'EXPORT';
+            } else {
+                continue;
+            }
+
+            $po = (float) ($row->po_value ?? $row->total_po_value ?? 0);
+            if ($po <= 0) continue;
+
+            $status = $this->extractCoordinatorStatus($row->oaa ?? null, $row->status ?? null);
+            if (!empty($row->rejected_at)) {
+                $status = 'REJECTED';
+            }
+
+            switch ($status) {
+                case 'PRE-ACCEPTANCE':
+                    $summary[$provKey]['pre'] += $po;
+                    break;
+                case 'ACCEPTANCE':
+                    $summary[$provKey]['accepted'] += $po;
+                    break;
+                case 'REJECTED':
+                    $summary[$provKey]['rejected'] += $po;
+                    break;
+                case 'CANCELLED':
+                    $summary[$provKey]['cancelled'] += $po;
+                    break;
+                default:
+                    break;
+            }
+
+            if ($status !== 'REJECTED') {
+                $summary[$provKey]['total'] += $po;
+            }
+        }
+
+        return $summary;
+    }
+
+    /**
      * Combine RBAC salesman scope + UI region selection scope:
      * - If UI region selected -> apply that region list
      * - If RBAC list exists too -> INTERSECT
@@ -543,6 +633,50 @@ class ProjectCoordinatorController extends Controller
 
             return $fallback->orderByDesc('po_date')->get();
         }
+    }
+
+    /**
+     * Export rows: use SAME grouped query as the portal table
+     * (so Excel/PDF match the UI record counts).
+     */
+    private function fetchSalesOrdersForExport(
+        array $regionsScope,
+        array $salesmenScope,
+        ?int $year,
+        ?int $month,
+        ?string $from,
+        ?string $to
+    ) {
+        $q = SalesOrderLog::coordinatorGroupedQuery($regionsScope);
+        $this->applySalesmenScopeToSalesOrderQuery($q, $salesmenScope);
+
+        // Apply SAME UI filters (From/To overrides Year/Month)
+        if ($from) $q->whereDate('date_rec', '>=', $from);
+        if ($to)   $q->whereDate('date_rec', '<=', $to);
+
+        if (!$from && !$to) {
+            if ($year) {
+                $q->whereYear('date_rec', $year);
+            }
+            if ($month) {
+                $q->whereMonth('date_rec', $month);
+            }
+        }
+
+        // Add export fields (group-safe)
+        $q->addSelect([
+            DB::raw("GROUP_CONCAT(DISTINCT s.`Ref.No.` ORDER BY s.`Ref.No.` SEPARATOR ', ') AS ref_no"),
+            DB::raw("MAX(s.`Cur`) AS cur"),
+            DB::raw("MAX(s.`Location`) AS location"),
+            DB::raw("MAX(s.`Project Location`) AS project_location"),
+            DB::raw("MAX(s.`Payment Terms`) AS payment_terms"),
+            DB::raw("MAX(s.`Sales OAA`) AS oaa"),
+            DB::raw("MAX(s.`Status`) AS status"),
+            DB::raw("MAX(s.`Remarks`) AS remarks"),
+            DB::raw("MAX(s.`rejected_at`) AS rejected_at"),
+        ]);
+
+        return $q->orderByDesc('po_date')->get();
     }
 
 
@@ -1254,48 +1388,24 @@ debugging format
         $year = (int)($request->input('year') ?: now()->year);
         $from = $request->input('from');
         $to   = $request->input('to');
+        $regionKey = $request->input('region', 'all');
 
         $user = $request->user();
 
         // Effective scope (RBAC + UI region filter)
         $salesmenScope = $this->buildEffectiveSalesmenScope($request, $this->coordinatorSalesmenScope($user));
 
-        $query = DB::table('salesorderlog')
-            ->whereNull('deleted_at')
-            ->selectRaw("
-                `Client Name`      AS client,
-                `project_region`   AS area,
-                `Location`         AS location,
-                `date_rec`         AS date_rec,
-                `PO. No.`          AS po_no,
-                `Products`         AS atai_products,
-                `Quote No.`        AS quotation_no,
-                `Ref.No.`          AS ref_no,
-                `Cur`              AS cur,
-                `PO Value`         AS po_value,
-                `value_with_vat`   AS value_with_vat,
-                `Payment Terms`    AS payment_terms,
-                `Project Name`     AS project,
-                `Project Location` AS project_location,
-                `Status`           AS status,
-                `Sales OAA`        AS oaa,
-                `Job No.`          AS job_no,
-                `Sales Source`     AS salesman,
-                `Remarks`          AS remarks
-            ");
-
-        if (!empty($salesmenScope)) {
-            $query->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $salesmenScope);
+        // ✅ Western coordinator: force western-only exports
+        if ($user && method_exists($user, 'hasRole') && $user->hasRole('project_coordinator_western')) {
+            $salesmenScope = $this->normalizeSalesmenScope($this->salesmenForRegionSelection('western'));
+            $regionKey = 'western';
         }
 
-        $query->whereYear('date_rec', $year)->whereMonth('date_rec', $month);
+        $regionsScope = $this->coordinatorRegionScope($user);
+        $rows = $this->fetchSalesOrdersForExport($regionsScope, $salesmenScope, $year, $month, $from, $to);
 
-        if ($from) $query->whereDate('date_rec', '>=', $from);
-        if ($to)   $query->whereDate('date_rec', '<=', $to);
-
-        $rows = collect($query->orderBy('date_rec')->get());
-
-        $filename = sprintf('sales_orders_%d_%02d.xlsx', $year, $month);
+        $regionSlug = $this->regionSlugFromKey($regionKey);
+        $filename = 'sales_order_log_' . $regionSlug . '.xlsx';
 
         return Excel::download(
             new SalesOrdersMonthExport($rows, $year, $month),
@@ -1316,7 +1426,14 @@ debugging format
         $regionsScope  = $this->coordinatorRegionScope($user);
         $salesmenScope = $this->normalizeSalesmenScope($this->coordinatorSalesmenScope($user));
 
-        $filename = sprintf('sales_orders_%d_full_year.xlsx', $year);
+        // ✅ Western coordinator: force western-only exports
+        if ($user && method_exists($user, 'hasRole') && $user->hasRole('project_coordinator_western')) {
+            $salesmenScope = $this->normalizeSalesmenScope($this->salesmenForRegionSelection('western'));
+            $region = 'western';
+        }
+
+        $regionSlug = $this->regionSlugFromKey($region);
+        $filename = 'sales_order_log_' . $regionSlug . '.xlsx';
 
         return Excel::download(
             new SalesOrdersYearExport(
@@ -1331,6 +1448,135 @@ debugging format
             ),
             $filename
         );
+    }
+
+    public function exportSalesOrdersPdf(Request $request)
+    {
+        $year  = (int)($request->input('year') ?: now()->year);
+        $month = $request->filled('month') ? (int)$request->input('month') : null;
+        $from  = $request->input('from');
+        $to    = $request->input('to');
+        $region = strtolower((string)$request->input('region', 'all'));
+
+        $user = $request->user();
+
+        $regionsScope  = $this->coordinatorRegionScope($user);
+        $salesmenScope = $this->buildEffectiveSalesmenScope($request, $this->coordinatorSalesmenScope($user));
+
+        // ✅ Western coordinator: force western-only exports
+        if ($user && method_exists($user, 'hasRole') && $user->hasRole('project_coordinator_western')) {
+            $salesmenScope = $this->normalizeSalesmenScope($this->salesmenForRegionSelection('western'));
+            $region = 'western';
+        }
+
+        $rows = $this->fetchSalesOrdersForExport($regionsScope, $salesmenScope, $year, $month, $from, $to);
+
+        $summary = $this->buildSalesOrdersProvinceSummary($rows);
+        $order = ['EASTERN', 'WESTERN', 'CENTRAL', 'EXPORT'];
+
+        $summaryRows = [];
+        $totalOrders = 0.0;
+        $totalRejected = 0.0;
+
+        foreach ($order as $key) {
+            $label = $summary[$key]['label'] ?? $key;
+            $total = (float)($summary[$key]['total'] ?? 0);
+            $rejected = (float)($summary[$key]['rejected'] ?? 0);
+            $summaryRows[] = [
+                'label' => $label,
+                'total' => $total,
+                'rejected' => $rejected,
+            ];
+            $totalOrders += $total;
+            $totalRejected += $rejected;
+        }
+
+        $periodLabel = 'All Years';
+        if ($month) {
+            $monthName = date('M', mktime(0, 0, 0, $month, 1));
+            $periodLabel = $monthName . '-' . $year;
+        } elseif ($from || $to) {
+            if ($from && $to) {
+                $periodLabel = $from . ' to ' . $to;
+            } elseif ($from) {
+                $periodLabel = 'From ' . $from;
+            } else {
+                $periodLabel = 'To ' . $to;
+            }
+        } elseif ($year) {
+            $periodLabel = (string)$year;
+        }
+
+        $regionLabel = ($region && $region !== 'all')
+            ? ucfirst($region) . ' Region'
+            : 'All Regions';
+
+        $mappedRows = $rows->map(function ($so) {
+            $poValue  = $so->po_value ?? $so->total_po_value ?? $so->{'PO Value'} ?? 0;
+            $vatValue = $so->value_with_vat ?? $so->{'value_with_vat'} ?? 0;
+
+            $dateRec = $so->date_rec ?? $so->po_date ?? '';
+            if ($dateRec instanceof \Carbon\Carbon) {
+                $dateRec = $dateRec->format('Y-m-d');
+            }
+
+            $area = $so->area ?? $so->region ?? '';
+            $location = $so->location ?? $so->project_location ?? '';
+            $projectLocation = $so->project_location ?? $so->location ?? '';
+            $status = $so->status ?? ($so->{'Status'} ?? '');
+            $oaa = $so->oaa ?? ($so->{'Sales OAA'} ?? '');
+            $salesman = $so->salesman ?? ($so->{'Sales Source'} ?? '');
+            $remarks = $so->remarks ?? ($so->{'Remarks'} ?? '');
+
+            $statusNorm = $this->extractCoordinatorStatus($oaa, $status);
+            $isRejected = !empty($so->rejected_at) || ($statusNorm === 'REJECTED');
+
+            return [
+                'client'           => $so->client ?? '',
+                'area'             => $area,
+                'location'         => $location,
+                'date_rec'         => $dateRec ?: '',
+                'po_no'            => $so->po_no ?? '',
+                'atai_products'    => $so->atai_products ?? '',
+                'quotation_no'     => $so->quotation_no ?? '',
+                'ref_no'           => $so->ref_no ?? '',
+                'cur'              => $so->cur ?? 'SAR',
+                'po_value'         => (float) $poValue,
+                'value_with_vat'   => (float) $vatValue,
+                'payment_terms'    => $so->payment_terms ?? '',
+                'project'          => $so->project ?? '',
+                'project_location' => $projectLocation,
+                'status'           => $status ?? '',
+                'oaa'              => $oaa ?? '',
+                'job_no'           => $so->job_no ?? '',
+                'salesman'         => $salesman ?? '',
+                'remarks'          => $remarks ?? '',
+                'is_rejected'      => $isRejected,
+            ];
+        });
+
+        $logoPath = public_path('images/atai-logo.png');
+        if (!file_exists($logoPath)) {
+            $logoPath = null;
+        }
+
+        $payload = [
+            'generatedAt'   => now()->format('Y-m-d'),
+            'periodLabel'   => $periodLabel,
+            'regionLabel'   => $regionLabel,
+            'summaryRows'   => $summaryRows,
+            'totalOrders'   => $totalOrders,
+            'totalRejected' => $totalRejected,
+            'rows'          => $mappedRows,
+            'logoPath'      => $logoPath,
+        ];
+
+        $regionSlug = $this->regionSlugFromKey($region);
+        $fileName = 'sales_order_log_' . $regionSlug . '.pdf';
+
+        return Pdf::loadView('reports.coordinator-sales-orders-pdf', $payload)
+            ->setPaper('a4', 'landscape')
+            ->download($fileName);
     }
 
     /* ============================================================
@@ -1426,41 +1672,25 @@ debugging format
 
         // Scope (RBAC + UI region)
         $salesmenScope = $this->buildEffectiveSalesmenScope($request, $this->coordinatorSalesmenScope($user));
+        $regionsScope  = $this->coordinatorRegionScope($user);
 
-        $q = DB::table('salesorderlog')
-            ->whereNull('deleted_at')
-            ->selectRaw("
-                `Sales Source` AS salesman,
-                `project_region` AS area,
-                `region` AS region,
-                `date_rec` AS date_rec,
-                `PO Value` AS po_value,
-                `Sales OAA` AS oaa,
-                `Status` AS status,
-                `rejected_at` AS rejected_at
-            ");
+        // ✅ Use SAME grouped rows as the portal table / Excel export
+        $rows = $this->fetchSalesOrdersForExport(
+            $regionsScope,
+            $salesmenScope,
+            $yearInt,
+            $monthInt,
+            $from,
+            $to
+        );
 
-        if (!empty($salesmenScope)) {
-            $q->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $salesmenScope);
-        }
-
-        // Date filter logic (from/to overrides year/month)
-        if ($from) $q->whereDate('date_rec', '>=', $from);
-        if ($to)   $q->whereDate('date_rec', '<=', $to);
-
-        if (!$from && !$to) {
-            if ($yearInt) {
-                $q->whereYear('date_rec', $yearInt);
-            }
-            if ($monthInt) {
-                $q->whereMonth('date_rec', $monthInt);
-            }
-        }
-
-        $rows = $q->orderBy('date_rec')->get();
-
-        // Totals by region
+        // Totals by region (non-rejected only)
         $regionTotals = [
+            'Eastern' => 0.0,
+            'Central' => 0.0,
+            'Western' => 0.0,
+        ];
+        $rejectedByRegion = [
             'Eastern' => 0.0,
             'Central' => 0.0,
             'Western' => 0.0,
@@ -1488,33 +1718,40 @@ debugging format
         ];
 
         foreach ($rows as $r) {
-            // ✅ Match KPI behavior: ignore rejected rows entirely
+            $po = (float) ($r->po_value ?? $r->total_po_value ?? 0);
+            if ($po < 0) $po = 0;
+
+            // Status counts/values should include rejected rows (for PDF summary table)
+            $status = $this->extractCoordinatorStatus($r->oaa ?? null, $r->status ?? null);
             if (!empty($r->rejected_at)) {
-                continue;
+                $status = 'REJECTED';
+            } elseif (!$status) {
+                $status = 'ACCEPTANCE';
+            }
+            if (isset($statusCounts[$status])) {
+                $statusCounts[$status] += 1;
+                $statusValues[$status] += $po;
             }
 
-            $po = (float) ($r->po_value ?? 0);
-            if ($po < 0) $po = 0;
+            // ✅ Match KPI behavior for region totals: ignore rejected rows
+            if (!empty($r->rejected_at)) {
+                $areaRaw = $r->area ?? $r->region ?? null;
+                $reg = $this->resolveRegionForRow($r->salesman ?? null, $areaRaw);
+                if ($reg && isset($rejectedByRegion[$reg])) {
+                    $rejectedByRegion[$reg] += $po;
+                }
+                continue;
+            }
 
             $areaRaw = $r->area ?? $r->region ?? null;
             $reg = $this->resolveRegionForRow($r->salesman ?? null, $areaRaw);
             if ($reg && isset($regionTotals[$reg])) {
                 $regionTotals[$reg] += $po;
 
-                $m = $r->date_rec ? (int) date('n', strtotime($r->date_rec)) : null;
+                $m = $r->po_date ? (int) date('n', strtotime($r->po_date)) : null;
                 if ($m && isset($monthlyByRegion[$reg][$m])) {
                     $monthlyByRegion[$reg][$m] += $po;
                 }
-            }
-
-            $status = $this->extractCoordinatorStatus($r->oaa ?? null, $r->status ?? null);
-            if (!$status) {
-                // ✅ Count unknown/blank as Acceptance so totals match KPI
-                $status = 'ACCEPTANCE';
-            }
-            if (isset($statusCounts[$status])) {
-                $statusCounts[$status] += 1;
-                $statusValues[$status] += $po;
             }
         }
 
@@ -1532,6 +1769,7 @@ debugging format
             'chartImagePath' => $chartImagePath,
             'chartDataUri'   => $this->makeCoordinatorRegionChartBase64($regionTotals, $yearLabel),
             'regionTotals'   => $regionTotals,
+            'rejectedByRegion' => $rejectedByRegion,
             'monthlyByRegion'=> $monthlyByRegion,
             'statusCounts'   => $statusCounts,
             'statusValues'   => $statusValues,

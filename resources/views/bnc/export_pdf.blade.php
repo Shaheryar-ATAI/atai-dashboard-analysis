@@ -3,13 +3,14 @@
 <head>
     <meta charset="utf-8">
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 10px; }
-        h2 { margin: 0 0 8px; }
+        @page { margin: 10px; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 9px; }
+        h2 { margin: 0 0 6px; font-size: 13px; }
         .meta { margin-bottom: 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        th, td { border: 1px solid #777; padding: 5px; vertical-align: top; }
+        th, td { border: 1px solid #777; padding: 4px; vertical-align: top; }
         th { background: #eee; }
-        .section-title { margin-top: 14px; font-weight: bold; font-size: 12px; }
+        .section-title { margin-top: 12px; font-weight: bold; font-size: 11px; }
         .muted { color: #666; }
     </style>
 </head>

@@ -37,12 +37,12 @@ class SalesOrdersMonthExport implements
     protected string $regionLabel;
     protected int $startRow = 9;
 
-    public function __construct(Collection $rows, int $year, int $month)
+    public function __construct(Collection $rows, int $year, int $month, string $regionLabel = '')
     {
         $this->rows        = $rows;
         $this->year        = $year;
         $this->month       = $month;
-     //   $this->regionLabel = $regionLabel;
+        $this->regionLabel = $regionLabel;
     }
 
     public function title(): string
@@ -88,27 +88,37 @@ class SalesOrdersMonthExport implements
     public function collection(): Collection
     {
         return $this->rows->map(function ($so) {
+            $poValue = $so->po_value ?? $so->total_po_value ?? $so->{'PO Value'} ?? 0;
+            $vatValue = $so->value_with_vat ?? $so->{'value_with_vat'} ?? 0;
+            $area = $so->area ?? $so->region ?? '';
+            $location = $so->location ?? $so->project_location ?? '';
+            $projectLocation = $so->project_location ?? $so->location ?? '';
+            $status = $so->status ?? ($so->{'Status'} ?? '');
+            $oaa = $so->oaa ?? ($so->{'Sales OAA'} ?? '');
+            $salesman = $so->salesman ?? ($so->{'Sales Source'} ?? '');
+            $remarks = $so->remarks ?? ($so->{'Remarks'} ?? '');
+
             return [
-                $so->client,
-                $so->area,
-                $so->location,
-                $so->date_rec,
-                $so->po_no,
-                $so->atai_products,
-                $so->quotation_no,
+                $so->client ?? '',
+                $area,
+                $location,
+                $so->date_rec ?? $so->po_date ?? '',
+                $so->po_no ?? '',
+                $so->atai_products ?? '',
+                $so->quotation_no ?? '',
                 $so->ref_no ?? '',
                 $so->cur ?? 'SAR',
-                (float) ($so->po_value),
-                (float) ($so->value_with_vat ?? 0),
-                $so->payment_terms,
-                $so->project,
-                $so->project_location,
-                $so->status,
-                $so->oaa ?? '',
-                $so->job_no,
+                (float) ($poValue),
+                (float) ($vatValue),
+                $so->payment_terms ?? '',
+                $so->project ?? '',
+                $projectLocation,
+                $status,
+                $oaa,
+                $so->job_no ?? '',
                 // ❌ Removed $so->factory_loc
-                $so->salesman,
-                $so->remarks,
+                $salesman,
+                $remarks,
             ];
         });
     }
@@ -157,10 +167,8 @@ class SalesOrdersMonthExport implements
                 continue;
             }
 
-            $po = (float) ($row->po_value ?? 0);
+            $po = (float) ($row->po_value ?? $row->total_po_value ?? 0);
             if ($po <= 0) continue;
-
-            $summary[$provKey]['total'] += $po;
 
             $statusNorm = $this->extractStatus($row);
 
@@ -179,6 +187,11 @@ class SalesOrdersMonthExport implements
                     break;
                 default:
                     break;
+            }
+
+            // Total shown in the summary excludes rejected values
+            if ($statusNorm !== 'REJECTED') {
+                $summary[$provKey]['total'] += $po;
             }
         }
 
@@ -250,6 +263,23 @@ class SalesOrdersMonthExport implements
             }
         }
 
+        // Highlight rejected rows (light red)
+        $rejectFill = [
+            'fillType' => Fill::FILL_SOLID,
+            'color'    => ['rgb' => 'FCE8E8'],
+        ];
+        $idx = 0;
+        foreach ($this->rows as $row) {
+            $status = $this->extractStatus($row);
+            if ($status === 'REJECTED') {
+                $r = $dataStartRow + $idx;
+                $sheet->getStyle("A{$r}:S{$r}")->applyFromArray([
+                    'fill' => $rejectFill,
+                ]);
+            }
+            $idx++;
+        }
+
         return [];
     }
 
@@ -270,11 +300,11 @@ class SalesOrdersMonthExport implements
                 $totalAllProvinces = array_sum($totalPerProvince);
 
                 // RIGHT BLOCK (keep)
-                $sheet->setCellValue('H2', 'Province');
-                $sheet->setCellValue('I2', 'Total Orders ( Accepted & Pre Acceptance)');
-                $sheet->mergeCells('I2:K2');
-
-                $sheet->getStyle('H2:K2')->applyFromArray([
+                $sheet->setCellValue('H2', 'Regional Concertration');
+                $sheet->setCellValue('I2', 'Total Orders Regional Concertration ( Accepted & Pre Acceptance)');
+                $sheet->setCellValue('J2', 'Rejected Value');
+                    
+                $sheet->getStyle('H2:J2')->applyFromArray([
                     'fill' => [
                         'fillType' => Fill::FILL_SOLID,
                         'color'    => ['rgb' => 'FFFF00'],
@@ -290,15 +320,20 @@ class SalesOrdersMonthExport implements
                 foreach ($order as $key) {
                     $sheet->setCellValue("H{$row}", $provSummary[$key]['label']);
                     $sheet->setCellValue("I{$row}", $totalPerProvince[$key] ?? 0);
+                    $sheet->setCellValue("J{$row}", $provSummary[$key]['rejected'] ?? 0);
                     $row++;
                 }
 
-                $sheet->getStyle('H2:K6')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                $sheet->getStyle('H2:J6')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
 
                 $sheet->setCellValue('H7', 'Total Orders Received');
                 $sheet->setCellValue('I7', $totalAllProvinces);
+                $sheet->setCellValue('J7', array_sum(array_map(
+                    fn($k) => $provSummary[$k]['rejected'] ?? 0,
+                    $order
+                )));
 
-                $sheet->getStyle('H7:I7')->applyFromArray([
+                $sheet->getStyle('H7:J7')->applyFromArray([
                     'font' => ['bold' => true, 'color' => ['rgb' => 'FF0000']],
                     'borders' => [
                         'top'    => ['borderStyle' => Border::BORDER_THIN],
@@ -332,6 +367,10 @@ class SalesOrdersMonthExport implements
     protected function extractStatus($row): string
     {
         $raw = '';
+
+        if (isset($row->rejected_at) && !empty($row->rejected_at)) {
+            return 'REJECTED';
+        }
 
         if (isset($row->oaa) && trim((string) $row->oaa) !== '') {
             $raw = (string) $row->oaa;

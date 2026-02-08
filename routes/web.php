@@ -252,6 +252,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/coordinator/salesorders-export-year', [ProjectCoordinatorController::class, 'exportSalesOrdersYear'])
         ->name('coordinator.salesorders.exportYear');
 
+    Route::get('/coordinator/salesorders-export-pdf', [ProjectCoordinatorController::class, 'exportSalesOrdersPdf'])
+        ->name('coordinator.salesorders.exportPdf');
+
     // Coordinator graph PDF (Eastern only)
     Route::post('/coordinator/graph/save', [ProjectCoordinatorController::class, 'saveCoordinatorGraph'])
         ->name('coordinator.graph.save');

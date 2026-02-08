@@ -263,6 +263,11 @@
                         <button id="coord_download_excel_year" type="button" class="btn btn-outline-primary btn-sm">
                             Download Full Year
                         </button>
+                        @unlessrole('project_coordinator_western')
+                        <button id="coord_download_salesorder_pdf" type="button" class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> Sales Order Log PDF
+                        </button>
+                        @endunlessrole
                         @hasrole('project_coordinator_eastern')
                         <button id="coord_download_graph_pdf" type="button" class="btn btn-outline-info btn-sm">
                             <i class="bi bi-bar-chart-line me-1"></i> Graph PDF
@@ -868,6 +873,7 @@
             const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
             const COORD_GRAPH_SAVE_URL = @json(route('coordinator.graph.save'));
             const COORD_GRAPH_PDF_URL  = @json(route('coordinator.graph.pdf'));
+            const COORD_SALESORDER_PDF_URL = @json(route('coordinator.salesorders.exportPdf'));
             let regionChart = null;
 
             const fmtSAR = value => {
@@ -1156,6 +1162,7 @@
             const btnDownloadExcelMonth = document.getElementById('coord_download_excel_month');
             const btnDownloadExcelYear  = document.getElementById('coord_download_excel_year');
             const btnDownloadGraphPdf   = document.getElementById('coord_download_graph_pdf');
+            const btnDownloadSalesOrderPdf = document.getElementById('coord_download_salesorder_pdf');
 
             /**
              * Build export params:
@@ -1623,6 +1630,14 @@
                         const params = buildExportParams({ requireMonth: false });
                         if (!params) return;
                         window.location.href = "{{ route('coordinator.salesorders.exportYear') }}" + '?' + params.toString();
+                    });
+                }
+
+                if (btnDownloadSalesOrderPdf) {
+                    btnDownloadSalesOrderPdf.addEventListener('click', () => {
+                        const params = buildExportParams({ requireMonth: false });
+                        if (!params) return;
+                        window.location.href = COORD_SALESORDER_PDF_URL + '?' + params.toString();
                     });
                 }
 

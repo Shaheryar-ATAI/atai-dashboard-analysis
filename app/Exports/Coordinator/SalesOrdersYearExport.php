@@ -2,6 +2,7 @@
 
 namespace App\Exports\Coordinator;
 
+use App\Models\SalesOrderLog;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
@@ -27,6 +28,52 @@ class SalesOrdersYearExport implements WithMultipleSheets
 
     /** ✅ RBAC: allowed salesmen aliases (UPPER) e.g. ['ABDO','AHMED',...] */
     protected array $salesmenScope;
+
+    /**
+     * Canonical salesman => aliases list.
+     * (Keep aligned with coordinator filters)
+     */
+    private function salesmanAliasMap(): array
+    {
+        return [
+            'SOHAIB'    => ['SOHAIB', 'SOAHIB', 'SOAIB', 'SOHIB', 'SOHAI', 'RAVINDER', 'WASEEM', 'FAISAL', 'CLIENT', 'EXPORT'],
+            'TAREQ'     => ['TARIQ', 'TAREQ', 'TAREQ '],
+            'JAMAL'     => ['JAMAL'],
+            'ABU_MERHI' => ['M.ABU MERHI', 'M. ABU MERHI', 'M.MERHI', 'MERHI', 'ABU MERHI', 'M ABU MERHI', 'MOHAMMED'],
+            'ABDO'      => ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF', 'ABDO YOUSIF'],
+            'AHMED'     => ['AHMED', 'AHMED AMIN', 'AHMED AMEEN', 'AHMED AMIN ', 'AHMED AMIN.', 'AHMED AMEEN.', 'Ahmed Amin'],
+        ];
+    }
+
+    /**
+     * Region => allowed salesmen (aliases).
+     */
+    private function salesmenForRegionSelection(string $regionKey): array
+    {
+        $regionKey = strtolower(trim($regionKey));
+        if ($regionKey === 'all' || $regionKey === '') {
+            return [];
+        }
+
+        $regionMap = [
+            'eastern' => ['SOHAIB'],
+            'central' => ['TAREQ', 'JAMAL', 'ABU_MERHI'],
+            'western' => ['ABDO', 'AHMED'],
+        ];
+
+        $aliasMap  = $this->salesmanAliasMap();
+        $canonicals = $regionMap[$regionKey] ?? [];
+
+        $names = [];
+        foreach ($canonicals as $c) {
+            $c = strtoupper(trim($c));
+            foreach (($aliasMap[$c] ?? [$c]) as $a) {
+                $names[] = strtoupper(trim((string)$a));
+            }
+        }
+
+        return array_values(array_unique(array_filter($names)));
+    }
 
     /**
      * @param array       $regionsScope   e.g. ['eastern','central'] from coordinatorRegionScope()
@@ -73,14 +120,7 @@ class SalesOrdersYearExport implements WithMultipleSheets
             ? ucfirst($this->regionKey) . ' Region'
             : 'All Regions';
 
-        // Alias map (expand if needed)
-        $salesmanAliasMap = [
-            'SOHAIB' => ['SOHAIB', 'SOAHIB'],
-            'TARIQ'  => ['TARIQ', 'TAREQ'],
-            'JAMAL'  => ['JAMAL'],
-            'ABDO'   => ['ABDO', 'ABDO YOUSEF', 'ABDO YOUSSEF'],
-            'AHMED'  => ['AHMED', 'AHMED AMIN', 'AHMED AMEEN'],
-        ];
+        $salesmanAliasMap = $this->salesmanAliasMap();
 
         // Factory → canonical salesmen mapping
         $factoryMap = [
@@ -88,44 +128,36 @@ class SalesOrdersYearExport implements WithMultipleSheets
             'Madinah' => ['AHMED', 'ABDO'],
         ];
 
+        // Effective scope (RBAC + UI region)
+        $effectiveSalesmen = $this->salesmenScope;
+        $byRegion = $this->salesmenForRegionSelection($this->regionKey ?? 'all');
+        if (!empty($byRegion)) {
+            if (!empty($effectiveSalesmen)) {
+                $set = array_flip($effectiveSalesmen);
+                $effectiveSalesmen = array_values(array_filter($byRegion, fn ($x) => isset($set[$x])));
+            } else {
+                $effectiveSalesmen = $byRegion;
+            }
+        }
+
         for ($month = 1; $month <= 12; $month++) {
 
-            $query = DB::table('salesorderlog')
-                ->whereNull('deleted_at')
-                // ✅ IMPORTANT: scope by project_region (matches UI + export-month)
-                ->whereIn('project_region', $this->normalizedRegions)
-                ->selectRaw("
-                    `Client Name`      AS client,
-                    `project_region`   AS area,
-                    `Location`         AS location,
-                    `date_rec`         AS date_rec,
-                    `PO. No.`          AS po_no,
-                    `Products`         AS atai_products,
-                    `Products_raw`     AS products_raw,
-                    `Quote No.`        AS quotation_no,
-                    `Ref.No.`          AS ref_no,
-                    `Cur`              AS cur,
-                    `PO Value`         AS po_value,
-                    `value_with_vat`   AS value_with_vat,
-                    `Payment Terms`    AS payment_terms,
-                    `Project Name`     AS project,
-                    `Project Location` AS project_location,
-                    `Status`           AS status,
-                    `Sales OAA`        AS oaa,
-                    `Job No.`          AS job_no,
-                    `Factory Loc`      AS factory_loc,
-                    `Sales Source`     AS salesman,
-                    `Remarks`          AS remarks
-                ");
+            $query = SalesOrderLog::coordinatorGroupedQuery($this->normalizedRegions)
+                ->addSelect([
+                    DB::raw("GROUP_CONCAT(DISTINCT s.`Ref.No.` ORDER BY s.`Ref.No.` SEPARATOR ', ') AS ref_no"),
+                    DB::raw("MAX(s.`Cur`) AS cur"),
+                    DB::raw("MAX(s.`Location`) AS location"),
+                    DB::raw("MAX(s.`Project Location`) AS project_location"),
+                    DB::raw("MAX(s.`Payment Terms`) AS payment_terms"),
+                    DB::raw("MAX(s.`Sales OAA`) AS oaa"),
+                    DB::raw("MAX(s.`Status`) AS status"),
+                    DB::raw("MAX(s.`Remarks`) AS remarks"),
+                    DB::raw("MAX(s.`rejected_at`) AS rejected_at"),
+                ]);
 
-            // ✅ Region dropdown filter (still uses project_region)
-            if ($this->regionKey && $this->regionKey !== 'all') {
-                $query->where('project_region', ucfirst($this->regionKey));
-            }
-
-            // ✅ RBAC salesman scope (cannot be bypassed)
-            if (!empty($this->salesmenScope)) {
-                $query->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $this->salesmenScope);
+            // ✅ Effective salesman scope (RBAC + UI region)
+            if (!empty($effectiveSalesmen)) {
+                $query->whereIn(DB::raw('UPPER(TRIM(s.`Sales Source`))'), $effectiveSalesmen);
             }
 
             /**
@@ -139,7 +171,7 @@ class SalesOrdersYearExport implements WithMultipleSheets
                 $aliasesUpper = array_values(array_unique(array_map('strtoupper', $aliases)));
 
                 // apply case-insensitive
-                $query->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $aliasesUpper);
+                $query->whereIn(DB::raw('UPPER(TRIM(s.`Sales Source`))'), $aliasesUpper);
             } elseif ($this->factory && isset($factoryMap[$this->factory])) {
                 $canonList = $factoryMap[$this->factory];
                 $aliases = [];
@@ -150,7 +182,7 @@ class SalesOrdersYearExport implements WithMultipleSheets
 
                 $aliasesUpper = array_values(array_unique(array_map(fn($v)=>strtoupper(trim((string)$v)), $aliases)));
                 if (!empty($aliasesUpper)) {
-                    $query->whereIn(DB::raw('UPPER(TRIM(`Sales Source`))'), $aliasesUpper);
+                    $query->whereIn(DB::raw('UPPER(TRIM(s.`Sales Source`))'), $aliasesUpper);
                 }
             }
 
@@ -162,7 +194,7 @@ class SalesOrdersYearExport implements WithMultipleSheets
             if ($this->from) $query->whereDate('date_rec', '>=', $this->from);
             if ($this->to)   $query->whereDate('date_rec', '<=', $this->to);
 
-            $rows = collect($query->orderBy('date_rec')->get());
+            $rows = collect($query->orderBy('po_date')->get());
 
             $sheets[] = new SalesOrdersMonthExport(
                 $rows,

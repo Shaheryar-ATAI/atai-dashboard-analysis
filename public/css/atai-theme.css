@@ -248,10 +248,10 @@ body::before {
 /* ---------------------------------------------------------------------
    3B) NAVBAR MOBILE RESPONSIVE FIXES
    --------------------------------------------------------------------- */
-@media (max-width: 991.98px){
-    .navbar-atai .container-fluid{
-        flex-wrap: wrap;
-    }
+  @media (max-width: 991.98px){
+      .navbar-atai .container-fluid{
+          flex-wrap: wrap;
+      }
 
     .navbar-atai .navbar-toggler{
         margin-left: auto;
@@ -280,16 +280,33 @@ body::before {
         padding: .4rem 0;
     }
 
-    .navbar-atai .navbar-right{
-        width: 100%;
-        margin-left: 0 !important;
-        margin-top: .5rem;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: .5rem;
-        white-space: normal;
-    }
-}
+      .navbar-atai .navbar-right{
+          width: 100%;
+          margin-left: 0 !important;
+          margin-top: .5rem;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: .5rem;
+          white-space: normal;
+      }
+  }
+
+  /* ---------------------------------------------------------------------
+     3C) NAVBAR MOBILE HARD OVERRIDE (server cache safe)
+     - Ensures collapse works even if older CSS leaked with display:flex
+     --------------------------------------------------------------------- */
+  @media (max-width: 991.98px){
+      .navbar-atai .navbar-collapse{
+          display: none !important;
+      }
+      .navbar-atai .navbar-collapse.show{
+          display: block !important;
+      }
+      .navbar-atai .navbar-nav{
+          flex-direction: column;
+          align-items: flex-start;
+      }
+  }
 
 /* ---------------------------------------------------------------------
    3C) CARD + KPI MOBILE TWEAKS (general)
@@ -686,7 +703,16 @@ table.dataTable tbody td:nth-child(1){ color:#a4e869 !important; }
 .modal.modal-stack { z-index: 1075 !important; }
 .modal-backdrop.modal-stack { z-index: 1070 !important; }
 
-.modal-atai .modal-dialog{ filter:drop-shadow(0 18px 50px rgba(0,0,0,.55)); }
+  .modal-atai .modal-dialog{
+      /* Keep modal header visible under sticky navbar */
+      margin-top: calc(0.5rem + var(--atai-navbar-offset, 56px));
+      filter:drop-shadow(0 18px 50px rgba(0,0,0,.55));
+  }
+  @media (min-width: 576px){
+      .modal-atai .modal-dialog{
+          margin-top: calc(1.75rem + var(--atai-navbar-offset, 56px));
+      }
+  }
 .modal-atai .modal-content{
     background:linear-gradient(180deg, rgba(18,23,38,.96), rgba(13,18,30,.94)) !important;
     color:#eaf0ff !important;

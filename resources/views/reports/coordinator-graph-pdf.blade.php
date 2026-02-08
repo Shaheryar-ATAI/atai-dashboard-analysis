@@ -150,27 +150,33 @@
         <div class="col-left">
             <table class="block" style="width:100%; border-collapse:collapse;">
                 <tr class="hdr-yellow">
-                    <th>Region / Country</th>
-                    <th class="center">Year {{ $yearLabel }}</th>
+                    <th>Regional Concertration</th>
+                    <th class="center">Total Orders Regional Concertration ( Accepted &amp; Pre Acceptance)</th>
+                    <th class="center">Rejected Value</th>
                 </tr>
                 @php
                     $rt = $regionTotals ?? ['Eastern'=>0,'Western'=>0,'Central'=>0];
+                    $rb = $rejectedByRegion ?? ['Eastern'=>0,'Western'=>0,'Central'=>0];
                 @endphp
                 <tr class="fill-blue">
                     <td>KSA Eastern</td>
                     <td class="num">{{ number_format($rt['Eastern'] ?? 0, 0) }}</td>
+                    <td class="num">{{ number_format($rb['Eastern'] ?? 0, 0) }}</td>
                 </tr>
                 <tr class="fill-blue">
                     <td>KSA Western</td>
                     <td class="num">{{ number_format($rt['Western'] ?? 0, 0) }}</td>
+                    <td class="num">{{ number_format($rb['Western'] ?? 0, 0) }}</td>
                 </tr>
                 <tr class="fill-blue">
                     <td>KSA Central</td>
                     <td class="num">{{ number_format($rt['Central'] ?? 0, 0) }}</td>
+                    <td class="num">{{ number_format($rb['Central'] ?? 0, 0) }}</td>
                 </tr>
                 <tr>
                     <td class="center red">Total</td>
                     <td class="num red">{{ number_format(($rt['Eastern'] ?? 0)+($rt['Western'] ?? 0)+($rt['Central'] ?? 0), 0) }}</td>
+                    <td class="num red">{{ number_format(($rb['Eastern'] ?? 0)+($rb['Western'] ?? 0)+($rb['Central'] ?? 0), 0) }}</td>
                 </tr>
             </table>
         </div>

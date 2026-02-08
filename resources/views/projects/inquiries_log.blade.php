@@ -20,7 +20,7 @@
             height: calc(1.5em + .5rem + 2px);
         }
 
-        #tblBidding td:last-child, #tblInhand td:last-child, #tblLost td:last-child, #tblPOreceived td:last-child {
+        #tblAll td:last-child, #tblBidding td:last-child, #tblInhand td:last-child, #tblLost td:last-child, #tblPOreceived td:last-child {
             text-align: end;
         }
 
@@ -189,10 +189,15 @@
             </div>
 
 
-            {{-- ===== TABS (Bidding / In-Hand / Lost / PO received / No PO) ===== --}}
+            {{-- ===== TABS (All / Bidding / In-Hand / Lost / PO received / No PO) ===== --}}
             <ul class="nav nav-tabs" role="tablist">
                 <li class="nav-item">
-                    <button class="nav-link active" data-bs-target="#bidding" data-bs-toggle="tab" type="button"
+                    <button class="nav-link active" data-bs-target="#all" data-bs-toggle="tab" type="button"
+                            role="tab">All
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-target="#bidding" data-bs-toggle="tab" type="button"
                             role="tab">Bidding
                     </button>
                 </li>
@@ -231,8 +236,40 @@
                 </div>
             </div>
             <div class="tab-content border-start border-end border-bottom p-3 rounded-bottom">
+                {{-- ---------- ALL TAB ---------- --}}
+                <div class="tab-pane fade show active" id="all" role="tabpanel" tabindex="0">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        <div class="input-group w-auto">
+                            <span class="input-group-text">Search</span>
+                            <input id="searchAll" type="text" class="form-control"
+                                   placeholder="Project, client, locationâ€¦">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-striped w-100" id="tblAll">
+                            <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Project</th>
+                                <th>Client</th>
+                                <th>Sales Man</th>
+                                <th>Location</th>
+                                <th>Area</th>
+                                <th>Quotation No</th>
+                                <th>ATAI Products</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th>Progress</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                            </thead>
+                        </table>
+                    </div>
+                </div>
+
                 {{-- ---------- BIDDING TAB ---------- --}}
-                <div class="tab-pane fade show active" id="bidding" role="tabpanel" tabindex="0">
+                <div class="tab-pane fade" id="bidding" role="tabpanel" tabindex="0">
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                         <div class="input-group w-auto">
                             <span class="input-group-text">Search</span>
@@ -577,7 +614,8 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="biddingModalLabel">Bidding Project</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row g-3 mb-3">
@@ -661,7 +699,8 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="inhandModalLabel">In-Hand Project</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row g-3 mb-3">
@@ -740,7 +779,8 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="lostModalLabel">Lost Project</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row g-3 mb-3">
@@ -782,7 +822,8 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="POreceivedModalLabel">PO received Project</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row g-3 mb-3">
@@ -888,18 +929,18 @@
         let currentFamily = ''; // '', 'ductwork','dampers','sound','accessories'
 
         /* ===== Totals state ===== */
-        let TAB_SUMS = {bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
-        let TAB_COUNTS = {bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
-        let TAB_LOADED = {bidding: false, inhand: false, lost: false, poreceived: false, ponotreceived: false};
+        let TAB_SUMS = {all: 0, bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
+        let TAB_COUNTS = {all: 0, bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
+        let TAB_LOADED = {all: false, bidding: false, inhand: false, lost: false, poreceived: false, ponotreceived: false};
         let SHOW_CURRENT_TAB_ONLY = false;
 
-        // Track which tab is currently active (default = bidding)
-        let CURRENT_TAB_KEY = 'bidding';
+        // Track which tab is currently active (default = all)
+        let CURRENT_TAB_KEY = 'all';
 
         function resetTabTotals() {
-            TAB_SUMS = {bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
-            TAB_COUNTS = {bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
-            TAB_LOADED = {bidding: false, inhand: false, lost: false, poreceived: false, ponotreceived: false};
+            TAB_SUMS = {all: 0, bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
+            TAB_COUNTS = {all: 0, bidding: 0, inhand: 0, lost: 0, poreceived: 0, ponotreceived: 0};
+            TAB_LOADED = {all: false, bidding: false, inhand: false, lost: false, poreceived: false, ponotreceived: false};
             SHOW_CURRENT_TAB_ONLY = false;
             updateHeaderBadges();
         }
@@ -916,11 +957,16 @@
             ['BiddingPOBtn', 'BiddingInhandBtn'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (!btn) return;
-                btn.disabled = !enabled;
-                btn.classList.toggle('disabled', !enabled);
-                btn.setAttribute('aria-disabled', (!enabled).toString());
+                // TEMP (GM request): allow moving to In-Hand without checklist gating.
+                // Re-enable after Q2 by restoring the lines below.
+                // btn.disabled = !enabled;
+                // btn.classList.toggle('disabled', !enabled);
+                // btn.setAttribute('aria-disabled', (!enabled).toString());
                 // Optional: visual hint when disabled
                 // btn.classList.toggle('opacity-50', !enabled);
+                btn.disabled = false;
+                btn.classList.remove('disabled');
+                btn.setAttribute('aria-disabled', 'false');
             });
         }
 
@@ -1238,6 +1284,7 @@
         function initProjectsTable(selector, status) {
             const $table = $(selector);
             const statusMap = {
+                all: '',
                 bidding: 'Bidding',
                 inhand: 'In-Hand',
                 lost: 'Lost',
@@ -1336,7 +1383,8 @@
             btn.addEventListener('shown.bs.tab', (e) => {
                 const tabId = (e.target.getAttribute('data-bs-target') || '').toLowerCase();
                 let key = null;
-                if (tabId.includes('bidding')) key = 'bidding';
+                if (tabId.includes('all')) key = 'all';
+                else if (tabId.includes('bidding')) key = 'bidding';
                 else if (tabId.includes('inhand')) key = 'inhand';
                 else if (tabId.includes('lost')) key = 'lost';
                 else if (tabId.includes('poreceived')) key = 'poreceived';
@@ -1610,6 +1658,7 @@
             const $tr = $(this).closest('tr');
             const tryGetRow = (dt) => (dt ? dt.row($tr).data() : null);
             let row =
+                tryGetRow($('#tblAll').DataTable()) ||
                 tryGetRow($('#tblBidding').DataTable()) ||
                 tryGetRow($('#tblInhand').DataTable()) ||
                 tryGetRow($('#tblLost').DataTable()) ||
@@ -1645,7 +1694,8 @@
         });
 
         /* Global search */
-        let dtBid, dtIn, dtLost, dtPO, dtNoPO;
+        let dtAll, dtBid, dtIn, dtLost, dtPO, dtNoPO;
+        document.getElementById('searchAll')?.addEventListener('input', e => dtAll && dtAll.search(e.target.value).draw());
         document.getElementById('searchBidding')?.addEventListener('input', e => dtBid && dtBid.search(e.target.value).draw());
         document.getElementById('searchInhand')?.addEventListener('input', e => {
             if (dtIn) {
@@ -1664,6 +1714,7 @@
             this.classList.add('active');
             currentFamily = this.getAttribute('data-family') || '';
             resetTabTotals();
+            dtAll?.ajax.reload(null, false);
             dtBid?.ajax.reload(null, false);
             dtIn?.ajax.reload(null, false);
             dtLost?.ajax.reload(null, false);
@@ -1676,6 +1727,7 @@
             PROJ_YEAR = document.getElementById('projYear')?.value || '';
             PROJ_REGION = CAN_VIEW_ALL ? (document.getElementById('projRegion')?.value || '') : '';
             resetTabTotals();
+            dtAll?.page(0).draw('page');
             dtBid?.page(0).draw('page');
             dtIn?.page(0).draw('page');
             dtLost?.page(0).draw('page');
@@ -1710,6 +1762,7 @@
                 if (opt) yearSel.value = '2026';
             }
 
+            dtAll = initProjectsTable('#tblAll', 'all');
             dtBid = initProjectsTable('#tblBidding', 'bidding');
             dtIn = initProjectsTable('#tblInhand', 'inhand');
             dtLost = initProjectsTable('#tblLost', 'lost');
@@ -1834,6 +1887,7 @@
                 showToast('Bidding checklist saved.');
 
                 // ✅ Reload the DataTable (instant update)
+                $('#tblAll').DataTable().ajax.reload(null, false);
                 $('#tblBidding').DataTable().ajax.reload(null, false);
 
                 // ✅ Close modal smoothly
@@ -1901,6 +1955,7 @@
                 showToast('In-Hand checklist saved.');
 
                 // ✅ Reload the DataTable first (keep UI fresh)
+                $('#tblAll').DataTable().ajax.reload(null, false);
                 $('#tblInhand').DataTable().ajax.reload(null, false);
 
                 // ✅ Close the modal (smooth)
@@ -1929,6 +1984,7 @@
                 }
                 showToast('PO received note saved.');
                 bootstrap.Modal.getInstance(document.getElementById('POreceivedModal'))?.hide();
+                $('#tblAll').DataTable().ajax.reload(null, false);
                 $('#tblPOreceived').DataTable().ajax.reload(null, false);
             } catch (err) {
                 alert('Save failed: ' + (err?.message || err));
@@ -2041,6 +2097,7 @@
                 const qno = CURRENT_QUOTATION_NO || '';
                 showToast(`Quotation ${qno} moved to ${toStatus.toUpperCase()}.`);
 
+                $('#tblAll').DataTable().ajax.reload(null, false);
                 $('#tblInhand').DataTable().ajax.reload(null, false);
                 $('#tblLost').DataTable().ajax.reload(null, false);
                 $('#tblPOreceived').DataTable().ajax.reload(null, false);
@@ -2081,6 +2138,7 @@
                 cleanupBackdrops();
 
                 // Refresh tables so the row moves from Bidding → In-Hand
+                $('#tblAll').DataTable().ajax.reload(null, false);
                 $('#tblBidding').DataTable().ajax.reload(null, false);
                 $('#tblInhand').DataTable().ajax.reload(null, false);
 
@@ -2306,6 +2364,7 @@
                 }
 
                 bootstrap.Modal.getInstance(document.getElementById('lostModal'))?.hide();
+                $('#tblAll').DataTable().ajax.reload(null, false);
                 $('#tblLost').DataTable().ajax.reload(null, false);
                 $('#tblBidding').DataTable().ajax.reload(null, false);
                 $('#tblInhand').DataTable().ajax.reload(null, false);

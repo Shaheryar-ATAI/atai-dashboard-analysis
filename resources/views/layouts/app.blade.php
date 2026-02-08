@@ -12,8 +12,10 @@
     {{-- Bootstrap Icons (because your navbar uses bi icons) --}}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
-    {{-- DataTables CSS --}}
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+    {{-- DataTables CSS (with fallback for restricted hosts) --}}
+    <link rel="stylesheet"
+          href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css"
+          onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.8/css/dataTables.bootstrap5.min.css';">
 
     {{-- Select2 CSS --}}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
@@ -43,16 +45,23 @@
 {{-- Bootstrap Bundle --}}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-{{-- DataTables --}}
-<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+{{-- DataTables (with fallback for restricted hosts) --}}
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"
+        onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/datatables.net@1.13.8/js/jquery.dataTables.min.js';"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"
+        onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.8/js/dataTables.bootstrap5.min.js';"></script>
 
-{{-- Highcharts --}}
-<script src="https://code.highcharts.com/highcharts.js"></script>
-<script src="https://code.highcharts.com/highcharts-more.js"></script>
-<script src="https://code.highcharts.com/modules/solid-gauge.js"></script>
-<script src="https://code.highcharts.com/modules/no-data-to-display.js"></script>
-<script src="https://code.highcharts.com/modules/funnel.js"></script>
+{{-- Highcharts (with fallback for restricted hosts) --}}
+<script src="https://code.highcharts.com/highcharts.js"
+        onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/highcharts@11.4.6/highcharts.js';"></script>
+<script src="https://code.highcharts.com/highcharts-more.js"
+        onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/highcharts@11.4.6/highcharts-more.js';"></script>
+<script src="https://code.highcharts.com/modules/solid-gauge.js"
+        onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/highcharts@11.4.6/modules/solid-gauge.js';"></script>
+<script src="https://code.highcharts.com/modules/no-data-to-display.js"
+        onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/highcharts@11.4.6/modules/no-data-to-display.js';"></script>
+<script src="https://code.highcharts.com/modules/funnel.js"
+        onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/highcharts@11.4.6/modules/funnel.js';"></script>
 
 {{-- Select2 --}}
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.full.min.js"></script>
@@ -64,6 +73,12 @@
             if (!el) return false;
             const tag = (el.tagName || '').toLowerCase();
             return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+        };
+
+        const syncNavbarOffset = () => {
+            const nav = document.querySelector('.navbar-atai');
+            if (!nav) return;
+            document.documentElement.style.setProperty('--atai-navbar-offset', `${nav.offsetHeight}px`);
         };
 
         const syncBodyScroll = () => {
@@ -81,6 +96,8 @@
         document.addEventListener('hidden.bs.modal', syncBodyScroll);
         window.addEventListener('load', syncBodyScroll);
         window.addEventListener('resize', syncBodyScroll);
+        window.addEventListener('load', syncNavbarOffset);
+        window.addEventListener('resize', syncNavbarOffset);
 
         document.addEventListener('keydown', function (e) {
             if (isEditable(e.target)) return;

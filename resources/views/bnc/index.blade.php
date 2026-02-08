@@ -427,16 +427,6 @@
 
                             <div class="row g-2">
                                 <div class="col-6">
-                                    <label class="form-label form-label-sm">Lead Status</label>
-                                    <select name="lead_qualified" class="form-select form-select-sm">
-                                        <option value="">All</option>
-                                        <option value="Hot">Hot</option>
-                                        <option value="Warm">Warm</option>
-                                        <option value="Cold">Cold</option>
-                                        <option value="Unknown">Unknown</option>
-                                    </select>
-                                </div>
-                                <div class="col-6">
                                     <label class="form-label form-label-sm">Approached</label>
                                     <select name="approached" class="form-select form-select-sm">
                                         <option value="">All</option>
