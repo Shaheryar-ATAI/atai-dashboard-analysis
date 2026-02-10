@@ -668,11 +668,13 @@
        - Used for injecting TARGET rows in Performance Matrix.
        - Also used for expectations in Region Concentration matrix.
        ====================================================================== */
-    $yearlyTargets = [
-        'Eastern' => 50000000,
-        'Central' => 50000000,
-        'Western' => 36000000,
+    $yearlyTargetsByYear = [
+        2025 => ['Eastern' => 35000000, 'Central' => 37000000, 'Western' => 30000000],
+        2026 => ['Eastern' => 50000000, 'Central' => 50000000, 'Western' => 36000000],
     ];
+    $targetYear = (int)($year ?? now()->year);
+    $latestYear = max(array_keys($yearlyTargetsByYear));
+    $yearlyTargets = $yearlyTargetsByYear[$targetYear] ?? $yearlyTargetsByYear[$latestYear];
 
     // Expected region per salesman (business rule)
     $salesmanToRegion = [

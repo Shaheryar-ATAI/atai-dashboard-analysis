@@ -1,5 +1,20 @@
 @php
     $u = auth()->user();
+
+    $quotationKpiActive = request()->routeIs('projects.index');
+    $quotationLogActive = request()->routeIs('projects.inquiries_log');
+    $quotationActive = $quotationKpiActive || $quotationLogActive;
+
+    $salesKpiActive = request()->routeIs('salesorders.manager.kpi');
+    $salesLogActive = request()->routeIs('salesorders.manager.index');
+    $salesActive = $salesKpiActive || $salesLogActive;
+
+    $forecastActive = request()->routeIs('forecast.*');
+    $weeklyActive = request()->routeIs('weekly.*');
+    $estimationActive = request()->routeIs('estimation.*');
+    $bncActive = request()->routeIs('bnc.index');
+    $summaryActive = request()->routeIs('performance.salesman*');
+    $powerbiActive = request()->routeIs('powerbi.jump');
 @endphp
 
 <nav class="navbar navbar-atai navbar-expand-lg bg-white border-bottom shadow-sm">
@@ -16,65 +31,99 @@
             <span class="navbar-toggler-icon"></span>
         </button>
 
-        {{-- Links --}}
+        {{-- Links (single row, no dropdowns) --}}
         <div class="collapse navbar-collapse" id="ataiNav">
-            <ul class="navbar-nav mx-lg-auto mb-2 mb-lg-0">
+            <ul class="nav nav-pills navbar-pills mx-lg-auto mb-2 mb-lg-0">
                 @hasanyrole('sales_eastern|sales_central|sales_western|gm|admin')
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.index') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('projects.index') }}">
-                        Quotation KPI
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle {{ $quotationActive ? 'active' : '' }}" href="#"
+                       role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-file-earmark-text me-1"></i> Quotation
                     </a>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="dropdown-item {{ $quotationKpiActive ? 'active' : '' }}"
+                               href="{{ route('projects.index') }}">
+                                <i class="bi bi-file-earmark-text me-1"></i> Quotation KPI
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {{ $quotationLogActive ? 'active' : '' }}"
+                               href="{{ route('projects.inquiries_log') }}">
+                                <i class="bi bi-journal-text me-1"></i> Quotation Log
+                            </a>
+                        </li>
+                    </ul>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('projects.inquiries_log') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('projects.inquiries_log') }}">
-                        Quotation Log
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle {{ $salesActive ? 'active' : '' }}" href="#"
+                       role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-receipt-cutoff me-1"></i> Sales Orders
                     </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('salesorders.manager.kpi') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('salesorders.manager.kpi') }}">
-                        Sales Order Log KPI
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('salesorders.manager.index') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('salesorders.manager.index') }}">
-                        Sales Order Log
-                    </a>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="dropdown-item {{ $salesKpiActive ? 'active' : '' }}"
+                               href="{{ route('salesorders.manager.kpi') }}">
+                                <i class="bi bi-receipt-cutoff me-1"></i> Sales Order KPI
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {{ $salesLogActive ? 'active' : '' }}"
+                               href="{{ route('salesorders.manager.index') }}">
+                                <i class="bi bi-receipt me-1"></i> Sales Order Log
+                            </a>
+                        </li>
+                    </ul>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('estimation.*') ? 'active fw-semibold text-primary' : '' }}"
+                    <a class="nav-link {{ $estimationActive ? 'active' : '' }}"
                        href="{{ route('estimation.index') }}">
-                        Estimation
+                        <i class="bi bi-calculator me-1"></i> Estimation
                     </a>
                 </li>
                 @endhasanyrole
+
                 @hasanyrole('sales_eastern|sales_central|sales_western')
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('forecast.*') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('forecast.create') }}">
-                        Forecast
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle {{ $forecastActive ? 'active' : '' }}" href="#"
+                       role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-bar-chart-line me-1"></i> Forecast
                     </a>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="dropdown-item {{ request()->routeIs('forecast.create') ? 'active' : '' }}"
+                               href="{{ route('forecast.create') }}">
+                                <i class="bi bi-bar-chart-line me-1"></i> New Forecast
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {{ request()->routeIs('forecast.list') ? 'active' : '' }}"
+                               href="{{ route('forecast.list') }}">
+                                <i class="bi bi-list-check me-1"></i> Forecast List
+                            </a>
+                        </li>
+                    </ul>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('weekly.*') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('weekly.create') }}">
-                        Weekly Reports
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle {{ $weeklyActive ? 'active' : '' }}" href="#"
+                       role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-calendar-week me-1"></i> Weekly
                     </a>
-                </li>
-                @endhasanyrole
-
-
-                @hasanyrole('estimator')
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('estimator.projects.*') ? 'active' : '' }}"
-                       href="{{ route('estimation.reports.index') }}">
-                        <i class="bi bi-clipboard-check me-1"></i>
-                        Estimation
-                    </a>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="dropdown-item {{ request()->routeIs('weekly.create') ? 'active' : '' }}"
+                               href="{{ route('weekly.create') }}">
+                                <i class="bi bi-calendar-plus me-1"></i> New Weekly Report
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {{ request()->routeIs('weekly.list') ? 'active' : '' }}"
+                               href="{{ route('weekly.list') }}">
+                                <i class="bi bi-list-ul me-1"></i> Weekly Report List
+                            </a>
+                        </li>
+                    </ul>
                 </li>
                 @endhasanyrole
 
@@ -82,63 +131,31 @@
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('coordinator.index') ? 'active' : '' }}"
                        href="{{ route('coordinator.index') }}">
-                        <i class="bi bi-clipboard-check me-1"></i>
-                        Project Coordinator
+                        <i class="bi bi-clipboard-check me-1"></i> Project Coordinator
                     </a>
                 </li>
                 @endhasanyrole
-
 
                 @hasanyrole('sales_eastern|sales_central|sales_western|admin|gm')
                 <li class="nav-item">
-                    <a href="{{ route('bnc.index') }}"
-                       class="nav-link {{ request()->routeIs('bnc.index') ? 'active' : '' }}">
-                        <i class="bi bi-building-check me-1"></i>
-                        BNC Projects
+                    <a class="nav-link {{ $bncActive ? 'active' : '' }}"
+                       href="{{ route('bnc.index') }}">
+                        <i class="bi bi-building-check me-1"></i> BNC Projects
                     </a>
                 </li>
-                {{-- GM/Admin only --}}
-                @hasanyrole('gm|admin')
-                {{--                <li class="nav-item">--}}
-                {{--                    <a class="nav-link {{ request()->routeIs('salesorders.index') ? 'active fw-semibold text-primary' : '' }}"--}}
-                {{--                       href="{{ route('salesorders.index') }}">--}}
-                {{--                        Sales Summary--}}
-                {{--                    </a>--}}
-                {{--                </li>--}}
-{{--                <li class="nav-item">--}}
-{{--                    <a class="nav-link {{ request()->routeIs('performance.area*') ? 'active fw-semibold text-primary' : '' }}"--}}
-{{--                       href="{{ route('performance.area') }}">--}}
-{{--                        Area Summary--}}
-{{--                    </a>--}}
-{{--                </li>--}}
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('performance.salesman*') ? 'active fw-semibold text-primary' : '' }}"
-                       href="{{ route('performance.salesman') }}">
-                        Summary
-                    </a>
-                </li>
-{{--                <li class="nav-item">--}}
-{{--                    <a class="nav-link {{ request()->routeIs('performance.product*') ? 'active fw-semibold text-primary' : '' }}"--}}
-{{--                       href="{{ route('performance.product') }}">--}}
-{{--                        Product Summary--}}
-{{--                    </a>--}}
-{{--                </li>--}}
-
-
-
-
-
                 @endhasanyrole
-                {{--                <li class="nav-item">--}}
-                {{--                    <a class="nav-link {{ request()->routeIs('accounts.summary') ? 'active fw-semibold text-primary' : '' }}"--}}
-                {{--                       href="{{ route('powerbi.jump') }}">--}}
-                {{--                        Accounts Summary--}}
-                {{--                    </a>--}}
-                {{--                </li>--}}
+
+                @hasanyrole('gm|admin')
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('powerbi.jump') ? 'active fw-semibold text-primary' : '' }}"
+                    <a class="nav-link {{ $summaryActive ? 'active' : '' }}"
+                       href="{{ route('performance.salesman') }}">
+                        <i class="bi bi-speedometer2 me-1"></i> Summary
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ $powerbiActive ? 'active' : '' }}"
                        href="{{ route('powerbi.jump') }}">
-                        KPI'S  Dashboard
+                        <i class="bi bi-pie-chart me-1"></i> KPI Dashboard
                     </a>
                 </li>
                 @endhasanyrole

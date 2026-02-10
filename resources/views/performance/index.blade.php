@@ -9,7 +9,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.css" rel="stylesheet">
     {{--<link rel="stylesheet"
-          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">--}}
+          href="{{ asset('css/atai-theme-20260210.css') }}?v={{ filemtime(public_path('css/atai-theme-20260210.css')) }}">--}}
   <style>
     .chip-group .btn { border-radius: 999px; }
     .chip-group .btn.active { background: var(--bs-primary); color: #fff; }

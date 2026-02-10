@@ -847,11 +847,20 @@ class SalesOrderManagerController extends Controller
             ->unique()->sort()->values()->all();
 
         // Target tied to the LOGGED-IN user’s region (not the chip)
-        $annualTargets = [
-            'eastern' => 35_000_000.0,
-            'central' => 37_000_000.0,
-            'western' => 30_000_000.0,
+        $annualTargetsByYear = [
+            2025 => ['eastern' => 35_000_000.0, 'central' => 37_000_000.0, 'western' => 30_000_000.0],
+            2026 => ['eastern' => 50_000_000.0, 'central' => 50_000_000.0, 'western' => 36_000_000.0],
         ];
+        $targetYear = (int)($r->input('year') ?: now()->year);
+        if (!$r->filled('year')) {
+            if ($r->filled('from')) {
+                $targetYear = (int)substr($r->input('from'), 0, 4);
+            } elseif ($r->filled('to')) {
+                $targetYear = (int)substr($r->input('to'), 0, 4);
+            }
+        }
+        $latestYear = max(array_keys($annualTargetsByYear));
+        $annualTargets = $annualTargetsByYear[$targetYear] ?? $annualTargetsByYear[$latestYear];
         $homeMap = $this->homeRegionBySalesperson();
         $userKey = $this->resolveSalespersonCanonical($user->name ?? null);
         $userRegionNorm = strtolower(trim((string)($user->region ?? '')));
@@ -880,6 +889,7 @@ class SalesOrderManagerController extends Controller
             'target_meta' => [
                 'user_region_used' => $userRegionForTarget,
                 'annual_target' => (float)($annualTargets[$userRegionForTarget] ?? 0.0),
+                'year' => $targetYear,
                 'override' => $r->filled('monthly_target'),
             ],
             'forecast_meta' => [

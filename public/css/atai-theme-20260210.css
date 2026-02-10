@@ -114,7 +114,6 @@ body::before {
 .navbar-atai .container-fluid{
     display:flex;
     align-items:center;
-
 }
 
 /* ✅ DO NOT force collapse display:flex globally (breaks bootstrap).
@@ -133,19 +132,68 @@ body::before {
     flex: 0 1 auto !important;
     justify-content: center;
     margin: 0 auto;
-    overflow-x: auto;
-    overflow-y: visible !important;
+    overflow: visible !important;
     white-space: nowrap;
     gap:.35rem;
     padding:.35rem 0;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
     position: relative;
     max-width: calc(100% - 420px); /* reserve space for right block */
 }
 
+/* nav-pills layout inside navbar (minimal, active only) */
+.navbar-atai .nav-pills{
+    gap: .35rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+.navbar-atai .nav-pills::-webkit-scrollbar{
+    display: none;
+}
+.navbar-atai .nav-pills .nav-link{
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    color: #dbe3f5 !important;
+    border-radius: 999px !important;
+    font-weight: 600;
+    font-size: 0.82rem;
+    padding: .24rem .6rem;
+}
+.navbar-atai .nav-pills .nav-link:hover{
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.14) !important;
+    color: #fff !important;
+}
+.navbar-atai .nav-pills .nav-link.active{
+    background: #4c63ff !important;
+    color: #fff !important;
+    border-color: transparent !important;
+    box-shadow: 0 6px 14px rgba(76,99,255,.35);
+}
+/* dropdown menu inside nav-tabs */
+.navbar-atai .nav-tabs .dropdown-menu{
+    margin-top: 6px;
+    border-radius: 10px;
+    background: rgba(17, 24, 39, 0.96);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    box-shadow: 0 18px 40px rgba(0,0,0,.35);
+}
+.navbar-atai .nav-tabs .dropdown-item{
+    color: #e5e7eb;
+    font-weight: 600;
+}
+.navbar-atai .nav-tabs .dropdown-item:hover{
+    background: rgba(255,255,255,.08);
+    color: #fff;
+}
+
 
 /* nav pills */
+.navbar-atai .nav-pills{
+    gap: .35rem;
+    flex-wrap: wrap;
+}
 .navbar-atai .nav-link{
     height:38px;
     display:inline-flex;
@@ -181,6 +229,7 @@ body::before {
     flex-shrink: 0;
     white-space: nowrap;
 }
+
 
 
 /* your logout button class */
@@ -232,6 +281,18 @@ body::before {
         border: 1px solid rgba(148, 163, 184, 0.25);
         box-shadow: 0 18px 40px rgba(0,0,0,.35);
         z-index: 99999 !important; /* ✅ strongest */
+    }
+    /* Fallback: allow hover to open dropdown if JS is blocked */
+    .navbar-atai .dropdown:hover > .dropdown-menu {
+        display: block;
+    }
+    /* Click/focus fallback (keyboard or JS blocked) */
+    .navbar-atai .dropdown:focus-within > .dropdown-menu {
+        display: block;
+    }
+    /* Ensure .show also works even if Bootstrap JS/CSS is blocked */
+    .navbar-atai .dropdown-menu.show {
+        display: block;
     }
     .navbar-atai .dropdown-item {
         color: #e5e7eb;
@@ -1193,6 +1254,10 @@ select option {
 .navbar-atai .dropdown-menu{
     z-index: 99999 !important;
 }
+.navbar-atai .dropdown.show > .dropdown-menu,
+.navbar-atai .dropdown-menu.show{
+    display: block !important;
+}
 
 /* Select2 above modals/filters */
 .select2-container{
@@ -1239,3 +1304,72 @@ body::before { pointer-events: none !important; }
 /* ✅ Select2 z-index (dropdown appears above modals/panels) */
 .select2-container { z-index: 2050 !important; }
 .select2-container--open { z-index: 2060 !important; }
+
+/* ============================================================
+   NAVBAR DROPDOWN: ensure menus are not clipped on desktop
+   ============================================================ */
+@media (min-width: 992px){
+    .navbar-atai .navbar-nav{
+        overflow: visible !important;
+    }
+}
+
+/* =====================================================================
+   NAVBAR DROPDOWN: force visible overflow on desktop (GoDaddy fix)
+   ===================================================================== */
+@media (min-width: 992px){
+    .navbar-atai,
+    .navbar-atai .container-fluid,
+    .navbar-atai .navbar-collapse,
+    .navbar-atai .navbar-nav{
+        overflow: visible !important;
+    }
+}
+
+@media (min-width: 992px){
+    .navbar-atai .nav-pills{
+        overflow: visible !important;
+    }
+}
+
+/* =====================================================================
+   NAVBAR – TEXT ONLY (no boxes by default)
+   - smaller text
+   - highlight only on hover/active
+   ===================================================================== */
+.navbar-atai .nav-pills{
+    gap: .35rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+.navbar-atai .nav-pills::-webkit-scrollbar{ display: none; }
+
+.navbar-atai .nav-pills .nav-link,
+.navbar-atai .navbar-nav .nav-link{
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: #dbe3f5 !important;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: .2rem .55rem;
+    border-radius: 999px !important;
+    height: auto;
+}
+.navbar-atai .nav-pills .nav-link:hover,
+.navbar-atai .navbar-nav .nav-link:hover{
+    background: rgba(255,255,255,.12) !important;
+    color: #ffffff !important;
+}
+.navbar-atai .nav-pills .nav-link.active,
+.navbar-atai .navbar-nav .nav-link.active{
+    background: #4c63ff !important;
+    color: #ffffff !important;
+    box-shadow: 0 6px 14px rgba(76,99,255,.35) !important;
+}
+.navbar-atai .nav-pills .nav-link i,
+.navbar-atai .navbar-nav .nav-link i{
+    font-size: 0.85rem;
+}

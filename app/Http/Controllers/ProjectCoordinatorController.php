@@ -1781,7 +1781,7 @@ debugging format
         $pdf = Pdf::loadView('reports.coordinator-graph-pdf', $payload)
             ->setPaper('a4', 'landscape');
 
-        $fileName = 'Coordinator_Graph_' . now()->format('Ymd_His') . '.pdf';
+        $fileName = 'Sales Order Log Overall Sum_Chart-' . now()->format('Y') . '.pdf';
 
         return $pdf->download($fileName);
     }

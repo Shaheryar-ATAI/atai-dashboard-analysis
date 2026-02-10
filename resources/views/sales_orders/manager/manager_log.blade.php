@@ -10,8 +10,8 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 {{--    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">--}}
-{{--    <link rel="stylesheet"--}}
-{{--          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">--}}
+    <link rel="stylesheet"
+          href="{{ asset('css/atai-theme-20260210.css') }}?v={{ filemtime(public_path('css/atai-theme-20260210.css')) }}">
 
     <style>
         .badge-total {

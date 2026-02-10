@@ -14,6 +14,54 @@ class WeeklyReportController extends Controller
         return view('weekly.create');
     }
 
+    public function list(Request $request)
+    {
+        $user = $request->user();
+
+        $year = (int) $request->input('year', now()->year);
+        $monthNo = (int) $request->input('month_no', now()->month);
+        if ($monthNo < 1 || $monthNo > 12) $monthNo = (int) now()->month;
+
+        $q = WeeklyReport::query()
+            ->leftJoin('weekly_report_items as items', 'weekly_reports.id', '=', 'items.weekly_report_id')
+            ->select([
+                'weekly_reports.id',
+                'weekly_reports.user_id',
+                'weekly_reports.engineer_name',
+                'weekly_reports.week_start',
+                DB::raw('COUNT(items.id) as items_count'),
+                DB::raw('COALESCE(SUM(items.value_sar), 0) as total_value_sar'),
+            ])
+            ->whereYear('weekly_reports.week_start', $year)
+            ->whereMonth('weekly_reports.week_start', $monthNo)
+            ->groupBy([
+                'weekly_reports.id',
+                'weekly_reports.user_id',
+                'weekly_reports.engineer_name',
+                'weekly_reports.week_start',
+            ])
+            ->orderByDesc('weekly_reports.week_start');
+
+        if (!($user->hasAnyRole(['admin', 'gm']))) {
+            $q->where('weekly_reports.user_id', $user->id);
+        }
+
+        $rows = $q->get();
+
+        $kpis = [
+            'reports_count' => $rows->count(),
+            'items_count' => (int) $rows->sum('items_count'),
+            'total_value_sar' => (float) $rows->sum('total_value_sar'),
+        ];
+
+        return view('weekly.list', [
+            'rows' => $rows,
+            'year' => $year,
+            'month_no' => $monthNo,
+            'kpis' => $kpis,
+        ]);
+    }
+
     public function save(Request $request)
     {
         // 1) Validate (incl. strict quotation format)

@@ -4,7 +4,7 @@
 @section('body-class', 'bnc-page')
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('css/atai-theme.css') }}?v={{ @filemtime(public_path('css/atai-theme.css')) ?: time() }}">
+    <link rel="stylesheet" href="{{ asset('css/atai-theme-20260210.css') }}?v={{ @filemtime(public_path('css/atai-theme-20260210.css')) ?: time() }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
     <style>

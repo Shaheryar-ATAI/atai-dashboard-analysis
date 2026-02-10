@@ -933,6 +933,16 @@ class SalesmanPerformanceController extends Controller
         };
     }
 
+    private function regionAnnualTargetsByYear(int $year): array
+    {
+        $byYear = [
+            2025 => ['Eastern' => 35_000_000, 'Central' => 37_000_000, 'Western' => 30_000_000],
+            2026 => ['Eastern' => 50_000_000, 'Central' => 50_000_000, 'Western' => 36_000_000],
+        ];
+        $latestYear = max(array_keys($byYear));
+        return $byYear[$year] ?? $byYear[$latestYear];
+    }
+
     private function buildSalesmanSummaryPayload(int $year, string $areaNorm): array
     {
         $today = Carbon::now()->format('d-m-Y');
@@ -946,7 +956,7 @@ class SalesmanPerformanceController extends Controller
         ];
 
         // ✅ targets
-        $annualTargets = ['Eastern' => 50000000, 'Central' => 50000000, 'Western' => 36000000];
+        $annualTargets = $this->regionAnnualTargetsByYear($year);
         $annualTarget = ($areaNorm !== 'All') ? (float)($annualTargets[$areaNorm] ?? 0) : 0.0;
         $monthlyTarget = ($areaNorm !== 'All' && $annualTarget > 0) ? ($annualTarget / 12.0) : 0.0;
 
@@ -2233,11 +2243,7 @@ class SalesmanPerformanceController extends Controller
         $areaNorm = $this->normalizeArea($area);
 
         // yearly targets (same as Blade)
-        $yearlyTargets = [
-            'Eastern' => 50000000,
-            'Central' => 50000000,
-            'Western' => 36000000,
-        ];
+        $yearlyTargets = $this->regionAnnualTargetsByYear($year);
 
         // salesman weights inside region
         // change weights if needed

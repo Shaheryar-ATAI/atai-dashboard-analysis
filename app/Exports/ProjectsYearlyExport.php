@@ -48,7 +48,7 @@ class ProjectsYearlyExport implements
                 'Client Name'            => $p->client ?? $p->client_name,
                 'Area'                   => $p->area,
                 'Project Location'       => $p->location ?? $p->project_location,
-                'Salesman'               => $p->salesperson ?? $p->salesman,
+                'Sales Source'           => $p->salesperson ?? $p->salesman,
                 'Quotation No'           => $p->quotation_no,
                 'Quotation Date'         => optional($p->quotation_date)->format('Y-m-d'),
                 'Date Received'          => optional($p->date_rec)->format('Y-m-d'),
@@ -68,7 +68,7 @@ class ProjectsYearlyExport implements
             'Client Name',
             'Area',
             'Project Location',
-            'Salesman',
+            'Sales Source',
             'Quotation No',
             'Quotation Date',
             'Date Received',
@@ -96,7 +96,7 @@ class ProjectsYearlyExport implements
             'B' => 25, // Client
             'C' => 10, // Area
             'D' => 20, // Location
-            'E' => 14, // Salesman
+            'E' => 14, // Sales Source
             'F' => 20, // Quotation No
             'G' => 14, // Quotation Date
             'H' => 14, // Date Received
@@ -154,9 +154,9 @@ class ProjectsYearlyExport implements
                 $sheet->mergeCells('A4:L4');
                 $sheet->setCellValue('A4', 'Project & Quotation Details');
 
-                // row 5: Salesman | Estimator | Year
+                // row 5: Sales Source | Estimator | Year
                 $sheet->mergeCells('A5:D5');
-                $sheet->setCellValue('A5', 'Salesman: ' . $salesman);
+                $sheet->setCellValue('A5', 'Sales Source: ' . $salesman);
 
                 $sheet->mergeCells('E5:H5');
                 $sheet->setCellValue('E5', 'Estimator: ' . $estimator);

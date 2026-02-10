@@ -36,6 +36,55 @@ class ForecastController extends Controller
         ]);
     }
 
+
+    /* ---------------------- LIST (read-only) ---------------------- */
+    public function list(Request $r)
+    {
+        $user = $r->user();
+
+        $year = (int) $r->input('year', now()->year);
+        $monthNo = (int) $r->input('month_no', now()->month);
+        if ($monthNo < 1 || $monthNo > 12) $monthNo = (int) now()->month;
+
+        $month = (string) $r->input('month', '');
+        if ($month === '') {
+            $month = date('F', mktime(0, 0, 0, $monthNo, 1));
+        }
+
+        $region = (string) ($user->region ?? '');
+        $salesman = (string) ($user->name ?? '');
+
+        $mexpr = $this->monthNumberExpr();
+
+        $rows = Forecast::query()
+            ->when($salesman !== '', fn($q) => $q->where('salesman', $salesman))
+            ->when($region !== '', fn($q) => $q->where('region', $region))
+            ->where('year', $year)
+            ->whereRaw("$mexpr = ?", [$monthNo])
+            ->orderBy('created_at')
+            ->get();
+
+        $newRows = $rows->where('type', 'new')->values();
+        $carryRows = $rows->where('type', 'carry')->values();
+
+        $kpis = [
+            'new_count' => $newRows->count(),
+            'new_value' => (float) $newRows->sum('value_sar'),
+            'carry_count' => $carryRows->count(),
+            'carry_value' => (float) $carryRows->sum('value_sar'),
+        ];
+
+        return view('forecast.list', [
+            'region' => $region,
+            'salesman' => $salesman,
+            'year' => $year,
+            'month_no' => $monthNo,
+            'month' => $month,
+            'newRows' => $newRows,
+            'carryRows' => $carryRows,
+            'kpis' => $kpis,
+        ]);
+    }
     /* =========================================================
      * Helpers
      * ========================================================= */
@@ -590,6 +639,98 @@ HTML;
         return $pdf->stream($fileName);
     }
 
+    /* ---------------------- PDF (download saved month) ---------------------- */
+    public function pdfSaved(Request $r)
+    {
+        $user = $r->user();
+
+        $region = (string) ($user->region ?? '');
+        $salesman = (string) ($user->name ?? '');
+
+        $year = (int) $r->input('year', now()->year);
+        $monthNo = (int) $r->input('month_no', now()->month);
+        if ($monthNo < 1 || $monthNo > 12) $monthNo = (int) now()->month;
+
+        $month = (string) $r->input('month', '');
+        if ($month === '') {
+            $month = date('F', mktime(0, 0, 0, $monthNo, 1));
+        }
+
+        $mexpr = $this->monthNumberExpr();
+
+        $rows = Forecast::query()
+            ->when($salesman !== '', fn($q) => $q->where('salesman', $salesman))
+            ->when($region !== '', fn($q) => $q->where('region', $region))
+            ->where('year', $year)
+            ->whereRaw("$mexpr = ?", [$monthNo])
+            ->orderBy('created_at')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'No forecast rows found for the selected month.',
+            ], 404);
+        }
+
+        $map = fn($row) => [
+            'customer'       => $row->customer_name,
+            'product'        => $row->products,
+            'project'        => $row->project_name,
+            'quotation'      => $row->quotation_no,
+            'percentage'     => $row->percentage,
+            'product_family' => $row->product_family,
+            'sales_source'   => $row->sales_source,
+            'value'          => (float)$row->value_sar,
+            'remarks'        => $row->remarks,
+        ];
+
+        $newOrders = $rows->where('type', 'new')->map($map)->values()->all();
+        $carryOver = $rows->where('type', 'carry')->map($map)->values()->all();
+
+        $totA = array_sum(array_column($newOrders, 'value'));
+        $totB = array_sum(array_column($carryOver, 'value'));
+        $totAll = $totA + $totB;
+
+        $criteria = [
+            'price_agreed' => '',
+            'consultant_approval' => '',
+            'percentage' => '',
+        ];
+        $forecast = [
+            'month_target' => '',
+            'required_turnover' => '',
+            'required_forecast' => '',
+            'conversion_ratio' => '',
+        ];
+        if (empty($forecast['month_target'])) {
+            $defaults = ['Eastern' => 4200000, 'Central' => 4200000, 'Western' => 3000000];
+            if (isset($defaults[$region])) $forecast['month_target'] = $defaults[$region];
+        }
+
+        $monthYear = sprintf('%s/%d', $month, $year);
+        $issuedBy = $salesman ?: ($user->name ?? '');
+        $issuedDate = now()->toDateString();
+        $submissionDate = now()->toDateString();
+
+        $pdf = Pdf::loadView('forecast.pdf', compact(
+            'region', 'monthYear', 'issuedBy', 'issuedDate', 'year', 'submissionDate',
+            'criteria', 'forecast', 'newOrders', 'carryOver', 'totA', 'totB', 'totAll'
+        ))->setPaper('a4', 'landscape');
+
+        $pdf->setOptions([
+            'isHtml5ParserEnabled' => true,
+            'isRemoteEnabled' => true,
+            'isUnicodeEnabled' => true,
+            'defaultFont' => 'DejaVu Sans',
+        ]);
+
+        $safeSales = preg_replace('/[^A-Za-z0-9]+/', '_', $salesman ?: 'Salesman');
+        $safeRegion = preg_replace('/[^A-Za-z0-9]+/', '_', $region ?: 'Region');
+        $fileName = "Forecast_{$safeSales}_{$safeRegion}_{$year}_{$monthNo}.pdf";
+
+        return $pdf->download($fileName);
+    }
     protected function packIssues(array $errors): array
     {
         $issues = [];
@@ -841,3 +982,8 @@ HTML;
 
 
 }
+
+
+
+
+

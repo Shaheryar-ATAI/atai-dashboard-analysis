@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Mail\PendingQuotationsMail;
 
 class ProjectApiController extends Controller
 {
@@ -132,7 +135,7 @@ class ProjectApiController extends Controller
 
         /* ===================== Dates & Filters ===================== */
         $dateExprSql = "STR_TO_DATE(quotation_date,'%Y-%m-%d')";
-        $defaultYear = 2025;
+        $defaultYear = (int)now()->year;
 
         $familyPctMap = [
             'ductwork'          => 0.60,
@@ -315,12 +318,23 @@ class ProjectApiController extends Controller
             $colLost[]    = (float)($idxVal[$ym]['Lost'] ?? 0);
         }
 
-        /* ===================== Targets (keep your behaviour; fix monthly derivation) ===================== */
-        $annualTargets = [
-            'eastern' => 35_000_000,
-            'central' => 37_000_000,
-            'western' => 30_000_000,
+        /* ===================== Targets (year-aware) ===================== */
+        $annualTargetsByYear = [
+            2025 => ['eastern' => 35_000_000, 'central' => 37_000_000, 'western' => 30_000_000],
+            2026 => ['eastern' => 50_000_000, 'central' => 50_000_000, 'western' => 36_000_000],
         ];
+
+        $targetYear = $y ?: $defaultYear;
+        if (!$y) {
+            if ($df) {
+                $targetYear = (int)substr($df, 0, 4);
+            } elseif ($dt) {
+                $targetYear = (int)substr($dt, 0, 4);
+            }
+        }
+
+        $latestYear = max(array_keys($annualTargetsByYear));
+        $annualTargets = $annualTargetsByYear[$targetYear] ?? $annualTargetsByYear[$latestYear];
 
         // Determine region for target selection (same intent as your code)
         $regionForTarget = null;
@@ -353,6 +367,7 @@ class ProjectApiController extends Controller
 
         $targetMeta = [
             'region_used'   => $regionForTarget,
+            'year'          => (int)$targetYear,
             'annual_target' => $annualTarget,
             'override'      => $req->filled('monthly_quote_target'),
             'mode'          => $useFamilyTarget ? 'family_share' : 'region',
@@ -556,6 +571,208 @@ class ProjectApiController extends Controller
             'user_roles' => ($user && method_exists($user, 'getRoleNames')) ? $user->getRoleNames() : [],
             'annual_target_salesman' => (float)$annualTarget,
         ]);
+    }
+
+    /* =========================================================
+     * PENDING QUOTATIONS (STALE BIDDING) — Modal / Email / PDF
+     * ========================================================= */
+    private function buildPendingQuotationsQuery(Request $req)
+    {
+        $user = $req->user();
+        $isManager = $user && method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['gm', 'admin']);
+
+        $q = Project::query()
+            ->whereNull('deleted_at')
+            ->staleBidding()
+            ->forUserRegion($user);
+
+        // Region filter (optional)
+        $areaRaw = $req->input('area') ?? $req->input('region') ?? '';
+        $area = strtolower(trim((string)$areaRaw));
+        if ($area !== '' && $area !== 'all') {
+            $q->whereRaw('LOWER(TRIM(area)) = ?', [$area]);
+        }
+
+        // Family filter (optional)
+        $familyRaw = strtolower(trim((string)$req->input('family', '')));
+        if ($familyRaw !== '' && $familyRaw !== 'all') {
+            $q->whereRaw('LOWER(atai_products) LIKE ?', ['%' . $familyRaw . '%']);
+        }
+
+        // Salesman filter (alias-aware)
+        $salesmanRaw =
+            $req->input('salesman')
+            ?? $req->input('salesman_name')
+            ?? $req->input('salesperson')
+            ?? $req->input('salesmanFilter')
+            ?? null;
+        $salesmanRaw = is_string($salesmanRaw) ? trim($salesmanRaw) : '';
+
+        if ($salesmanRaw !== '') {
+            $aliases = [];
+            $key = $this->canonSalesKey($salesmanRaw);
+            foreach (['eastern', 'central', 'western'] as $region) {
+                $set = $this->salesAliasesForRegion($region);
+                if (in_array($key, $set, true)) {
+                    $aliases = $set;
+                    break;
+                }
+            }
+            if (empty($aliases) && $key !== '') $aliases = [$key];
+
+            if (!empty($aliases)) {
+                $q->where(function ($qq) use ($aliases) {
+                    foreach ($aliases as $a) {
+                        $qq->orWhereRaw(
+                            "REPLACE(UPPER(TRIM(COALESCE(salesman, salesperson))), ' ', '') = ?",
+                            [$a]
+                        );
+                    }
+                });
+            }
+        } elseif (!$isManager && $user && !empty($user->name)) {
+            // Non-admins: default to their own name/aliases if no filter provided
+            $first = strtoupper(trim(explode(' ', (string)$user->name)[0] ?? ''));
+            if ($first !== '') {
+                $q->whereRaw(
+                    "REPLACE(UPPER(TRIM(COALESCE(salesman, salesperson))), ' ', '') = ?",
+                    [$first]
+                );
+            }
+        }
+
+        // Date filters (optional)
+        if ($req->filled('year')) {
+            $q->whereYear('quotation_date', (int)$req->input('year'));
+        }
+        if ($req->filled('month')) {
+            $q->whereMonth('quotation_date', (int)$req->input('month'));
+        }
+        if ($req->filled('date_from')) {
+            $q->whereDate('quotation_date', '>=', $req->input('date_from'));
+        }
+        if ($req->filled('date_to')) {
+            $q->whereDate('quotation_date', '<=', $req->input('date_to'));
+        }
+
+        return $q->orderBy('quotation_date', 'asc');
+    }
+
+    public function pendingQuotations(Request $req)
+    {
+        $projects = $this->buildPendingQuotationsQuery($req)->get();
+
+        $data = $projects->map(function ($p) {
+            $qDate = $p->quotation_date ? $p->quotation_date->format('Y-m-d') : null;
+            $ageDays = $p->quotation_date ? $p->quotation_date->diffInDays(now()) : null;
+            $rev = $p->revision_no;
+            if (empty($rev) && !empty($p->quotation_no)) {
+                if (preg_match('/(?:^|[\\.\\-])([Rr]\\d+)$/', (string)$p->quotation_no, $m)) {
+                    $rev = strtoupper($m[1]);
+                }
+            }
+
+            return [
+                'id' => $p->id,
+                'quotation_no' => $p->quotation_no,
+                'revision_no' => $rev,
+                'client_name' => $p->client_name,
+                'project_name' => $p->project_name,
+                'project_location' => $p->project_location,
+                'project_type' => $p->project_type,
+                'area' => $p->area,
+                'quotation_date' => $qDate,
+                'quotation_value' => (float)($p->quotation_value ?? 0),
+                'value_with_vat' => (float)($p->value_with_vat ?? 0),
+                'status' => $p->status,
+                'status_current' => $p->status_current,
+                'last_comment' => $p->last_comment,
+                'salesperson' => $p->salesperson ?? $p->salesman,
+                'age_days' => $ageDays,
+            ];
+        })->values();
+
+        return response()->json([
+            'count' => $data->count(),
+            'data' => $data,
+        ]);
+    }
+
+    public function pendingQuotationsEmail(Request $req)
+    {
+        $raw = trim((string)$req->input('email', ''));
+        $rawCc = trim((string)$req->input('cc', ''));
+        if ($raw === '') {
+            return response()->json(['message' => 'Recipient email is required.'], 422);
+        }
+
+        $emails = preg_split('/[,\s;]+/', $raw);
+        $emails = array_values(array_unique(array_filter($emails, function ($e) {
+            return filter_var($e, FILTER_VALIDATE_EMAIL);
+        })));
+
+        if (empty($emails)) {
+            return response()->json(['message' => 'No valid recipient emails found.'], 422);
+        }
+
+        $ccEmails = [];
+        if ($rawCc !== '') {
+            $ccEmails = preg_split('/[,\s;]+/', $rawCc);
+            $ccEmails = array_values(array_unique(array_filter($ccEmails, function ($e) {
+                return filter_var($e, FILTER_VALIDATE_EMAIL);
+            })));
+            if (empty($ccEmails)) {
+                return response()->json(['message' => 'No valid CC emails found.'], 422);
+            }
+        }
+
+        $projects = $this->buildPendingQuotationsQuery($req)->get();
+        if ($projects->isEmpty()) {
+            return response()->json(['message' => 'No pending quotations found for the current filters.'], 422);
+        }
+
+        $requestedBy = $req->user()?->name ?? 'ATAI Dashboard';
+
+        $mailable = new PendingQuotationsMail(
+            projects: $projects,
+            requestedBy: $requestedBy
+        );
+        $mail = Mail::to($emails);
+        if (!empty($ccEmails)) {
+            $mail->cc($ccEmails);
+        }
+        $mail->send($mailable);
+
+        return response()->json([
+            'ok' => true,
+            'count' => $projects->count(),
+            'recipients' => $emails,
+            'cc' => $ccEmails,
+        ]);
+    }
+
+    public function pendingQuotationsPdf(Request $req)
+    {
+        $projects = $this->buildPendingQuotationsQuery($req)->get();
+
+        $filters = [
+            'year' => $req->input('year'),
+            'month' => $req->input('month'),
+            'date_from' => $req->input('date_from'),
+            'date_to' => $req->input('date_to'),
+            'area' => $req->input('area') ?? $req->input('region'),
+            'family' => $req->input('family'),
+            'salesman' => $req->input('salesman') ?? $req->input('salesperson'),
+        ];
+
+        $pdf = Pdf::loadView('projects.pending_quotations_pdf', [
+            'projects' => $projects,
+            'generatedAt' => now(),
+            'filters' => $filters,
+        ])->setPaper('a4', 'landscape');
+
+        $file = 'pending-quotations-' . now()->format('Ymd-His') . '.pdf';
+        return $pdf->download($file);
     }
 
     /**

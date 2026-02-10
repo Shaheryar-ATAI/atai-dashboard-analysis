@@ -7,7 +7,7 @@
 {{--    <link href="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.css" rel="stylesheet">--}}
 {{--    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">--}}
     {{--<link rel="stylesheet"
-          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">--}}
+          href="{{ asset('css/atai-theme-20260210.css') }}?v={{ filemtime(public_path('css/atai-theme-20260210.css')) }}">--}}
 
     <style>
         table.dataTable thead tr.filters th {

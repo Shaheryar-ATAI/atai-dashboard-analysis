@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
           crossorigin="anonymous">
     <link rel="stylesheet"
-          href="{{ asset('css/atai-theme.css') }}?v={{ time() }}">
+          href="{{ asset('css/atai-theme-20260210.css') }}?v={{ time() }}">
     <style>
         .section-card {
             border: 1px solid rgba(255, 255, 255, .08);

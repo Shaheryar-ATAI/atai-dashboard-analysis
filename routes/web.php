@@ -125,6 +125,14 @@ Route::middleware('auth')->group(function () {
     // KPIs (used by projects view)
     Route::get('/kpis', [ProjectApiController::class, 'kpis'])->name('projects.kpis');
 
+    // Pending quotations (stale bidding) modal/email/pdf
+    Route::get('/projects/pending-quotations', [ProjectApiController::class, 'pendingQuotations'])
+        ->name('projects.pending-quotations');
+    Route::post('/projects/pending-quotations/email', [ProjectApiController::class, 'pendingQuotationsEmail'])
+        ->name('projects.pending-quotations.email');
+    Route::get('/projects/pending-quotations/pdf', [ProjectApiController::class, 'pendingQuotationsPdf'])
+        ->name('projects.pending-quotations.pdf');
+
     // Submittals
     Route::post('/projects/{project}/submittal', [ProjectSubmittalController::class, 'store'])
         ->name('projects.submittal.store');
@@ -162,10 +170,12 @@ Route::middleware('auth')->group(function () {
 
         // Form + save
         Route::get('/new', [ForecastController::class, 'create'])->name('forecast.create');
+        Route::get('/list', [ForecastController::class, 'list'])->name('forecast.list');
         Route::post('/', [ForecastController::class, 'save'])->name('forecast.save');
 
         // PDF generation
         Route::match(['GET', 'POST'], '/pdf', [ForecastController::class, 'pdf'])->name('forecast.pdf');
+        Route::get('/pdf-download', [ForecastController::class, 'pdfSaved'])->name('forecast.pdf.saved');
 
         // Suggestions / validation
         Route::get('/suggest/clients', [ForecastController::class, 'suggestClients'])->name('forecast.suggest.clients');
@@ -292,6 +302,7 @@ Route::middleware('auth')->group(function () {
         ->group(function () {
             Route::get('/', 'create')->name('create');
             Route::get('/new', 'create');
+            Route::get('/list', 'list')->name('list');
             Route::post('/', 'save')->name('save');
             Route::get('/{report}/pdf', 'pdf')->name('pdf');
         });

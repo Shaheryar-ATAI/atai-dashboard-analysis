@@ -8,7 +8,7 @@
 {{--    <link href="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.css" rel="stylesheet">
     --}}{{-- Theme (keep your version busting) --}}{{--
     <link rel="stylesheet"
-          href="{{ asset('css/atai-theme.css') }}?v={{ filemtime(public_path('css/atai-theme.css')) }}">--}}
+          href="{{ asset('css/atai-theme-20260210.css') }}?v={{ filemtime(public_path('css/atai-theme-20260210.css')) }}">--}}
 
     <style>
         /* KPI Gauge Card Layout Fix */
@@ -57,6 +57,49 @@
             flex-wrap: wrap;
             justify-content: center;
         }
+
+        #pendingQuotationsModal .table thead th {
+            position: sticky;
+            top: 0;
+            background: #0f172a;
+            color: #e2e8f0;
+            z-index: 2;
+        }
+        #pendingQuotationsModal .table {
+            color: #eaf0ff;
+        }
+        #pendingQuotationsModal .table td,
+        #pendingQuotationsModal .table th {
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        #pendingQuotationsModal .table tbody td {
+            color: #eaf0ff;
+        }
+        #pendingQuotationsModal .table-striped > tbody > tr:nth-of-type(odd) {
+            background-color: rgba(15, 23, 42, 0.55);
+        }
+        #pendingQuotationsModal .table-striped > tbody > tr:nth-of-type(even) {
+            background-color: rgba(15, 23, 42, 0.35);
+        }
+        #pendingQuotationsModal .table-striped > tbody > tr > * {
+            border-bottom-color: rgba(148, 163, 184, 0.25);
+        }
+        #pendingQuotationsModal .table td.wrap {
+            white-space: normal;
+            max-width: 260px;
+        }
+        #pendingQuotationsModal {
+            z-index: 20000;
+        }
+        #pendingQuotationsModal .modal-dialog,
+        #pendingQuotationsModal .modal-content {
+            pointer-events: auto;
+        }
+        #pendingQuotationsModal .modal-body {
+            overflow-y: auto;
+            max-height: calc(100vh - 200px);
+        }
     </style>
 @endpush
 
@@ -98,7 +141,7 @@
 
                         <span id="salesmanWrap" class="d-none">
                             <input type="text" id="salesmanInput" class="form-control form-control-sm"
-                                   style="width:14rem" placeholder="Salesman (GM/Admin)">
+                                   style="width:14rem" placeholder="Sales Source (GM/Admin)">
                         </span>
 
                         <button class="btn btn-sm btn-primary" id="projApply">Update</button>
@@ -222,6 +265,76 @@
         </div>
     </main>
 @endsection
+
+@push('modals')
+    <div class="modal fade modal-atai" id="pendingQuotationsModal" tabindex="-1" aria-labelledby="pendingQuotationsLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="pendingQuotationsLabel">Pending Quotations</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        <span class="badge bg-warning text-dark" id="pendingCount">0</span>
+                        <span class="text-muted" id="pendingSummary">Shows pending quotations (no update > 3 months). Date range filters apply only if set.</span>
+                        <span class="text-muted ms-auto" id="pendingLastUpdated"></span>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-lg-6">
+                            <div class="input-group">
+                                <span class="input-group-text">Send To</span>
+                                <input type="email" id="pendingEmailTo" class="form-control" placeholder="sohaib.h@atai.com, tareq.a@atai.com">
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <div class="input-group">
+                                <span class="input-group-text">CC</span>
+                                <input type="email" id="pendingEmailCc" class="form-control" placeholder="cc1@atai.com, cc2@atai.com">
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-2 d-flex gap-2">
+                            <button class="btn btn-primary w-100" id="pendingSendEmail" type="button">Send Email</button>
+                            <button class="btn btn-outline-light w-100" id="pendingGeneratePdf" type="button">Generate PDF</button>
+                        </div>
+                    </div>
+                    <div class="text-danger small mb-2" id="pendingError" style="display:none;"></div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle">
+                            <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Quotation No</th>
+                                <th>Rev</th>
+                                <th>Client</th>
+                                <th>Project</th>
+                                <th>Location</th>
+                                <th>Type</th>
+                                <th>Area</th>
+                                <th>Date</th>
+                                <th class="text-end">Value (SAR)</th>
+                                <th>Pending</th>
+                                <th>Sales Source</th>
+                                <th>Last Comment</th>
+                            </tr>
+                            </thead>
+                            <tbody id="pendingRows">
+                            <tr>
+                                <td colspan="13" class="text-muted">Loading...</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endpush
 
 @push('scripts')
     <script src="https://cdn.datatables.net/v/bs5/dt-1.13.8/datatables.min.js"></script>
@@ -1062,6 +1175,179 @@
         }
 
         /* =============================================================================
+         *  PENDING QUOTATIONS MODAL
+         * ============================================================================= */
+        const PENDING_QUOTES_URL = @json(route('projects.pending-quotations'));
+        const PENDING_QUOTES_EMAIL_URL = @json(route('projects.pending-quotations.email'));
+        const PENDING_QUOTES_PDF_URL = @json(route('projects.pending-quotations.pdf'));
+
+        const pendingModalEl = document.getElementById('pendingQuotationsModal');
+        const pendingModal = pendingModalEl ? new bootstrap.Modal(pendingModalEl) : null;
+        let pendingLastQuery = '';
+        let pendingLastCount = 0;
+        const PENDING_EMAIL_DEFAULTS = {
+            eastern: {to: ['sohaib.h@atai.com'], cc: ['khalids@ataiksa.com']},
+            central: {to: ['tareq.a@atai.com','jamal.m@ataiksa.com'], cc: ['khalids@ataiksa.com']},
+            western: {to: ['abdo@ataiksa.com','ahmeda@ataiksa.com'], cc: ['khalids@ataiksa.com']}
+        };
+
+        function normalizeEmailList(list) {
+            return Array.isArray(list)
+                ? list.map(v => String(v || '').trim()).filter(Boolean)
+                : String(list || '').split(/[,;\s]+/).map(v => v.trim()).filter(Boolean);
+        }
+
+        function joinEmails(list) {
+            return [...new Set(normalizeEmailList(list))].join(', ');
+        }
+
+        function applyPendingEmailDefaults({force = false} = {}) {
+            const toInput = document.getElementById('pendingEmailTo');
+            const ccInput = document.getElementById('pendingEmailCc');
+            if (!toInput || !ccInput) return;
+
+            const regionKey = String(ATAI_ME?.region || '').trim().toLowerCase();
+            const defaults = PENDING_EMAIL_DEFAULTS[regionKey] || {to: [], cc: ['khalids@ataiksa.com']};
+
+            if (force || !toInput.value.trim()) {
+                toInput.value = joinEmails(defaults.to || []);
+            }
+            if (force || !ccInput.value.trim()) {
+                ccInput.value = joinEmails(defaults.cc || []);
+            }
+        }
+
+        function escapeHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatPendingAge(dateStr) {
+            if (!dateStr) return '-';
+            const dt = new Date(dateStr);
+            if (Number.isNaN(dt.getTime())) return '-';
+            const diffMs = Date.now() - dt.getTime();
+            const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            if (days <= 0) return 'Today';
+            if (days < 30) return `${days} day${days > 1 ? 's' : ''}`;
+            if (days < 365) {
+                const months = Math.floor(days / 30);
+                const rem = days % 30;
+                return rem ? `${months} month${months > 1 ? 's' : ''} ${rem} day${rem > 1 ? 's' : ''}` : `${months} month${months > 1 ? 's' : ''}`;
+            }
+            const years = Math.floor(days / 365);
+            const remain = days % 365;
+            const months = Math.floor(remain / 30);
+            const rem = remain % 30;
+            const parts = [];
+            if (years) parts.push(`${years} year${years > 1 ? 's' : ''}`);
+            if (months) parts.push(`${months} month${months > 1 ? 's' : ''}`);
+            if (rem) parts.push(`${rem} day${rem > 1 ? 's' : ''}`);
+            return parts.join(' ');
+        }
+
+        function buildPendingParams() {
+            const year = document.querySelector('#projYear')?.value || PROJ_YEAR || '';
+            const month = document.querySelector('#monthSelect')?.value || '';
+            const df = document.querySelector('#dateFrom')?.value || '';
+            const dt = document.querySelector('#dateTo')?.value || '';
+            const family = currentFamily || '';
+            const region = (CAN_VIEW_ALL
+                    ? (document.querySelector('#projRegion')?.value || '')
+                    : (PROJ_REGION || ATAI_ME?.region || '')
+            ) || '';
+            const salesman = CAN_VIEW_ALL
+                ? (document.querySelector('#salesmanInput')?.value || '').trim()
+                : '';
+
+            const params = {};
+            // Pending list should match the badge (stale regardless of year/month)
+            // Apply explicit date range only if user provided it.
+            if (df) params.date_from = df;
+            if (dt) params.date_to = dt;
+            if (family) params.family = family;
+            if (region) params.area = region;
+            if (salesman) params.salesman = salesman;
+            return params;
+        }
+
+        function setPendingError(msg) {
+            const el = document.getElementById('pendingError');
+            if (!el) return;
+            if (msg) {
+                el.textContent = msg;
+                el.style.display = 'block';
+            } else {
+                el.textContent = '';
+                el.style.display = 'none';
+            }
+        }
+
+        function setPendingActionsEnabled(enabled) {
+            document.getElementById('pendingSendEmail')?.toggleAttribute('disabled', !enabled);
+            document.getElementById('pendingGeneratePdf')?.toggleAttribute('disabled', !enabled);
+        }
+
+        async function loadPendingQuotations() {
+            const rowsEl = document.getElementById('pendingRows');
+            if (!rowsEl) return;
+            rowsEl.innerHTML = '<tr><td colspan="13" class="text-muted">Loading...</td></tr>';
+            setPendingError('');
+            setPendingActionsEnabled(false);
+
+            const url = new URL(PENDING_QUOTES_URL, window.location.origin);
+            const params = buildPendingParams();
+            Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+            pendingLastQuery = url.searchParams.toString();
+
+            const res = await fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+            if (!res.ok) {
+                rowsEl.innerHTML = '<tr><td colspan="13" class="text-danger">Failed to load pending quotations.</td></tr>';
+                return;
+            }
+            const json = await res.json();
+            const list = Array.isArray(json.data) ? json.data : [];
+            pendingLastCount = Number(json.count || list.length || 0);
+
+            document.getElementById('pendingCount').textContent = pendingLastCount.toLocaleString();
+            document.getElementById('pendingSummary').textContent =
+                pendingLastCount ? `${pendingLastCount} quotation(s) pending update` : 'No pending quotations found.';
+            document.getElementById('pendingLastUpdated').textContent =
+                `Updated: ${new Date().toLocaleString()}`;
+
+            if (!list.length) {
+                rowsEl.innerHTML = '<tr><td colspan="13" class="text-muted">No pending quotations.</td></tr>';
+                setPendingActionsEnabled(false);
+                return;
+            }
+
+            const rows = list.map((p, idx) => {
+                const val = Number(p.quotation_value || 0).toLocaleString();
+                return `<tr>
+                    <td>${idx + 1}</td>
+                    <td>${escapeHtml(p.quotation_no || '-')}</td>
+                    <td>${escapeHtml(p.revision_no || '-')}</td>
+                    <td class="wrap">${escapeHtml(p.client_name || '-')}</td>
+                    <td class="wrap">${escapeHtml(p.project_name || '-')}</td>
+                    <td class="wrap">${escapeHtml(p.project_location || '-')}</td>
+                    <td>${escapeHtml(p.project_type || '-')}</td>
+                    <td>${escapeHtml(p.area || '-')}</td>
+                    <td>${escapeHtml(p.quotation_date || '-')}</td>
+                    <td class="text-end">${val}</td>
+                    <td>${formatPendingAge(p.quotation_date)}</td>
+                    <td>${escapeHtml(p.salesperson || '-')}</td>
+                    <td class="wrap">${escapeHtml(p.last_comment || '-')}</td>
+                </tr>`;
+            }).join('');
+            rowsEl.innerHTML = rows;
+            setPendingActionsEnabled(true);
+        }
+
+        /* =============================================================================
          *  EVENTS & BOOT
          * ============================================================================= */
         $(document).on('click', '#familyChips [data-family]', function (e) {
@@ -1070,6 +1356,69 @@
             this.classList.add('active');
             currentFamily = this.getAttribute('data-family') || '';
             loadKpis();
+        });
+
+        document.getElementById('btnKpiTab')?.addEventListener('click', async () => {
+            applyPendingEmailDefaults();
+            await loadPendingQuotations();
+            pendingModal?.show();
+        });
+
+        document.getElementById('pendingSendEmail')?.addEventListener('click', async () => {
+            const emailInput = document.getElementById('pendingEmailTo');
+            const email = (emailInput?.value || '').trim();
+            const ccInput = document.getElementById('pendingEmailCc');
+            const cc = (ccInput?.value || '').trim();
+            setPendingError('');
+
+            if (!email) {
+                setPendingError('Please enter a recipient email.');
+                return;
+            }
+
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const payload = {
+                email,
+                cc,
+                ...buildPendingParams()
+            };
+
+            const btn = document.getElementById('pendingSendEmail');
+            btn?.setAttribute('disabled', 'disabled');
+            btn && (btn.textContent = 'Sending...');
+
+            try {
+                const res = await fetch(PENDING_QUOTES_EMAIL_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const json = await res.json();
+                if (!res.ok) {
+                    setPendingError(json?.message || 'Failed to send email.');
+                } else {
+                    setPendingError('');
+                    const msg = `Email sent to ${Array.isArray(json?.recipients) ? json.recipients.join(', ') : 'recipient'} (${json.count || pendingLastCount} quotations).`;
+                    const summary = document.getElementById('pendingSummary');
+                    if (summary) summary.textContent = msg;
+                }
+            } catch (e) {
+                setPendingError('Failed to send email.');
+            } finally {
+                btn?.removeAttribute('disabled');
+                if (btn) btn.textContent = 'Send Email';
+            }
+        });
+
+        document.getElementById('pendingGeneratePdf')?.addEventListener('click', () => {
+            const url = new URL(PENDING_QUOTES_PDF_URL, window.location.origin);
+            const params = buildPendingParams();
+            Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+            window.open(url.toString(), '_blank');
         });
 
         document.getElementById('projApply')?.addEventListener('click', () => {
@@ -1093,6 +1442,8 @@
             } else {
                 document.getElementById('salesmanWrap')?.classList.remove('d-none');
             }
+
+            applyPendingEmailDefaults();
 
             // ✅ default the dropdown to 2025 on first load if empty
             const yearSel = document.getElementById('projYear');
