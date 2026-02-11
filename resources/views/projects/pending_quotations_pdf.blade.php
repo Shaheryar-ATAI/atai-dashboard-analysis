@@ -49,6 +49,7 @@
         <th class="num">Value (SAR)</th>
         <th class="num">Pending</th>
         <th>Salesman</th>
+        <th>Weekly Report</th>
         <th>Last Comment</th>
     </tr>
     </thead>
@@ -101,11 +102,12 @@
             <td class="num">{{ number_format((float)($p->quotation_value ?? 0), 0) }}</td>
             <td class="num">{{ $daysPending }}</td>
             <td>{{ $p->salesperson ?? $p->salesman }}</td>
+            <td>{{ $p->weekly_report_update ?? 'No update recorded in weekly report' }}</td>
             <td>{{ $p->last_comment ?? '-' }}</td>
         </tr>
     @empty
         <tr>
-            <td colspan="12" class="muted">No pending quotations found.</td>
+            <td colspan="13" class="muted">No pending quotations found.</td>
         </tr>
     @endforelse
     </tbody>

@@ -1654,17 +1654,14 @@
             return $out;
         };
 
-        // current month progress
-        $reportDate = null;
-        try { $reportDate = Carbon::createFromFormat('d-m-Y', (string)$today); }
-        catch (Throwable $e) { $reportDate = Carbon::now(); }
-
-        $currentMonth = (int)$reportDate->month;
-        $daysInMonth  = (int)$reportDate->daysInMonth;
-        $dayOfMonth   = (int)$reportDate->day;
-
-        $currentMonthProgress = $daysInMonth > 0 ? ($dayOfMonth / $daysInMonth) : 1.0;
-        $currentMonthProgress = max(0.0, min(1.0, $currentMonthProgress));
+        // Match portal logic exactly:
+        // - Month Performance uses full month target (no proration)
+        // - Future months are N/A only when selected year == current year
+        // - Total Performance uses annual total target (index 12)
+        $selectedYear = (int)($year ?? now()->year);
+        $nowDate = Carbon::now();
+        $currentYearNum = (int)$nowDate->year;
+        $currentMonth = (int)$nowDate->month; // 1..12
 
         $perfCell = function(float $actual, float $expected, bool $isFuture, bool $isCurrentMonth) {
     if ($isFuture) {
@@ -1696,7 +1693,7 @@
     return ['html' => '<span class="flag flag-danger">' . number_format($pct,0) . '%</span>'];
 };
 
-$buildPerfRow = function($poRow, $targetRow) use ($pad13, $perfCell, $currentMonth, $currentMonthProgress) {
+$buildPerfRow = function($poRow, $targetRow) use ($pad13, $perfCell, $selectedYear, $currentYearNum, $currentMonth) {
     $poRow     = $pad13($poRow);
     $targetRow = $pad13($targetRow);
 
@@ -1705,39 +1702,19 @@ $buildPerfRow = function($poRow, $targetRow) use ($pad13, $perfCell, $currentMon
     for ($i=0; $i<12; $i++) {
         $monthNo = $i + 1;
 
-        $isFuture       = $monthNo > $currentMonth;
-        $isCurrentMonth = $monthNo === $currentMonth;
+        $isFuture = ($selectedYear > $currentYearNum)
+            || ($selectedYear === $currentYearNum && $monthNo > $currentMonth);
+        $isCurrentMonth = ($selectedYear === $currentYearNum && $monthNo === $currentMonth);
 
-        $expected = 0.0;
-        if (!$isFuture) {
-            $expected = ($monthNo < $currentMonth)
-                ? (float)$targetRow[$i]
-                : (float)$targetRow[$i] * (float)$currentMonthProgress;
-        }
-
+        $expected = $isFuture ? 0.0 : (float)$targetRow[$i];
         $actual = (float)$poRow[$i];
 
         // ✅ Pass current-month flag into perfCell
         $out[$i] = $perfCell($actual, $expected, $isFuture, $isCurrentMonth);
     }
 
-    // TOTAL column (YTD)
-    $actualYtd = 0.0;
-    $expectedYtd = 0.0;
-
-    for ($i=0; $i<12; $i++) {
-        $monthNo = $i + 1;
-        if ($monthNo > $currentMonth) continue;
-
-        $actualYtd += (float)$poRow[$i];
-
-        $expectedYtd += ($monthNo < $currentMonth)
-            ? (float)$targetRow[$i]
-            : (float)$targetRow[$i] * (float)$currentMonthProgress;
-    }
-
-    // Total is not "future", and not "current month"
-    $out[12] = $perfCell($actualYtd, $expectedYtd, false, false);
+    // TOTAL column (portal parity): actual total vs annual total target
+    $out[12] = $perfCell((float)$poRow[12], (float)$targetRow[12], false, false);
 
     return $out;
 };

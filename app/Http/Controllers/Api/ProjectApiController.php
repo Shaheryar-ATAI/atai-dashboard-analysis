@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\PendingQuotationsMail;
+use Carbon\Carbon;
 
 class ProjectApiController extends Controller
 {
@@ -576,6 +577,97 @@ class ProjectApiController extends Controller
     /* =========================================================
      * PENDING QUOTATIONS (STALE BIDDING) — Modal / Email / PDF
      * ========================================================= */
+    private function normalizeQuotationKey(?string $quotationNo): string
+    {
+        $q = strtoupper(trim((string)$quotationNo));
+        if ($q === '') return '';
+        return str_replace([' ', '.', '-', '/'], '', $q);
+    }
+
+    private function normalizeWeeklyEngineerKey(?string $name): string
+    {
+        $n = strtoupper(trim((string)$name));
+        if ($n === '') return '';
+        $n = preg_replace('/[^A-Z0-9 ]+/', ' ', $n);
+        $n = preg_replace('/\s+/', ' ', $n);
+        $first = trim((string)(explode(' ', $n)[0] ?? ''));
+        return $first;
+    }
+
+    private function enrichWithWeeklyReportUpdates($projects)
+    {
+        if (!$projects || $projects->isEmpty()) {
+            return $projects;
+        }
+
+        $quoteKeys = [];
+        foreach ($projects as $p) {
+            $qk = $this->normalizeQuotationKey($p->quotation_no ?? null);
+            if ($qk !== '') $quoteKeys[$qk] = true;
+        }
+
+        foreach ($projects as $p) {
+            $p->weekly_report_update = 'No update recorded in weekly report';
+        }
+
+        if (empty($quoteKeys)) {
+            return $projects;
+        }
+
+        $quoteExpr = "REPLACE(REPLACE(REPLACE(REPLACE(UPPER(TRIM(COALESCE(wri.quotation_no,''))),' ',''),'.',''),'-',''),'/','')";
+
+        $rows = DB::table('weekly_report_items as wri')
+            ->join('weekly_reports as wr', 'wr.id', '=', 'wri.weekly_report_id')
+            ->selectRaw("$quoteExpr AS qkey")
+            ->selectRaw("UPPER(TRIM(COALESCE(wr.engineer_name,''))) AS engineer_name")
+            ->addSelect('wr.week_start')
+            ->whereNotNull('wri.quotation_no')
+            ->whereRaw("TRIM(wri.quotation_no) <> ''")
+            ->whereIn(DB::raw($quoteExpr), array_keys($quoteKeys))
+            ->orderByDesc('wr.week_start')
+            ->get();
+
+        $latestByQuote = [];
+        $latestByQuoteAndEngineer = [];
+
+        foreach ($rows as $r) {
+            $qkey = (string)($r->qkey ?? '');
+            $engKey = $this->normalizeWeeklyEngineerKey($r->engineer_name ?? '');
+            $date = !empty($r->week_start) ? Carbon::parse($r->week_start) : null;
+            if ($qkey === '' || !$date) continue;
+
+            if (!isset($latestByQuote[$qkey]) || $date->gt($latestByQuote[$qkey])) {
+                $latestByQuote[$qkey] = $date;
+            }
+
+            if ($engKey !== '') {
+                if (!isset($latestByQuoteAndEngineer[$qkey][$engKey]) || $date->gt($latestByQuoteAndEngineer[$qkey][$engKey])) {
+                    $latestByQuoteAndEngineer[$qkey][$engKey] = $date;
+                }
+            }
+        }
+
+        foreach ($projects as $p) {
+            $qkey = $this->normalizeQuotationKey($p->quotation_no ?? null);
+            if ($qkey === '') continue;
+
+            $salesKey = $this->normalizeWeeklyEngineerKey($p->salesperson ?? $p->salesman ?? '');
+            $hit = null;
+
+            if ($salesKey !== '' && isset($latestByQuoteAndEngineer[$qkey][$salesKey])) {
+                $hit = $latestByQuoteAndEngineer[$qkey][$salesKey];
+            } elseif (isset($latestByQuote[$qkey])) {
+                $hit = $latestByQuote[$qkey];
+            }
+
+            if ($hit instanceof Carbon) {
+                $p->weekly_report_update = 'Updated in weekly report on ' . $hit->format('d-M-Y');
+            }
+        }
+
+        return $projects;
+    }
+
     private function buildPendingQuotationsQuery(Request $req)
     {
         $user = $req->user();
@@ -661,6 +753,7 @@ class ProjectApiController extends Controller
     public function pendingQuotations(Request $req)
     {
         $projects = $this->buildPendingQuotationsQuery($req)->get();
+        $projects = $this->enrichWithWeeklyReportUpdates($projects);
 
         $data = $projects->map(function ($p) {
             $qDate = $p->quotation_date ? $p->quotation_date->format('Y-m-d') : null;
@@ -689,6 +782,7 @@ class ProjectApiController extends Controller
                 'last_comment' => $p->last_comment,
                 'salesperson' => $p->salesperson ?? $p->salesman,
                 'age_days' => $ageDays,
+                'weekly_report_update' => $p->weekly_report_update ?? 'No update recorded in weekly report',
             ];
         })->values();
 
@@ -754,6 +848,7 @@ class ProjectApiController extends Controller
     public function pendingQuotationsPdf(Request $req)
     {
         $projects = $this->buildPendingQuotationsQuery($req)->get();
+        $projects = $this->enrichWithWeeklyReportUpdates($projects);
 
         $filters = [
             'year' => $req->input('year'),

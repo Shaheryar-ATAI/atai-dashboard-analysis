@@ -67,11 +67,14 @@
         }
         #pendingQuotationsModal .table {
             color: #eaf0ff;
+            font-size: 0.84rem;
+            table-layout: auto;
         }
         #pendingQuotationsModal .table td,
         #pendingQuotationsModal .table th {
             white-space: nowrap;
             vertical-align: middle;
+            padding: 0.32rem 0.42rem;
         }
         #pendingQuotationsModal .table tbody td {
             color: #eaf0ff;
@@ -87,7 +90,9 @@
         }
         #pendingQuotationsModal .table td.wrap {
             white-space: normal;
-            max-width: 260px;
+            max-width: 320px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
         #pendingQuotationsModal {
             z-index: 20000;
@@ -96,9 +101,30 @@
         #pendingQuotationsModal .modal-content {
             pointer-events: auto;
         }
+        #pendingQuotationsModal .modal-dialog {
+            max-width: 96vw;
+        }
         #pendingQuotationsModal .modal-body {
             overflow-y: auto;
             max-height: calc(100vh - 200px);
+        }
+
+        /* Wider columns for long text fields */
+        #pendingQuotationsModal .table th:nth-child(4),
+        #pendingQuotationsModal .table td:nth-child(4) {
+            min-width: 230px;
+        }
+        #pendingQuotationsModal .table th:nth-child(5),
+        #pendingQuotationsModal .table td:nth-child(5) {
+            min-width: 260px;
+        }
+
+        /* Keep compact width on short-code columns */
+        #pendingQuotationsModal .table th:nth-child(1),
+        #pendingQuotationsModal .table td:nth-child(1),
+        #pendingQuotationsModal .table th:nth-child(3),
+        #pendingQuotationsModal .table td:nth-child(3) {
+            width: 52px;
         }
     </style>
 @endpush
@@ -317,12 +343,13 @@
                                 <th class="text-end">Value (SAR)</th>
                                 <th>Pending</th>
                                 <th>Sales Source</th>
+                                <th>Weekly Report</th>
                                 <th>Last Comment</th>
                             </tr>
                             </thead>
                             <tbody id="pendingRows">
                             <tr>
-                                <td colspan="13" class="text-muted">Loading...</td>
+                                <td colspan="14" class="text-muted">Loading...</td>
                             </tr>
                             </tbody>
                         </table>
@@ -1295,7 +1322,7 @@
         async function loadPendingQuotations() {
             const rowsEl = document.getElementById('pendingRows');
             if (!rowsEl) return;
-            rowsEl.innerHTML = '<tr><td colspan="13" class="text-muted">Loading...</td></tr>';
+            rowsEl.innerHTML = '<tr><td colspan="14" class="text-muted">Loading...</td></tr>';
             setPendingError('');
             setPendingActionsEnabled(false);
 
@@ -1306,7 +1333,7 @@
 
             const res = await fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
             if (!res.ok) {
-                rowsEl.innerHTML = '<tr><td colspan="13" class="text-danger">Failed to load pending quotations.</td></tr>';
+                rowsEl.innerHTML = '<tr><td colspan="14" class="text-danger">Failed to load pending quotations.</td></tr>';
                 return;
             }
             const json = await res.json();
@@ -1320,7 +1347,7 @@
                 `Updated: ${new Date().toLocaleString()}`;
 
             if (!list.length) {
-                rowsEl.innerHTML = '<tr><td colspan="13" class="text-muted">No pending quotations.</td></tr>';
+                rowsEl.innerHTML = '<tr><td colspan="14" class="text-muted">No pending quotations.</td></tr>';
                 setPendingActionsEnabled(false);
                 return;
             }
@@ -1340,6 +1367,7 @@
                     <td class="text-end">${val}</td>
                     <td>${formatPendingAge(p.quotation_date)}</td>
                     <td>${escapeHtml(p.salesperson || '-')}</td>
+                    <td class="wrap">${escapeHtml(p.weekly_report_update || 'No update recorded in weekly report')}</td>
                     <td class="wrap">${escapeHtml(p.last_comment || '-')}</td>
                 </tr>`;
             }).join('');

@@ -90,6 +90,7 @@ class SalesmanSummaryInsightService
 
     $inqProductMatrix = (array)($payload['inqProductMatrix'] ?? []);
     $poProductMatrix  = (array)($payload['poProductMatrix'] ?? []);
+    $salesmanKpiMatrix = (array)($payload['salesmanKpiMatrix'] ?? []);
 
     $targets = (array)($payload['targets'] ?? []);
     $conversionModel = (array)($payload['conversion_model'] ?? []);
@@ -103,6 +104,7 @@ class SalesmanSummaryInsightService
     $scopeSalesmen = $this->salesmenForArea($area);
     $inqBySalesmanScoped = $this->filterByAllowedKeys($inqBySalesman, $scopeSalesmen);
     $poBySalesmanScoped  = $this->filterByAllowedKeys($poBySalesman,  $scopeSalesmen);
+    $salesmanKpiScoped   = $this->filterByAllowedKeys($salesmanKpiMatrix, $scopeSalesmen);
 
     // Totals
     $quotedTotal = $this->sumPivotTotals($inqBySalesmanScoped);
@@ -110,6 +112,16 @@ class SalesmanSummaryInsightService
 
     $conversionPct = ($quotedTotal > 0) ? round(($poTotal / $quotedTotal) * 100, 1) : 0.0;
     $gapValue = max(0, $quotedTotal - $poTotal);
+
+    // GM dashboard measures (used for Business Insight in all scopes)
+    $forecastTotal = $this->sumKpiMeasureTotals($salesmanKpiScoped, 'FORECAST');
+    $targetTotal   = $this->sumKpiMeasureTotals($salesmanKpiScoped, 'TARGET');
+    $inqKpiTotal   = $this->sumKpiMeasureTotals($salesmanKpiScoped, 'INQUIRIES');
+    $poKpiTotal    = $this->sumKpiMeasureTotals($salesmanKpiScoped, 'POS');
+
+    $achievementVsTargetPct = ($targetTotal > 0) ? round(($poKpiTotal / $targetTotal) * 100, 1) : 0.0;
+    $pipelineVsTargetPct    = ($targetTotal > 0) ? round(($inqKpiTotal / $targetTotal) * 100, 1) : 0.0;
+    $poVsForecastPct        = ($forecastTotal > 0) ? round(($poKpiTotal / $forecastTotal) * 100, 1) : 0.0;
 
     // Region totals (GM vs single region)
     $regions = $this->buildRegionRows($inqByRegion, $poByRegion, $area);
@@ -168,6 +180,15 @@ class SalesmanSummaryInsightService
             'po_total' => $poTotal,
             'conversion_pct' => $conversionPct,
             'gap_value' => $gapValue,
+        ],
+        'gm_measures' => [
+            'forecast_total' => $forecastTotal,
+            'target_total' => $targetTotal,
+            'inquiries_total' => $inqKpiTotal,
+            'po_total' => $poKpiTotal,
+            'achievement_vs_target_pct' => $achievementVsTargetPct,
+            'pipeline_vs_target_pct' => $pipelineVsTargetPct,
+            'po_vs_forecast_pct' => $poVsForecastPct,
         ],
         'month_coverage' => [
             'active_month_count' => $activeMonthCount,
@@ -300,6 +321,23 @@ class SalesmanSummaryInsightService
         "Quoted SAR " . $this->fmt($q) . " vs PO SAR " . $this->fmt($p) .
         " (Execution {$c}%). Gap SAR " . $this->fmt($gap) . ".";
 
+    $gm = (array)($facts['gm_measures'] ?? []);
+    $fTot = (float)($gm['forecast_total'] ?? 0);
+    $tTot = (float)($gm['target_total'] ?? 0);
+    $iTot = (float)($gm['inquiries_total'] ?? 0);
+    $pTot = (float)($gm['po_total'] ?? 0);
+    $achPct = (float)($gm['achievement_vs_target_pct'] ?? 0);
+    $pipePct = (float)($gm['pipeline_vs_target_pct'] ?? 0);
+
+    if ($fTot > 0 || $tTot > 0 || $iTot > 0 || $pTot > 0) {
+        $ins['overall_analysis']['snapshot'][] =
+            "GM measures: Forecast SAR " . $this->fmt($fTot) .
+            " | Target SAR " . $this->fmt($tTot) .
+            " | Inquiries SAR " . $this->fmt($iTot) .
+            " | POs SAR " . $this->fmt($pTot) .
+            " | Achievement vs Target {$achPct}% | Pipeline vs Target {$pipePct}%.";
+    }
+
     $mCount = (int)$facts['month_coverage']['active_month_count'];
     if ($mCount <= 1) {
         $ins['overall_analysis']['snapshot'][] =
@@ -380,12 +418,54 @@ class SalesmanSummaryInsightService
         $gap = (float)($facts['snapshot']['gap_value'] ?? max(0, $q - $p));
 
         $mCount = (int)($facts['month_coverage']['active_month_count'] ?? 0);
+        $gm = (array)($facts['gm_measures'] ?? []);
 
         // Confidence rules (sales-friendly)
         $trendConf = ($mCount <= 1) ? 'LOW' : (($mCount <= 2) ? 'MEDIUM' : 'HIGH');
 
         // ---------------------------------------------------------
-        // (A) Target Coverage (pipeline requirement) — Business framing
+        // (A) GM dashboard measure analysis (all scopes)
+        // ---------------------------------------------------------
+        $fTot = (float)($gm['forecast_total'] ?? 0);
+        $tTot = (float)($gm['target_total'] ?? 0);
+        $iTot = (float)($gm['inquiries_total'] ?? 0);
+        $pTot = (float)($gm['po_total'] ?? 0);
+        $achPct = (float)($gm['achievement_vs_target_pct'] ?? 0);
+        $pipePct = (float)($gm['pipeline_vs_target_pct'] ?? 0);
+        $poVsFcPct = (float)($gm['po_vs_forecast_pct'] ?? 0);
+
+        if ($fTot > 0 || $tTot > 0 || $iTot > 0 || $pTot > 0) {
+            $gmRag = ($achPct >= 100) ? 'GREEN' : (($achPct >= 75) ? 'AMBER' : 'RED');
+
+            $ins['high_insights'][] = [
+                'title' => 'GM dashboard measures alignment',
+                'rag' => $gmRag,
+                'confidence' => 'HIGH',
+                'text' =>
+                    "Forecast SAR " . $this->fmt($fTot) .
+                    ", Target SAR " . $this->fmt($tTot) .
+                    ", Inquiries SAR " . $this->fmt($iTot) .
+                    ", and POs SAR " . $this->fmt($pTot) .
+                    ". Achievement vs Target is {$achPct}% with Pipeline vs Target at {$pipePct}% and PO vs Forecast at {$poVsFcPct}%.",
+                'gm_action' =>
+                    ($gmRag === 'GREEN')
+                        ? 'Keep weekly closure rhythm on top-value quotations and protect execution quality.'
+                        : 'Run weekly GM dashboard review to close the target gap: accelerate top quotes, remove approval blockers, and tighten follow-up ownership.',
+            ];
+
+            if ($gmRag !== 'GREEN') {
+                $ins['what_needs_attention'][] = [
+                    'title' => 'GM measure gap vs target',
+                    'rag' => $gmRag,
+                    'confidence' => 'HIGH',
+                    'text' =>
+                        "Current achievement vs target is {$achPct}%. Priority is to convert existing quotations faster and raise qualified pipeline to protect monthly delivery.",
+                ];
+            }
+        }
+
+        // ---------------------------------------------------------
+        // (B) Target Coverage (pipeline requirement) — Business framing
         // ---------------------------------------------------------
         $benchmarkPct  = $this->getBenchmarkConversionPct($facts);     // default 10
         $monthlyTarget = $this->getMonthlyTargetForScope($facts);      // may be 0 if not provided
@@ -423,7 +503,7 @@ class SalesmanSummaryInsightService
         }
 
         // ---------------------------------------------------------
-        // (B) Closing performance — Business language (no “simple math tone”)
+        // (C) Closing performance — Business language (no “simple math tone”)
         // ---------------------------------------------------------
         if ($q > 0) {
             $closeRag = ($c >= 15) ? 'GREEN' : (($c >= 10) ? 'AMBER' : 'RED');
@@ -453,7 +533,7 @@ class SalesmanSummaryInsightService
         }
 
         // ---------------------------------------------------------
-        // (C) GM view only — region comparison (neutral wording)
+        // (D) GM view only — region comparison (neutral wording)
         // ---------------------------------------------------------
         if ($isGmView) {
             $bestRegion = $facts['regions']['best_region'] ?? null;
@@ -486,7 +566,7 @@ class SalesmanSummaryInsightService
         }
 
         // ---------------------------------------------------------
-        // (D) Product mix — FIX Western requirement (GM + Western):
+        // (E) Product mix — FIX Western requirement (GM + Western):
         // - Keep PI/SP under DUCTWORK in the matrix
         // - But ALWAYS include PI/SP Execution visibility in insights:
         //   * Western report (ABDO/AHMED scope): show PI/SP
@@ -590,7 +670,7 @@ class SalesmanSummaryInsightService
         }
 
         // ---------------------------------------------------------
-        // (E) Data coverage note (sales-friendly definition)
+        // (F) Data coverage note (sales-friendly definition)
         // ---------------------------------------------------------
         $ins['low_insights'][] = [
             'title' => 'Trend confidence depends on month coverage',
@@ -959,6 +1039,16 @@ class SalesmanSummaryInsightService
 {
     $sum = 0.0;
     foreach ($pivot as $row) $sum += (float)$this->pivotTotal($row);
+    return $sum;
+}
+
+    private function sumKpiMeasureTotals(array $kpiMatrix, string $measure): float
+{
+    $sum = 0.0;
+    foreach ($kpiMatrix as $salesman => $rows) {
+        if (!is_array($rows)) continue;
+        $sum += (float)$this->pivotTotal($rows[$measure] ?? []);
+    }
     return $sum;
 }
 

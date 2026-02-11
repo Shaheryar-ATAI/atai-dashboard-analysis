@@ -480,20 +480,30 @@ class SalesmanPerformanceController extends Controller
     private function makeProductMixByMonthClusteredBarChartBase64(
         array  $salesmanProducts,
         string $title = 'PO PRODUCT MIX — MONTHLY (SAR)',
-        ?int   $year = null
+        ?int   $year = null,
+        ?array $forcedProductOrder = null
     ): string
     {
         $year = $year ?? (int) now()->year;
 
-        $productOrder = ['DUCTWORK', 'ACCESSORIES', 'SOUND ATTENUATORS', 'DAMPERS', 'LOUVERS'];
+        $defaultProductOrder = ['DUCTWORK', 'ACCESSORIES', 'SOUND ATTENUATORS', 'DAMPERS', 'LOUVERS'];
+        $productOrder = (is_array($forcedProductOrder) && !empty($forcedProductOrder))
+            ? array_values($forcedProductOrder)
+            : $defaultProductOrder;
 
-        $short = [
+        $shortMap = [
             'DUCTWORK'          => 'DUCT',
-            'ACCESSORIES'       => 'ACCE',
-            'SOUND ATTENUATORS' => 'SOUN',
-            'DAMPERS'           => 'DAMP',
-            'LOUVERS'           => 'LOUV',
+            'SPIRAL DUCTWORK'   => 'SPIRAL',
+            'PRE-INSULATED DUCTWORK' => 'PRE INS',
+            'ACCESSORIES'       => 'A/CS',
+            'SOUND ATTENUATORS' => 'S/A',
+            'DAMPERS'           => 'DAMPER',
+            'LOUVERS'           => 'LOUVER',
         ];
+        $short = [];
+        foreach ($productOrder as $p) {
+            $short[$p] = $shortMap[$p] ?? $p;
+        }
 
         // ✅ YTD cutoff: current year => current month, else full year
         $cutoff = ($year === (int) now()->year) ? (int) now()->month : 12;
@@ -560,13 +570,19 @@ class SalesmanPerformanceController extends Controller
             return $padT + ($plotH * (1 - ($vScaled / $maxVScaled)));
         };
 
-        $colors = [
+        $colorMap = [
             'DUCTWORK'          => '#2563eb',
+            'SPIRAL DUCTWORK'   => '#f59e0b',
+            'PRE-INSULATED DUCTWORK' => '#0f766e',
             'ACCESSORIES'       => '#16a34a',
             'SOUND ATTENUATORS' => '#f59e0b',
             'DAMPERS'           => '#ef4444',
             'LOUVERS'           => '#6b7280',
         ];
+        $colors = [];
+        foreach ($productOrder as $p) {
+            $colors[$p] = $colorMap[$p] ?? '#6b7280';
+        }
 
         $titleSvg = '<text x="'.$padL.'" y="20" font-size="13" font-weight="800" fill="#111827">'.htmlspecialchars($title, ENT_QUOTES).'</text>';
 
@@ -1013,10 +1029,16 @@ class SalesmanPerformanceController extends Controller
 
             // product mix chart (PO product monthly)
             if (isset($poProductMatrix[$s])) {
+                $isWesternSplitChart = ($areaNorm === 'Western' && in_array(strtoupper((string)$s), ['ABDO', 'AHMED'], true));
+                $productOrder = $isWesternSplitChart
+                    ? ['DUCTWORK', 'SPIRAL DUCTWORK', 'PRE-INSULATED DUCTWORK', 'ACCESSORIES']
+                    : null;
+
                 $charts[$s]['product_mix'] = $this->makeProductMixByMonthClusteredBarChartBase64(
                     $poProductMatrix[$s],
                     'PRODUCT MIX — ' . $s . ' (MONTHLY)',
-                    $year
+                    $year,
+                    $productOrder
                 );
             } else {
                 $charts[$s]['product_mix'] = null;
@@ -1448,19 +1470,6 @@ class SalesmanPerformanceController extends Controller
         $today = Carbon::now();
 
         /* ============================================================
-         | A) Week range (KSA workweek: SUN → THU)
-         | We always check LAST COMPLETED week ending on THURSDAY
-         ============================================================ */
-        $thisWeekEnd = $today->copy()->endOfWeek(Carbon::THURSDAY);   // Thu of current KSA week
-        // If today is before/at Thu, last completed is previous Thu
-        if ($today->lte($thisWeekEnd)) {
-            $weekEnd = $thisWeekEnd->copy()->subWeek();               // last Thu
-        } else {
-            $weekEnd = $thisWeekEnd->copy();                          // (rare case) after Thu
-        }
-        $weekStart = $weekEnd->copy()->subDays(4);                    // Sun (Thu-4)
-
-        /* ============================================================
          | B) Required salesmen by region
          ============================================================ */
         $required = match ($areaNorm) {
@@ -1474,39 +1483,96 @@ class SalesmanPerformanceController extends Controller
     | 1) WEEKLY REPORT SUBMITTED (CREATED/SAVED)
     | We treat: draft/submitted/approved as "done"
     ============================================================ */
-        $today = now(); // optionally ->timezone('Asia/Riyadh')
-
-// Current week Sun–Thu
+        // Current week Sun–Sat (align with Weekly Report List display: start + 6 days)
         $curStart = $today->copy()->startOfWeek(\Carbon\Carbon::SUNDAY);
-        $curEnd   = $curStart->copy()->addDays(4);
+        $curEnd   = $curStart->copy()->addDays(6);
 
-// Last completed week Sun–Thu
+        // Last completed week Sun–Sat
         $prevStart = $curStart->copy()->subWeek();
-        $prevEnd   = $prevStart->copy()->addDays(4);
+        $prevEnd   = $prevStart->copy()->addDays(6);
 
         $validStatuses = ['draft','submitted','approved'];
+        $submittedQ = DB::table('weekly_reports')
+            ->selectRaw("UPPER(TRIM(COALESCE(engineer_name,''))) AS salesman_raw")
+            ->whereIn(DB::raw('DATE(week_start)'), [
+                $prevStart->toDateString(),
+                $curStart->toDateString(),
+            ]);
 
-        $submitted = DB::table('weekly_reports')
-            ->selectRaw("UPPER(TRIM(engineer_name)) AS salesman")
-            ->whereIn(DB::raw("LOWER(TRIM(status))"), $validStatuses)
-            ->where(function ($q) use ($prevStart, $prevEnd, $curStart, $curEnd) {
-                $q->where(function ($q2) use ($prevStart, $prevEnd) {
-                    $q2->whereDate('week_start', $prevStart->toDateString())
-                        ->whereDate('week_end',   $prevEnd->toDateString());
-                })->orWhere(function ($q2) use ($curStart, $curEnd) {
-                    $q2->whereDate('week_start', $curStart->toDateString())
-                        ->whereDate('week_end',   $curEnd->toDateString());
-                });
-            })
-            ->pluck('salesman')
-            ->toArray();
+        // Some DBs have status, some do not; if present, treat empty/null as saved too.
+        if (Schema::hasColumn('weekly_reports', 'status')) {
+            $submittedQ->where(function ($q) use ($validStatuses) {
+                $q->whereIn(DB::raw("LOWER(TRIM(COALESCE(status,'')))"), $validStatuses)
+                    ->orWhereRaw("status IS NULL OR TRIM(status) = ''");
+            });
+        }
 
-        $submittedSet = array_fill_keys($submitted, true);
+        $submittedRaw = $submittedQ->pluck('salesman_raw')->toArray();
+
+        $submittedSet = [];
+        foreach ($submittedRaw as $name) {
+            $canon = strtoupper(trim($this->normalizeSalesman((string)$name)));
+            if ($canon !== '') $submittedSet[$canon] = true;
+        }
+
+        $hasSohaib = isset($submittedSet['SOHAIB']);
+        $hasTariq  = isset($submittedSet['TARIQ']);
+        $hasJamal  = isset($submittedSet['JAMAL']);
+        $hasAbdo   = isset($submittedSet['ABDO']);
+        $hasAhmed  = isset($submittedSet['AHMED']);
+
+        $hasAnyCentral = ($hasTariq || $hasJamal);
+        $hasAnyWestern = ($hasAbdo || $hasAhmed);
 
         $missing = [];
-        foreach ($required as $s) {
-            $sU = strtoupper(trim($s));
-            if (!isset($submittedSet[$sU])) $missing[] = $sU;
+        $submittedRequired = [];
+
+        if ($areaNorm === 'EASTERN') {
+            if (!$hasSohaib) {
+                $missing[] = 'SOHAIB';
+            } else {
+                $submittedRequired[] = 'SOHAIB';
+            }
+        } elseif ($areaNorm === 'CENTRAL') {
+            if (!$hasAnyCentral) {
+                $missing[] = 'TARIQ/JAMAL (any one)';
+            } else {
+                if ($hasTariq) $submittedRequired[] = 'TARIQ';
+                if ($hasJamal) $submittedRequired[] = 'JAMAL';
+            }
+        } elseif ($areaNorm === 'WESTERN') {
+            if (!$hasAnyWestern) {
+                $missing[] = 'ABDO/AHMED (any one)';
+            }
+            if ($hasAbdo) $submittedRequired[] = 'ABDO';
+            if ($hasAhmed) $submittedRequired[] = 'AHMED';
+        } elseif ($areaNorm === 'ALL') {
+            // ALL scope:
+            // - Eastern: SOHAIB is mandatory
+            // - Central: any one of TARIQ/JAMAL
+            // - Western: any one of ABDO/AHMED
+            if (!$hasSohaib) $missing[] = 'SOHAIB';
+            else $submittedRequired[] = 'SOHAIB';
+
+            if (!$hasAnyCentral) {
+                $missing[] = 'TARIQ/JAMAL (any one)';
+            } else {
+                if ($hasTariq) $submittedRequired[] = 'TARIQ';
+                if ($hasJamal) $submittedRequired[] = 'JAMAL';
+            }
+
+            if (!$hasAnyWestern) {
+                $missing[] = 'ABDO/AHMED (any one)';
+            } else {
+                if ($hasAbdo) $submittedRequired[] = 'ABDO';
+                if ($hasAhmed) $submittedRequired[] = 'AHMED';
+            }
+        } else {
+            foreach ($required as $s) {
+                $sU = strtoupper(trim($s));
+                if (!isset($submittedSet[$sU])) $missing[] = $sU;
+                else $submittedRequired[] = $sU;
+            }
         }
 
         $weekly_report = [
@@ -1514,8 +1580,9 @@ class SalesmanPerformanceController extends Controller
             'ok'     => empty($missing),
             'status' => empty($missing) ? 'YES' : 'NO',
             'detail' => empty($missing)
-                ? "Saved for week {$prevStart->format('d-M')} → {$prevEnd->format('d-M-Y')} ."
-                : "Missing ({$prevStart->format('d-M')} → {$prevEnd->format('d-M-Y')} : " . implode(', ', $missing),
+                ? "Saved for week {$prevStart->format('d-M')} → {$prevEnd->format('d-M-Y')}."
+                : "Missing ({$prevStart->format('d-M')} → {$prevEnd->format('d-M-Y')}): " . implode(', ', $missing)
+                    . (count($submittedRequired) ? " | Submitted: " . implode(', ', $submittedRequired) : ''),
         ];
 
 
@@ -1608,8 +1675,8 @@ class SalesmanPerformanceController extends Controller
             'weekly_report' => $weekly_report,
             'bnc_update' => $bnc_update,
             'meta' => [
-                'week_start' => $weekStart->toDateString(),
-                'week_end' => $weekEnd->toDateString(),
+                'week_start' => $prevStart->toDateString(),
+                'week_end' => $prevEnd->toDateString(),
             ],
         ];
     }
