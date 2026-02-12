@@ -83,12 +83,37 @@
             font-variant-numeric: tabular-nums;
         }
 
-        /* Zebra striping (keep sticky columns readable) */
-        .matrix-table tbody tr:nth-child(odd) td:not(.matrix-left-sticky):not(.matrix-left-sticky-2){
-            background: rgba(255,255,255,.02);
+        /* Zebra striping (attractive alternating scheme) */
+        .matrix-table tbody tr:nth-child(odd) td{
+            background: linear-gradient(180deg, rgba(74,118,197,.10), rgba(74,118,197,.04));
         }
-        .matrix-table tbody tr:nth-child(even) td:not(.matrix-left-sticky):not(.matrix-left-sticky-2){
-            background: rgba(255,255,255,.01);
+        .matrix-table tbody tr:nth-child(even) td{
+            background: linear-gradient(180deg, rgba(96,196,255,.08), rgba(96,196,255,.03));
+        }
+
+        .matrix-table tbody tr:hover td{
+            background: linear-gradient(180deg, rgba(133,220,255,.20), rgba(133,220,255,.08)) !important;
+        }
+
+        .matrix-table tbody tr:nth-child(odd) td.matrix-left-sticky,
+        .matrix-table tbody tr:nth-child(odd) td.matrix-left-sticky-2{
+            background: linear-gradient(180deg, rgba(27,42,74,.95), rgba(14,24,45,.95)) !important;
+        }
+        .matrix-table tbody tr:nth-child(even) td.matrix-left-sticky,
+        .matrix-table tbody tr:nth-child(even) td.matrix-left-sticky-2{
+            background: linear-gradient(180deg, rgba(19,35,66,.95), rgba(11,20,39,.95)) !important;
+        }
+
+        /* Totals column emphasis */
+        .matrix-table th:last-child{
+            background: linear-gradient(180deg, rgba(149,197,61,.38), rgba(149,197,61,.16)) !important;
+            color: #ecffd6 !important;
+        }
+        .matrix-table td:last-child{
+            background: linear-gradient(180deg, rgba(149,197,61,.22), rgba(149,197,61,.10)) !important;
+            color: #e8ffd2;
+            font-weight: 700;
+            border-left: 1px solid rgba(149,197,61,.34);
         }
 
         /* Performance flags (match PDF feel) */
@@ -129,6 +154,38 @@
 
         .matrix-salesman{ width:160px; font-weight:700; }
         .matrix-label{ width:210px; font-weight:600; }
+
+        .conv-pill{
+            display:inline-block;
+            min-width: 68px;
+            text-align:center;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .03em;
+            border: 1px solid transparent;
+        }
+        .conv-pill.excellent{ background:#0f2b19; color:#8bffb5; border-color:#14532d; }
+        .conv-pill.good{ background:#0a2233; color:#8fd4ff; border-color:#1e3a5f; }
+        .conv-pill.mid{ background:#2d2a10; color:#ffe08a; border-color:#6b5b19; }
+        .conv-pill.low{ background:#2a1c0f; color:#ffb37a; border-color:#7a4b20; }
+        .conv-pill.danger{ background:#2a1010; color:#ff9a9a; border-color:#7f1d1d; }
+
+        .salesman-conv-card .kpi-label{
+            margin-bottom: .35rem;
+        }
+        .salesman-conv-card .gauge-wrap{
+            height: 128px;
+            width: 148px;
+            margin: 0 auto;
+        }
+        .salesman-conv-card .kpi-foot{
+            font-size: .73rem;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: rgba(220,230,255,.82);
+        }
 
         /* Make Bootstrap "text-muted" readable in dark cards */
         .text-muted { color: rgba(255,255,255,.55) !important; }
@@ -210,19 +267,17 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-4">
-                                <div class="card bg-dark text-light coordinator-kpi-card">
-                                    <div class="card-body text-center">
-                                        <div class="text-uppercase small text-secondary mb-1">Gap Coverage</div>
-                                        <div id="salesman_gap_gauge" style="height: 140px;"></div>
+                            <div class="col-12 col-sm-6 col-lg-4">
+                                <div class="kpi-card shadow-sm p-3 text-center h-100 d-flex flex-column salesman-conv-card">
+                                    <div class="kpi-label">Conversion Rate</div>
 
-                                        <div class="mt-2 small">
-                                            <div id="salesman_gap_text" class="fw-semibold">Gap: SAR 0</div>
-                                            <div id="salesman_gap_note" class="text-uppercase mt-1"
-                                                 style="letter-spacing: .12em; font-size: .75rem;">
-                                                POs vs Quotations
-                                            </div>
-                                        </div>
+                                    <div class="gauge-wrap">
+                                        <div id="salesman_gap_gauge" style="height: 100%; width: 100%;"></div>
+                                    </div>
+
+                                    <div class="mt-2">
+                                        <div id="salesman_gap_text" class="fw-semibold">Gap: SAR 0</div>
+                                        <div id="salesman_gap_note" class="kpi-foot mt-1">POs vs Quotations</div>
                                     </div>
                                 </div>
                             </div>
@@ -385,6 +440,19 @@
             if (!isFinite(v)) return '0.0%';
             return v.toFixed(1) + '%';
         };
+
+        function conversionPillHTML(n){
+            const v = Number(n);
+            if (!isFinite(v)) return '<span class="conv-pill danger">0.0%</span>';
+
+            let cls = 'danger';
+            if (v >= 100) cls = 'excellent';
+            else if (v >= 60) cls = 'good';
+            else if (v >= 40) cls = 'mid';
+            else if (v >= 20) cls = 'low';
+
+            return `<span class="conv-pill ${cls}">${v.toFixed(1)}%</span>`;
+        }
 
         function currentYear(){ return document.getElementById('yearSelect')?.value || YEAR_INIT; }
         function currentArea(){ return document.getElementById('areaSelect')?.value || 'All'; }
@@ -602,7 +670,7 @@
                         outerRadius: '100%',
                         shape: 'arc',
                         borderWidth: 0,
-                        backgroundColor: '#1f2937'
+                        backgroundColor: 'rgba(255,255,255,.12)'
                     }
                 },
                 tooltip: { enabled: false },
@@ -626,17 +694,23 @@
                             borderWidth: 0,
                             padding: 0,
                             y: -20,
-                            style: { color: '#e5e7eb' },
+                            style: { color: '#eaf2ff' },
                             format:
                                 '<div style="text-align:center">' +
-                                '<div style="font-size:22px;font-weight:600">{y:.0f}%</div>' +
-                                '<div style="font-size:11px;">POs vs Quotations</div>' +
+                                '<div style="font-size:24px;font-weight:800">{y:.1f}%</div>' +
+                                '<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;">Conversion</div>' +
                                 '</div>'
                         }
                     }
                 },
                 credits: { enabled: false },
-                series: [{ name: 'Coverage', data: [coverage] }]
+                series: [{
+                    name: 'Coverage',
+                    data: [{
+                        y: coverage,
+                        color: coverage >= 60 ? '#22c55e' : (coverage >= 30 ? '#facc15' : '#ef4444')
+                    }]
+                }]
             });
 
             const gapText = document.getElementById('salesman_gap_text');
@@ -725,7 +799,7 @@
                         `;
 
                         if (kind === 'pct') {
-                            html += row.map(v => `<td class="pct">${pct(v)}</td>`).join('');
+                            html += row.map(v => `<td class="pct">${conversionPillHTML(v)}</td>`).join('');
                         } else if (kind === 'perfHtml') {
                             html += row.map(cell => {
                                 const h = (cell && typeof cell === 'object' && cell.html)

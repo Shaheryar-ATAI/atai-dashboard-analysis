@@ -113,7 +113,7 @@ class Project extends Model
 
     public function scopeStaleBidding(Builder $q): Builder
     {
-        $threshold = now()->subMonths(3)->startOfDay();
+        $threshold = now()->subMonths(3)->toDateString();
 
         return $q
             ->whereRaw("LOWER(TRIM(project_type)) = 'bidding'")
@@ -122,7 +122,7 @@ class Project extends Model
                     ->orWhereRaw("TRIM(status) = ''");
             })
             ->whereNull('status_current')
-            ->whereDate('quotation_date', '<=', $threshold)
+            ->where('quotation_date', '<=', $threshold)
             ->where('quotation_value','>=',500000);
     }
 

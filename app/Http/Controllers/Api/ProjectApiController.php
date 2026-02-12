@@ -676,13 +676,31 @@ class ProjectApiController extends Controller
         $q = Project::query()
             ->whereNull('deleted_at')
             ->staleBidding()
-            ->forUserRegion($user);
+            ->forUserRegion($user)
+            ->select([
+                'id',
+                'quotation_no',
+                'revision_no',
+                'client_name',
+                'project_name',
+                'project_location',
+                'project_type',
+                'area',
+                'quotation_date',
+                'quotation_value',
+                'value_with_vat',
+                'status',
+                'status_current',
+                'last_comment',
+                'salesperson',
+                'salesman',
+            ]);
 
         // Region filter (optional)
         $areaRaw = $req->input('area') ?? $req->input('region') ?? '';
-        $area = strtolower(trim((string)$areaRaw));
-        if ($area !== '' && $area !== 'all') {
-            $q->whereRaw('LOWER(TRIM(area)) = ?', [$area]);
+        $area = trim((string)$areaRaw);
+        if ($area !== '' && strcasecmp($area, 'all') !== 0) {
+            $q->where('area', ucfirst(strtolower($area)));
         }
 
         // Family filter (optional)
@@ -741,10 +759,10 @@ class ProjectApiController extends Controller
             $q->whereMonth('quotation_date', (int)$req->input('month'));
         }
         if ($req->filled('date_from')) {
-            $q->whereDate('quotation_date', '>=', $req->input('date_from'));
+            $q->where('quotation_date', '>=', $req->input('date_from'));
         }
         if ($req->filled('date_to')) {
-            $q->whereDate('quotation_date', '<=', $req->input('date_to'));
+            $q->where('quotation_date', '<=', $req->input('date_to'));
         }
 
         return $q->orderBy('quotation_date', 'asc');

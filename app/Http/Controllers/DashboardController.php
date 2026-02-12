@@ -4,22 +4,30 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
     public function kpis(Request $req)
     {
         $user = $req->user();
-        $q = Project::query();
+        $base = Project::query();
 
         if (!$user->hasRole(['gm', 'manager'])) {
-            $q->where('area', $user->region);
+            $base->where('area', $user->region);
         }
 
-        $all = $q->get();
+        $countsByArea = (clone $base)
+            ->select('area', DB::raw('COUNT(*) as total'))
+            ->groupBy('area')
+            ->pluck('total', 'area')
+            ->map(fn($v) => (int)$v);
 
-        $countsByArea = $all->groupBy('area')->map->count();
-        $valueByStatus = $all->groupBy('status')->map(fn($g) => (float)$g->sum('price'));
+        $valueByStatus = (clone $base)
+            ->select('status', DB::raw('SUM(COALESCE(price, quotation_value, value_with_vat, 0)) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->map(fn($v) => (float)$v);
 
         return [
             'countsByArea' => $countsByArea,

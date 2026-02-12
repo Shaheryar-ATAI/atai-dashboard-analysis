@@ -8,6 +8,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class SalesOrderController extends Controller
 {
+    private ?array $salesOrderColumns = null;
+
     public function index()
     {
         return view('sales_orders.index');
@@ -20,12 +22,16 @@ class SalesOrderController extends Controller
     /** Check if a physical column exists on salesorderlog (Excel header). */
     private function hasColumn(string $column): bool
     {
-        $db = DB::getDatabaseName();
-        return DB::table('information_schema.COLUMNS')
-            ->where('TABLE_SCHEMA', $db)
-            ->where('TABLE_NAME', 'salesorderlog')
-            ->where('COLUMN_NAME', $column)
-            ->exists();
+        if ($this->salesOrderColumns === null) {
+            $db = DB::getDatabaseName();
+            $this->salesOrderColumns = DB::table('information_schema.COLUMNS')
+                ->where('TABLE_SCHEMA', $db)
+                ->where('TABLE_NAME', 'salesorderlog')
+                ->pluck('COLUMN_NAME')
+                ->all();
+        }
+
+        return in_array($column, $this->salesOrderColumns, true);
     }
 
 
@@ -54,8 +60,8 @@ class SalesOrderController extends Controller
             'cur' => "`Cur`",
             'status' => "`Status`",
 
-            'po_value' => "CAST(NULLIF(REPLACE(REPLACE(`PO Value`, ',', ''), ' ', ''), '') AS DECIMAL(18,2))",
-            'value_with_vat' => "CAST(NULLIF(REPLACE(REPLACE(`value_with_vat`, ',', ''), ' ', ''), '') AS DECIMAL(18,2))",
+            'po_value' => "COALESCE(`PO Value`, 0)",
+            'value_with_vat' => "COALESCE(`value_with_vat`, 0)",
         ];
     }
     /* -----------------------------------------------------------
@@ -157,16 +163,6 @@ class SalesOrderController extends Controller
         $rowsQ = $this->applyDtFilters($this->baseSelect(), $request);
         $sumQ = $this->applyDtFilters(DB::table('salesorderlog'), $request);
 
-        // Apply top-level filters (same as the KPI filters)
-        if ($request->filled('year')) {
-            $rowsQ->whereYear('date_rec', (int)$request->year);
-            $sumQ->whereYear('date_rec', (int)$request->year);
-        }
-        if ($request->filled('region')) {
-            $rowsQ->whereRaw($m['region_name'] . ' = ?', [$request->region]);
-            $sumQ->whereRaw($m['region_name'] . ' = ?', [$request->region]);
-        }
-
         // Totals using the same filters
         $sumPo = (float)(clone $sumQ)->selectRaw('SUM(' . $m['po_value'] . ') AS s')->value('s');
         $sumVat = (float)(clone $sumQ)->selectRaw('SUM(' . $m['value_with_vat'] . ') AS s')->value('s');
@@ -206,9 +202,9 @@ class SalesOrderController extends Controller
         // Helper to re-use the same WHEREs
         $mk = fn() => (clone $base);
 
-        // --- Robust numeric expressions (handle strings like "12,345.67")
-        $vatExpr = "CAST(NULLIF(REPLACE(REPLACE({$m['value_with_vat']}, ',', ''), ' ', ''), '') AS DECIMAL(18,2))";
-        $poExpr = "CAST(NULLIF(REPLACE(REPLACE({$m['po_value']},       ',', ''), ' ', ''), '') AS DECIMAL(18,2))";
+        // Stored as DECIMAL in current schema; keep expressions simple for faster aggregation.
+        $vatExpr = "COALESCE({$m['value_with_vat']}, 0)";
+        $poExpr = "COALESCE({$m['po_value']}, 0)";
 
         // --- Normalize statuses (align pie + bars)
         $statusCase = "

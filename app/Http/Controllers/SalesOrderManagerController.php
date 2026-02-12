@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Yajra\DataTables\Facades\DataTables;
 
 class SalesOrderManagerController extends Controller
@@ -106,7 +107,17 @@ class SalesOrderManagerController extends Controller
         // Sales user: always restricted to self
         if (!$isAdmin) {
             $userKey = $this->resolveSalespersonCanonical($u->name ?? null);
-            return $this->aliasesForCanonical($userKey);
+            if ($userKey) {
+                return $this->aliasesForCanonical($userKey);
+            }
+
+            // Fallback to the logged-in region scope
+            $region = strtolower(trim((string)($u->region ?? '')));
+            if (in_array($region, ['eastern', 'central', 'western'], true)) {
+                return $this->salesAliasesForRegion($region);
+            }
+
+            return [];
         }
 
         // GM/Admin: optional salesman filter
@@ -319,6 +330,247 @@ class SalesOrderManagerController extends Controller
         return [$q, $dateExprSql, $valExprSql, $applyRegion, $family, $status, $loggedUserAliases, $isAdmin];
     }
 
+    private function isRejectedStatus(?string $oaa, ?string $status): bool
+    {
+        $oaaNorm = strtolower(trim((string)$oaa));
+        $stNorm = strtolower(trim((string)$status));
+
+        foreach ([$oaaNorm, $stNorm] as $txt) {
+            if ($txt === '') {
+                continue;
+            }
+            if (str_contains($txt, 'reject') || str_contains($txt, 'cancel')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function buildSalesOrdersProvinceSummaryFromRows($rows): array
+    {
+        $provinces = [
+            'EASTERN' => 'KSA Eastern Province',
+            'WESTERN' => 'KSA Western Province',
+            'CENTRAL' => 'KSA Central Province',
+            'EXPORT'  => 'Export ( Qatar, Bahrain & Kuwait)',
+        ];
+
+        $summary = [];
+        foreach ($provinces as $key => $label) {
+            $summary[$key] = [
+                'label' => $label,
+                'rejected' => 0.0,
+                'total' => 0.0,
+            ];
+        }
+
+        foreach ($rows as $row) {
+            $regionRaw = strtoupper(trim((string)($row->project_region ?? $row->region ?? '')));
+            if (str_contains($regionRaw, 'EAST')) {
+                $provKey = 'EASTERN';
+            } elseif (str_contains($regionRaw, 'WEST')) {
+                $provKey = 'WESTERN';
+            } elseif (str_contains($regionRaw, 'CENT')) {
+                $provKey = 'CENTRAL';
+            } elseif (
+                str_contains($regionRaw, 'EXPORT') ||
+                str_contains($regionRaw, 'QATAR') ||
+                str_contains($regionRaw, 'BAHRAIN') ||
+                str_contains($regionRaw, 'KUWAIT')
+            ) {
+                $provKey = 'EXPORT';
+            } else {
+                continue;
+            }
+
+            $po = (float)($row->po_value ?? 0);
+            if ($po <= 0) {
+                continue;
+            }
+
+            if ($this->isRejectedStatus($row->sales_oaa ?? null, $row->status ?? null)) {
+                $summary[$provKey]['rejected'] += $po;
+            } else {
+                $summary[$provKey]['total'] += $po;
+            }
+        }
+
+        return $summary;
+    }
+
+    public function exportPdf(Request $r)
+    {
+        $aliases = $this->effectiveAliases($r);
+
+        $regionChip = strtolower(trim((string)$r->query('region', '')));
+        $regionFilter = in_array($regionChip, ['eastern', 'central', 'western'], true) ? $regionChip : '';
+
+        $familySel = strtolower(trim((string)$r->query('family', '')));
+        if ($familySel === 'all') {
+            $familySel = '';
+        }
+
+        $oaaSel = strtolower(trim((string)$r->query('oaa', $r->query('status', ''))));
+        if ($oaaSel === 'all') {
+            $oaaSel = '';
+        }
+
+        $includeRejected = $r->boolean('include_rejected', false);
+        $soDateExpr = "COALESCE(NULLIF(s.date_rec,'0000-00-00'), DATE(s.created_at))";
+
+        $year = (int)($r->query('year') ?: now()->year);
+        $month = $r->filled('month') ? (int)$r->query('month') : null;
+        $from = trim((string)$r->query('from', ''));
+        $to = trim((string)$r->query('to', ''));
+
+        $q = DB::table('salesorderlog as s')
+            ->whereNull('s.deleted_at')
+            ->tap(function ($qq) use ($aliases) {
+                $this->applySalesAliasesToSol($qq, $aliases);
+            })
+            ->when($regionFilter !== '', fn($qq) => $qq->whereRaw('LOWER(TRIM(s.project_region)) = ?', [$regionFilter]))
+            ->when($familySel !== '', function ($qq) use ($familySel) {
+                $this->applyFamilyFilter($qq, $familySel);
+            })
+            ->when($oaaSel !== '', fn($qq) => $qq->whereRaw('LOWER(TRIM(s.`Sales OAA`)) = ?', [$oaaSel]));
+
+        // Date precedence: range > month > year
+        if ($from !== '' || $to !== '') {
+            $fromVal = $from !== '' ? $from : '1900-01-01';
+            $toVal = $to !== '' ? $to : '2999-12-31';
+            $q->whereRaw("DATE($soDateExpr) BETWEEN ? AND ?", [$fromVal, $toVal]);
+        } elseif ($month) {
+            $q->whereRaw("YEAR($soDateExpr) = ?", [$year])
+              ->whereRaw("MONTH($soDateExpr) = ?", [$month]);
+        } else {
+            $q->whereRaw("YEAR($soDateExpr) = ?", [$year]);
+        }
+
+        $rows = $q->orderBy('s.date_rec')
+            ->select([
+                DB::raw('s.`Client Name` AS client_name'),
+                's.region',
+                's.project_region',
+                DB::raw('s.`Location` AS location'),
+                's.date_rec',
+                DB::raw('s.`PO. No.` AS po_no'),
+                DB::raw('s.`Products` AS products'),
+                DB::raw('s.`Quote No.` AS quote_no'),
+                DB::raw('s.`Cur` AS cur'),
+                DB::raw('COALESCE(s.`PO Value`, 0) AS po_value'),
+                DB::raw('COALESCE(s.`value_with_vat`, 0) AS value_with_vat'),
+                DB::raw('s.`Payment Terms` AS payment_terms'),
+                DB::raw('s.`Project Name` AS project_name'),
+                DB::raw('s.`Project Location` AS project_location'),
+                DB::raw('s.`Status` AS status'),
+                DB::raw('s.`Sales OAA` AS sales_oaa'),
+                DB::raw('s.`Job No.` AS job_no'),
+                DB::raw('s.`Sales Source` AS sales_source'),
+            ])
+            ->get();
+
+        $summary = $this->buildSalesOrdersProvinceSummaryFromRows($rows);
+        $order = ['EASTERN', 'WESTERN', 'CENTRAL', 'EXPORT'];
+
+        $summaryRows = [];
+        $totalOrders = 0.0;
+        $totalRejected = 0.0;
+        foreach ($order as $key) {
+            $row = $summary[$key] ?? ['label' => $key, 'total' => 0, 'rejected' => 0];
+            $summaryRows[] = [
+                'label' => $row['label'],
+                'total' => (float)$row['total'],
+                'rejected' => (float)$row['rejected'],
+            ];
+            $totalOrders += (float)$row['total'];
+            $totalRejected += (float)$row['rejected'];
+        }
+
+        $mappedRows = $rows->map(function ($row) use ($includeRejected) {
+            $isRejected = $this->isRejectedStatus($row->sales_oaa ?? null, $row->status ?? null);
+            if ($isRejected && !$includeRejected) {
+                return null;
+            }
+
+            $dateRec = $row->date_rec;
+            if ($dateRec instanceof \Carbon\CarbonInterface) {
+                $dateRec = $dateRec->format('Y-m-d');
+            }
+
+            return [
+                'client' => (string)($row->client_name ?? ''),
+                'area' => (string)($row->project_region ?? $row->region ?? ''),
+                'location' => (string)($row->location ?? ''),
+                'date_rec' => (string)($dateRec ?? ''),
+                'po_no' => (string)($row->po_no ?? ''),
+                'atai_products' => (string)($row->products ?? ''),
+                'quotation_no' => (string)($row->quote_no ?? ''),
+                'ref_no' => '',
+                'cur' => (string)($row->cur ?? 'SAR'),
+                'po_value' => (float)($row->po_value ?? 0),
+                'value_with_vat' => (float)($row->value_with_vat ?? 0),
+                'payment_terms' => (string)($row->payment_terms ?? ''),
+                'project' => (string)($row->project_name ?? ''),
+                'project_location' => (string)($row->project_location ?? ''),
+                'status' => (string)($row->status ?? ''),
+                'oaa' => (string)($row->sales_oaa ?? ''),
+                'job_no' => (string)($row->job_no ?? ''),
+                'salesman' => (string)($row->sales_source ?? ''),
+                'remarks' => '',
+                'is_rejected' => $isRejected,
+            ];
+        })->filter()->values();
+
+        $periodLabel = (string)$year;
+        if ($from !== '' || $to !== '') {
+            if ($from !== '' && $to !== '') {
+                $periodLabel = $from . ' to ' . $to;
+            } elseif ($from !== '') {
+                $periodLabel = 'From ' . $from;
+            } else {
+                $periodLabel = 'To ' . $to;
+            }
+        } elseif ($month) {
+            $periodLabel = date('M', mktime(0, 0, 0, $month, 1)) . '-' . $year;
+        }
+
+        $regionLabel = $regionFilter !== ''
+            ? ucfirst($regionFilter) . ' Region'
+            : 'All Regions';
+
+        $logoPath = public_path('images/atai-logo.png');
+        if (!file_exists($logoPath)) {
+            $logoPath = null;
+        }
+
+        $payload = [
+            'generatedAt'   => now()->format('Y-m-d'),
+            'periodLabel'   => $periodLabel,
+            'regionLabel'   => $regionLabel,
+            'summaryRows'   => $summaryRows,
+            'totalOrders'   => $totalOrders,
+            'totalRejected' => $totalRejected,
+            'rows'          => $mappedRows,
+            'logoPath'      => $logoPath,
+        ];
+
+        if ($from !== '' || $to !== '') {
+            $periodSlug = ($from !== '' ? $from : 'start') . '_to_' . ($to !== '' ? $to : 'end');
+        } elseif ($month) {
+            $periodSlug = date('F', mktime(0, 0, 0, $month, 1)) . '_' . $year;
+        } else {
+            $periodSlug = (string)$year;
+        }
+
+        $periodSlug = preg_replace('/[^A-Za-z0-9_-]+/', '_', (string)$periodSlug);
+        $fileName = 'sales_order_log_manager_' . $periodSlug . '.pdf';
+
+        return Pdf::loadView('reports.coordinator-sales-orders-pdf', $payload)
+            ->setPaper('a4', 'landscape')
+            ->download($fileName);
+    }
+
 
     /* =========================================================
      * DataTable
@@ -365,15 +617,20 @@ class SalesOrderManagerController extends Controller
         $q = $base->select([
             's.id',
             DB::raw('s.`PO. No.`          AS po_no'),
+            DB::raw('s.`Quote No.`        AS quote_no'),
             's.date_rec',
             's.region',
             DB::raw('s.`Client Name`      AS client_name'),
             DB::raw('s.`project_region`   AS project_region'),
+            DB::raw('s.`Location`         AS location'),
             DB::raw('s.`Project Name`     AS project_name'),
             DB::raw('s.`Project Location` AS project_location'),
             DB::raw('s.`Products`         AS product_family'),
+            DB::raw('s.`Cur`              AS cur'),
             DB::raw('s.`value_with_vat`   AS value_with_vat'),
             DB::raw('s.`PO Value`         AS po_value'),
+            DB::raw('s.`Payment Terms`    AS payment_terms'),
+            DB::raw('s.`Job No.`          AS job_no'),
             DB::raw('s.`Status`           AS status'),
             DB::raw('s.`Sales OAA`        AS sales_oaa'),   // ✅ FIX
             DB::raw('s.`Remarks`          AS remarks'),

@@ -327,6 +327,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/sales-orders/manager/salesmen', [SalesOrderManagerController::class, 'salesmen'])
         ->name('salesorders.manager.salesmen');
 
+    Route::get('/sales-orders/manager/export-pdf', [SalesOrderManagerController::class, 'exportPdf'])
+        ->name('salesorders.manager.export.pdf');
+
 
     /* ====================================================================
      | BNC (All authenticated; upload visibility is handled in controller/ui)

@@ -1373,3 +1373,416 @@ body::before { pointer-events: none !important; }
 .navbar-atai .navbar-nav .nav-link i{
     font-size: 0.85rem;
 }
+
+/* ---------------------------------------------------------------------
+   22) GLOBAL CONSISTENCY POLISH (all app pages using layouts.app)
+   --------------------------------------------------------------------- */
+:root{
+    --atai-radius: 14px;
+    --atai-radius-sm: 10px;
+    --atai-border-soft: rgba(255,255,255,.11);
+    --atai-surface-a: rgba(18,24,40,.90);
+    --atai-surface-b: rgba(12,17,30,.92);
+    --atai-text-soft: #b7c2db;
+    --atai-text-strong: #eef4ff;
+}
+
+body.atai-app{
+    font-family: "Manrope", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--atai-text-strong);
+}
+body.atai-app h1,
+body.atai-app h2,
+body.atai-app h3,
+body.atai-app h4,
+body.atai-app h5,
+body.atai-app h6,
+body.atai-app .brand-word{
+    font-family: "Sora", "Manrope", "Segoe UI", sans-serif;
+    letter-spacing: .01em;
+}
+
+.atai-page-shell{
+    animation: ataiPageFade .26s ease-out both;
+}
+@keyframes ataiPageFade{
+    from{ opacity:0; transform: translateY(6px); }
+    to{ opacity:1; transform: translateY(0); }
+}
+
+body.atai-app .card,
+body.atai-app .modal-content{
+    border-radius: var(--atai-radius);
+    border: 1px solid var(--atai-border-soft);
+    background: linear-gradient(180deg, var(--atai-surface-a), var(--atai-surface-b));
+    box-shadow: 0 14px 30px rgba(0,0,0,.34);
+}
+body.atai-app .card-header{
+    border-bottom: 1px solid rgba(255,255,255,.10);
+    background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+}
+
+body.atai-app .form-control,
+body.atai-app .form-select,
+body.atai-app .input-group-text{
+    border-radius: var(--atai-radius-sm);
+    border-color: rgba(148,163,184,.36);
+    background: rgba(9,13,24,.80);
+    color: #e8efff;
+}
+body.atai-app .form-control::placeholder{
+    color: #93a2c1;
+}
+body.atai-app .form-control:focus,
+body.atai-app .form-select:focus{
+    border-color: rgba(149,197,61,.75);
+    box-shadow: 0 0 0 .2rem rgba(149,197,61,.18);
+}
+
+body.atai-app .btn{
+    border-radius: var(--atai-radius-sm);
+    font-weight: 600;
+}
+body.atai-app .btn-primary{
+    background: linear-gradient(135deg, #4c63ff, #6a5cff);
+    border-color: rgba(106,92,255,.85);
+    box-shadow: 0 10px 22px rgba(76,99,255,.28);
+}
+body.atai-app .btn-primary:hover{
+    filter: brightness(1.06);
+}
+
+body.atai-app .table{
+    --bs-table-color: #e6edff;
+    --bs-table-bg: transparent;
+    --bs-table-border-color: rgba(148,163,184,.20);
+}
+body.atai-app .table thead th{
+    border-bottom-color: rgba(148,163,184,.28);
+    background: rgba(2,6,23,.75);
+    color: #d8e5ff;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-size: .74rem;
+}
+body.atai-app .table tbody tr:hover{
+    background: rgba(76,99,255,.10);
+}
+
+body.atai-app .dataTables_wrapper .dataTables_info,
+body.atai-app .dataTables_wrapper .dataTables_paginate,
+body.atai-app .dataTables_wrapper .dataTables_length,
+body.atai-app .dataTables_wrapper .dataTables_filter{
+    color: var(--atai-text-soft) !important;
+}
+body.atai-app .dataTables_wrapper .page-link{
+    background: rgba(2,6,23,.75);
+    border-color: rgba(148,163,184,.35);
+    color: #e6edff;
+}
+body.atai-app .dataTables_wrapper .page-item.active .page-link{
+    background: #4c63ff;
+    border-color: #4c63ff;
+}
+
+/* ---------------------------------------------------------------------
+   23) FUTURISTIC RESKIN V2 (dramatic global override)
+   --------------------------------------------------------------------- */
+:root{
+    --atai-fx-bg-a: #050813;
+    --atai-fx-bg-b: #090f1d;
+    --atai-fx-bg-c: #111b31;
+    --atai-fx-ink: #e9f2ff;
+    --atai-fx-soft: #9fb2d7;
+    --atai-fx-neon: #63d5ff;
+    --atai-fx-neon-2: #76ffb5;
+    --atai-fx-primary-a: #3e74ff;
+    --atai-fx-primary-b: #6a5cff;
+    --atai-fx-border: rgba(131, 164, 221, .26);
+}
+
+body.atai-future{
+    background:
+        radial-gradient(1100px 520px at -10% -20%, rgba(99,213,255,.22), transparent 52%),
+        radial-gradient(980px 520px at 110% -10%, rgba(118,255,181,.14), transparent 58%),
+        linear-gradient(170deg, var(--atai-fx-bg-c) 0%, var(--atai-fx-bg-b) 38%, var(--atai-fx-bg-a) 100%) !important;
+    color: var(--atai-fx-ink);
+    min-height: 100vh;
+}
+body.atai-future::before{
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(106,138,200,.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(106,138,200,.08) 1px, transparent 1px);
+    background-size: 36px 36px, 36px 36px;
+    opacity: .34;
+    z-index: 0;
+    pointer-events: none !important;
+}
+body.atai-future::after{
+    content: "";
+    position: fixed;
+    width: 45vw;
+    height: 45vw;
+    right: -14vw;
+    top: -16vw;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(99,213,255,.24) 0%, rgba(99,213,255,0) 70%);
+    filter: blur(10px);
+    z-index: 0;
+    pointer-events: none;
+    animation: ataiOrbFloat 16s ease-in-out infinite alternate;
+}
+@keyframes ataiOrbFloat{
+    from{ transform: translate3d(0,0,0) scale(1); }
+    to{ transform: translate3d(-3vw,3vw,0) scale(1.08); }
+}
+
+body.atai-future .container,
+body.atai-future .container-fluid{
+    position: relative;
+    z-index: 1;
+}
+
+body.atai-future .atai-page-shell{
+    padding-top: 1rem !important;
+    animation: ataiEnterV2 .42s cubic-bezier(.22,.61,.36,1) both;
+}
+@keyframes ataiEnterV2{
+    from{ opacity: 0; transform: translateY(10px); }
+    to{ opacity: 1; transform: translateY(0); }
+}
+
+/* Floating glass navbar */
+body.atai-future .navbar-atai{
+    margin: 12px 14px 0 !important;
+    border-radius: 18px !important;
+    border: 1px solid rgba(116, 173, 255, .28) !important;
+    background:
+        linear-gradient(110deg, rgba(24,34,58,.90) 0%, rgba(12,19,34,.94) 45%, rgba(9,14,28,.95) 100%) !important;
+    backdrop-filter: blur(14px) saturate(125%);
+    box-shadow:
+        0 14px 38px rgba(0,0,0,.45),
+        inset 0 1px 0 rgba(255,255,255,.10),
+        0 0 0 1px rgba(118,255,181,.05);
+    top: 10px !important;
+}
+body.atai-future .navbar-atai .brand-word{
+    background: linear-gradient(90deg, #8feaff 0%, #7effbe 56%, #d8ffee 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+    text-shadow: 0 0 22px rgba(118,255,181,.25);
+}
+body.atai-future .navbar-atai .nav-pills .nav-link,
+body.atai-future .navbar-atai .navbar-nav .nav-link{
+    padding: .32rem .74rem !important;
+    border-radius: 999px !important;
+    border: 1px solid transparent !important;
+    color: #d9e8ff !important;
+    transition: all .2s ease;
+}
+body.atai-future .navbar-atai .nav-pills .nav-link:hover,
+body.atai-future .navbar-atai .navbar-nav .nav-link:hover{
+    background: rgba(99,213,255,.16) !important;
+    border-color: rgba(99,213,255,.34) !important;
+    color: #fff !important;
+    transform: translateY(-1px);
+}
+body.atai-future .navbar-atai .nav-pills .nav-link.active,
+body.atai-future .navbar-atai .navbar-nav .nav-link.active{
+    background: linear-gradient(100deg, rgba(62,116,255,.95), rgba(106,92,255,.92)) !important;
+    border-color: rgba(124,165,255,.70) !important;
+    color: #fff !important;
+    box-shadow: 0 8px 18px rgba(88,107,255,.45);
+}
+body.atai-future .navbar-atai .dropdown-menu{
+    border-radius: 12px !important;
+    border: 1px solid rgba(124,165,255,.42) !important;
+    background: linear-gradient(180deg, rgba(18,28,49,.98), rgba(10,16,30,.98)) !important;
+    box-shadow: 0 22px 42px rgba(0,0,0,.45);
+}
+body.atai-future .navbar-atai .dropdown-item{
+    color: #dce8ff !important;
+}
+body.atai-future .navbar-atai .dropdown-item:hover{
+    background: rgba(99,213,255,.14) !important;
+    color: #fff !important;
+}
+
+/* Cards / surfaces */
+body.atai-future .card,
+body.atai-future .modal-content{
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--atai-fx-border) !important;
+    border-radius: 16px !important;
+    background:
+        linear-gradient(180deg, rgba(19,29,50,.92) 0%, rgba(10,16,31,.94) 100%) !important;
+    box-shadow:
+        0 18px 38px rgba(0,0,0,.42),
+        inset 0 1px 0 rgba(255,255,255,.08);
+}
+body.atai-future .card::before,
+body.atai-future .modal-content::before{
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(99,213,255,0), rgba(99,213,255,.85), rgba(118,255,181,.78), rgba(118,255,181,0));
+    opacity: .82;
+    pointer-events: none;
+}
+body.atai-future .card:hover{
+    transform: translateY(-2px);
+    box-shadow:
+        0 22px 44px rgba(0,0,0,.46),
+        0 0 0 1px rgba(99,213,255,.12),
+        inset 0 1px 0 rgba(255,255,255,.08);
+}
+body.atai-future .card-header{
+    background: linear-gradient(180deg, rgba(110,148,220,.12), rgba(110,148,220,.03)) !important;
+    border-bottom: 1px solid rgba(125,159,223,.22) !important;
+}
+
+/* KPI emphasis */
+body.atai-future .kpi-card,
+body.atai-future .perf-kpi-card{
+    background:
+        radial-gradient(620px 140px at -10% -40%, rgba(99,213,255,.22), transparent 46%),
+        linear-gradient(180deg, rgba(19,30,53,.94), rgba(9,15,29,.95)) !important;
+}
+body.atai-future .kpi-value,
+body.atai-future .perf-kpi-value{
+    text-shadow: 0 0 18px rgba(99,213,255,.22);
+}
+
+/* Inputs */
+body.atai-future .form-control,
+body.atai-future .form-select,
+body.atai-future .input-group-text,
+body.atai-future .select2-selection{
+    border-radius: 12px !important;
+    border-color: rgba(126,156,219,.40) !important;
+    background: rgba(6,12,24,.72) !important;
+    color: #eaf2ff !important;
+}
+body.atai-future .form-control::placeholder{
+    color: #91a5c8 !important;
+}
+body.atai-future .form-control:focus,
+body.atai-future .form-select:focus{
+    border-color: rgba(99,213,255,.75) !important;
+    box-shadow: 0 0 0 .22rem rgba(99,213,255,.20) !important;
+}
+
+/* Buttons */
+body.atai-future .btn{
+    border-radius: 11px !important;
+    font-weight: 650;
+    letter-spacing: .01em;
+}
+body.atai-future .btn-primary{
+    background: linear-gradient(135deg, var(--atai-fx-primary-a), var(--atai-fx-primary-b)) !important;
+    border-color: rgba(116,145,255,.85) !important;
+    box-shadow: 0 12px 24px rgba(70, 99, 255, .36);
+}
+body.atai-future .btn-primary:hover{
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+}
+body.atai-future .btn-outline-light{
+    border-color: rgba(99,213,255,.48) !important;
+    color: #d9ecff !important;
+    background: rgba(10,20,38,.34) !important;
+}
+body.atai-future .btn-outline-light:hover{
+    background: rgba(99,213,255,.20) !important;
+    border-color: rgba(126,243,255,.76) !important;
+    color: #fff !important;
+}
+
+/* Chips used in coordinator/filters */
+body.atai-future .coord-chip,
+body.atai-future .region-chip,
+body.atai-future .btn-group .btn{
+    border-radius: 999px !important;
+}
+body.atai-future .coord-chip.active{
+    background: linear-gradient(120deg, rgba(59,130,246,.94), rgba(14,165,233,.92)) !important;
+    border-color: rgba(125,209,255,.78) !important;
+    box-shadow: 0 0 0 1px rgba(99,213,255,.34);
+}
+
+/* Tables / DataTables */
+body.atai-future .table{
+    --bs-table-bg: transparent;
+    --bs-table-color: #eaf2ff;
+    --bs-table-border-color: rgba(114,143,201,.22);
+}
+body.atai-future .table thead th{
+    background: linear-gradient(180deg, rgba(26,39,67,.96), rgba(14,24,44,.95)) !important;
+    border-bottom-color: rgba(128,163,224,.38) !important;
+    color: #dce8ff !important;
+    letter-spacing: .07em;
+    font-size: .71rem;
+}
+body.atai-future .table tbody tr{
+    transition: background-color .16s ease, transform .16s ease;
+}
+body.atai-future .table tbody tr:nth-child(even){
+    background: rgba(255,255,255,.01);
+}
+body.atai-future .table tbody tr:hover{
+    background: rgba(99,213,255,.12) !important;
+}
+body.atai-future .dataTables_wrapper .page-link{
+    border-radius: 9px !important;
+    border: 1px solid rgba(126,156,219,.45) !important;
+    background: rgba(8,14,28,.74) !important;
+    color: #dce8ff !important;
+}
+body.atai-future .dataTables_wrapper .page-item.active .page-link{
+    background: linear-gradient(135deg, rgba(64,123,255,.95), rgba(25,182,237,.92)) !important;
+    border-color: rgba(126,204,255,.78) !important;
+    box-shadow: 0 8px 20px rgba(32,120,255,.34);
+}
+
+/* Highcharts polish */
+body.atai-future .highcharts-title,
+body.atai-future .highcharts-subtitle{
+    fill: #e9f2ff !important;
+}
+body.atai-future .highcharts-axis-labels text,
+body.atai-future .highcharts-legend-item text{
+    fill: #c5d5f2 !important;
+}
+
+/* Scrollbar */
+body.atai-future ::-webkit-scrollbar{
+    width: 10px;
+    height: 10px;
+}
+body.atai-future ::-webkit-scrollbar-track{
+    background: rgba(9,15,28,.8);
+}
+body.atai-future ::-webkit-scrollbar-thumb{
+    background: linear-gradient(180deg, rgba(87,124,210,.86), rgba(57,95,188,.86));
+    border-radius: 999px;
+    border: 2px solid rgba(9,15,28,.85);
+}
+
+@media (max-width: 991.98px){
+    body.atai-future .navbar-atai{
+        margin: 8px 8px 0 !important;
+        top: 6px !important;
+        border-radius: 14px !important;
+    }
+    body.atai-future .atai-page-shell{
+        padding-top: .35rem !important;
+    }
+}

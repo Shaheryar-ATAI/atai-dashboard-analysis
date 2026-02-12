@@ -1,82 +1,107 @@
 {{-- resources/views/auth/login.blade.php --}}
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Sign in — ATAI</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <title>Sign in - ATAI</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          onerror="this.onerror=null;this.href='{{ asset('vendor/bootstrap/5.3.3/bootstrap.min.css') }}';">
+
+    @php
+        $themeVersion = @filemtime(public_path('css/atai-theme-20260210.css')) ?: time();
+    @endphp
+    <link rel="stylesheet" href="{{ asset('css/atai-theme-20260210.css') }}?v={{ $themeVersion }}">
 
     <style>
         html, body {
             height: 100%;
             margin: 0;
-            background: #0a0f1d;              /* fallback in case hero doesn't fill */
+            font-family: "Manrope", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0f1d;
         }
-        :root{
-            --atai-green: #95c53d;
-            --atai-deep:  #2e5a2e;
-            --ring: 0 0 0 .25rem rgba(149,197,61,.25);
 
-            /* hero theme */
+        :root {
+            --atai-green: #95c53d;
+            --ring: 0 0 0 .25rem rgba(149,197,61,.25);
             --cta-orange: #ff6a2a;
             --cta-orange-700: #e45717;
             --hero-ink: #eef3ff;
         }
 
-        /* ===========================
-           HERO LOGIN (split image + form)
-           =========================== */
-        body{ min-height:100vh; }
+        body { min-height: 100vh; }
 
-        .login-hero{
-            min-height: 100vh;                 /* fill full height */
+        .login-hero {
+            min-height: 100vh;
             display: block;
-                       position: relative; isolation:isolate;
+            position: relative;
+            isolation: isolate;
             color: var(--hero-ink);
             background:
                 radial-gradient(900px 420px at 65% 15%, rgba(255,255,255,.06), transparent 40%),
                 linear-gradient(160deg, #12192b 0%, #0b1120 60%, #0a0f1d 100%);
-            overflow:hidden;
+            overflow: hidden;
         }
-        .login-hero::before{
-            content:""; position:absolute; inset:0; z-index:-2;
+
+        .login-hero::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: -2;
             background: url('{{ asset('images/login-bg.jpg') }}') center/cover no-repeat;
-            opacity:.22; filter: blur(1px);
+            opacity: .22;
+            filter: blur(1px);
         }
-        .login-hero .container{
-            min-height: 100vh;                 /* was 92vh */
+
+        .login-hero .container {
+            min-height: 100vh;
             align-items: center;
-
             display: grid;
-            grid-template-columns: 1.05fr 0.95fr; gap: 2rem;
-            padding-top: 2rem; padding-bottom: 2rem;
+            grid-template-columns: 1.05fr 0.95fr;
+            gap: 2rem;
+            padding-top: 2rem;
+            padding-bottom: 2rem;
         }
 
-        /* Left side: big ATAI logo + small kicker/headline (optional) */
-        .hero-left{
-            display:flex; align-items:center; justify-content:center; position:relative;
+        .hero-left {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
         }
-        .hero-left .logo-wrap{
-            text-align:center;
-        }
-        .hero-left .kicker{
-            font-size:.8rem; letter-spacing:.18em; text-transform:uppercase;
+
+        .hero-left .logo-wrap { text-align: center; }
+
+        .hero-left .kicker {
+            font-size: .8rem;
+            letter-spacing: .18em;
+            text-transform: uppercase;
             color: rgba(149,197,61,.85);
-            margin-bottom:.35rem;
+            margin-bottom: .35rem;
         }
-        .hero-left h1{
-            color:#fff; font-weight:800; line-height:1.1; margin-bottom:1rem;
+
+        .hero-left h1 {
+            font-family: "Sora", "Manrope", "Segoe UI", sans-serif;
+            color: #fff;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1rem;
         }
-        .hero-logo{
-            width: 340px; max-width: 80%; height:auto;
+
+        .hero-logo {
+            width: 340px;
+            max-width: 80%;
+            height: auto;
             filter: drop-shadow(0 22px 40px rgba(0,0,0,.55));
             margin: .5rem auto 0;
         }
 
-        /* Right side: the card */
-        .auth-card{
+        .auth-card {
             border: 1px solid rgba(255,255,255,.14);
             background: rgba(255,255,255,.07);
             border-radius: 18px;
@@ -85,52 +110,60 @@
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
         }
-        .auth-card .card-body{ padding: 1.75rem; }
 
-        .logo-avatar{ display:none; } /* not needed now */
+        .auth-card .card-body { padding: 1.75rem; }
 
-        .text-atai{ color:#cfe8a1 !important; }
+        .text-atai { color: #cfe8a1 !important; }
 
-        .form-label{ color:#dbe7ff; }
-        .form-control, .form-select{
-            background: rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); color:#fff;
+        .form-label { color: #dbe7ff; }
+
+        .form-control, .form-select {
+            background: rgba(255,255,255,.12);
+            border: 1px solid rgba(255,255,255,.18);
+            color: #fff;
         }
-        .form-control::placeholder{ color: rgba(255,255,255,.65); }
-        .form-control:focus{ box-shadow: var(--ring); border-color: var(--atai-green); }
 
-        .btn-atai{
+        .form-control::placeholder { color: rgba(255,255,255,.65); }
+        .form-control:focus { box-shadow: var(--ring); border-color: var(--atai-green); }
+
+        .btn-atai {
             --bs-btn-bg: var(--cta-orange);
             --bs-btn-border-color: var(--cta-orange-700);
             --bs-btn-hover-bg: #ff6a2a;
-            --bs-btn-hover-border-color:#e45717;
-            --bs-btn-focus-shadow-rgb:255,106,42;
-            --bs-btn-active-bg:#e45717;
-            --bs-btn-active-border-color:#d64f14;
-            color:#fff; font-weight:800; letter-spacing:.02em;
+            --bs-btn-hover-border-color: #e45717;
+            --bs-btn-focus-shadow-rgb: 255,106,42;
+            --bs-btn-active-bg: #e45717;
+            --bs-btn-active-border-color: #d64f14;
+            color: #fff;
+            font-weight: 800;
+            letter-spacing: .02em;
             box-shadow: 0 10px 22px rgba(255,106,42,.25);
         }
-        .muted-link{ color:#c3cee6; }
-        .muted-link a{ color:#ffffff; text-decoration: underline; text-decoration-color: rgba(255,255,255,.45); }
 
-        .brandbar{ display:none; } /* hide old top strip on this page */
+        .muted-link { color: #c3cee6; }
+        .muted-link a { color: #ffffff; text-decoration: underline; text-decoration-color: rgba(255,255,255,.45); }
 
-        /* Responsive */
-        @media (max-width: 991.98px){
-            .login-hero .container{ grid-template-columns: 1fr; gap: 1.5rem; min-height:auto; }
-            .hero-left{ order:2; }
-            .hero-logo{ width: 260px; }
+        @media (max-width: 991.98px) {
+            .login-hero .container {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+                min-height: auto;
+            }
+
+            .hero-left { order: 2; }
+            .hero-logo { width: 260px; }
         }
-        @media (max-width: 575.98px){
-            .auth-card{ border-radius: 14px; }
-            .auth-card .card-body{ padding: 1.25rem; }
+
+        @media (max-width: 575.98px) {
+            .auth-card { border-radius: 14px; }
+            .auth-card .card-body { padding: 1.25rem; }
         }
     </style>
 </head>
 
-<body>
+<body class="atai-app atai-future">
 <section class="login-hero">
     <div class="container">
-        {{-- LEFT: ATAI logo and headline --}}
         <div class="hero-left">
             <div class="logo-wrap">
                 <div class="kicker">Your Access</div>
@@ -139,22 +172,17 @@
             </div>
         </div>
 
-        {{-- RIGHT: Login form card (keeps your existing validation & routes) --}}
         <div>
             <div class="card auth-card">
                 <div class="card-body">
-
-                    {{-- status (e.g., "You have been logged out.") --}}
                     @if (session('status'))
                         <div class="alert alert-info py-2 mb-3">{{ session('status') }}</div>
                     @endif
 
-                    {{-- generic auth errors --}}
                     @if ($errors->has('auth'))
                         <div class="alert alert-danger py-2 mb-3">{{ $errors->first('auth') }}</div>
                     @endif
 
-                    {{-- validation errors --}}
                     @if ($errors->any() && ! $errors->has('auth'))
                         <div class="alert alert-danger py-2 mb-3">
                             <ul class="mb-0 small">
@@ -166,7 +194,7 @@
                     @endif
 
                     <h5 class="mb-1 fw-semibold text-atai">Welcome back</h5>
-                    <div class="text-secondary small mb-3" style="color:#cbd5e1 !important;">Use your credentials to continue</div>
+                    <div class="small mb-3" style="color:#cbd5e1;">Use your credentials to continue</div>
 
                     <form method="POST" action="{{ route('login.post') }}" novalidate autocomplete="on">
                         @csrf
@@ -193,7 +221,7 @@
                                        name="password"
                                        id="password"
                                        class="form-control @error('password') is-invalid @enderror"
-                                       placeholder="••••••••"
+                                       placeholder="********"
                                        required>
                                 <button class="btn btn-outline-light" type="button" id="togglePwd" aria-label="Show password"
                                         style="border-color: rgba(255,255,255,.25);">
@@ -222,24 +250,22 @@
                             Need access? Contact your administrator.
                         </p>
                     </form>
-
                 </div>
             </div>
 
             <div class="text-center small mt-3" style="color:#a8b2c7;">
-                © {{ date('Y') }} ATAI. All rights reserved.
+                &copy; {{ date('Y') }} ATAI. All rights reserved.
             </div>
         </div>
     </div>
 </section>
 
 <script>
-    // Show / hide password
-    (function(){
+    (function () {
         const btn = document.getElementById('togglePwd');
         const pwd = document.getElementById('password');
-        if(btn && pwd){
-            btn.addEventListener('click', function(){
+        if (btn && pwd) {
+            btn.addEventListener('click', function () {
                 const show = pwd.getAttribute('type') === 'password';
                 pwd.setAttribute('type', show ? 'text' : 'password');
                 btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');

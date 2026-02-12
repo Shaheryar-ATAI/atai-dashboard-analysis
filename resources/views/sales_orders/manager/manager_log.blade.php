@@ -80,6 +80,49 @@
             box-shadow: 0 8px 18px rgba(149, 197, 61, .2);
             position: relative;
         }
+
+        .so-detail-modal .form-control[readonly],
+        .so-detail-modal .form-select[disabled],
+        .so-detail-modal textarea[readonly] {
+            background: rgba(8, 14, 27, .85);
+            color: #eaf2ff;
+            border-color: rgba(145, 169, 215, .35);
+        }
+
+        .so-detail-modal label {
+            font-size: .74rem;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: #9fb1d5;
+            margin-bottom: .3rem;
+        }
+
+        /* Ensure this modal is centered and above sticky navbar */
+        #soDetailModal {
+            z-index: 2500 !important;
+        }
+
+        .modal-backdrop.so-detail-backdrop {
+            z-index: 2490 !important;
+        }
+
+        #soDetailModal .modal-dialog {
+            margin-top: 0.75rem;
+        }
+
+        @media (min-width: 576px) {
+            #soDetailModal .modal-dialog {
+                margin-top: 1rem;
+            }
+        }
+
+        /* UX: allow opening detail by clicking anywhere on row */
+        #dtSalesOrders tbody tr {
+            cursor: pointer;
+        }
+        #dtSalesOrders tbody tr td:last-child {
+            cursor: default;
+        }
     </style>
 @endpush
 @section('content')
@@ -117,6 +160,7 @@
             @endif
 
             <button id="btnApply" class="btn btn-primary btn-sm">Update</button>
+            <button id="btnDownloadPdf" class="btn btn-outline-light btn-sm">Download PDF</button>
 
             <div class="form-check ms-2">
                 <input class="form-check-input" type="checkbox" id="fIncludeRejected">
@@ -293,9 +337,110 @@
                         <th>Status</th>
                         <th>Salesperson</th>
                         <th>Remarks</th>
+                        <th>Action</th>
                     </tr>
                     </thead>
                 </table>
+            </div>
+        </div>
+
+        <div class="modal fade so-detail-modal" id="soDetailModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Sales Order Details (Read Only)</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label>PO No</label>
+                                <input id="d_po_no" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Quote No</label>
+                                <input id="d_quote_no" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Date</label>
+                                <input id="d_date_rec" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Currency</label>
+                                <input id="d_cur" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label>Salesman Region</label>
+                                <input id="d_region" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Project Region</label>
+                                <input id="d_project_region" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Salesperson</label>
+                                <input id="d_salesperson" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Job No</label>
+                                <input id="d_job_no" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label>Client</label>
+                                <input id="d_client_name" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label>Project</label>
+                                <input id="d_project_name" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label>Project Location</label>
+                                <input id="d_project_location" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label>Location</label>
+                                <input id="d_location" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label>Product</label>
+                                <input id="d_product_family" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label>PO Value</label>
+                                <input id="d_po_value" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Value with VAT</label>
+                                <input id="d_value_with_vat" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label>Sales OAA</label>
+                                <input id="d_sales_oaa" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Status</label>
+                                <input id="d_status" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label>Payment Terms</label>
+                                <input id="d_payment_terms" type="text" class="form-control form-control-sm" readonly>
+                            </div>
+
+                            <div class="col-12">
+                                <label>Remarks</label>
+                                <textarea id="d_remarks" class="form-control form-control-sm" rows="3" readonly></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -315,8 +460,30 @@
         const USER_NAME = @json($u->name ?? '');
         const USER_REGION = @json(strtolower($u->region ?? ''));
         const IS_MANAGER = @json(($u && ($u->hasRole('admin') || $u->hasRole('gm'))) ? true : false);
+        const MANAGER_PDF_URL = @json(route('salesorders.manager.export.pdf'));
         const $salesman = $('#fSalesman');
         let currentSalesman = '';
+
+        function moveModalToBody(id) {
+            const el = document.getElementById(id);
+            if (el && el.parentElement !== document.body) {
+                document.body.appendChild(el);
+            }
+        }
+
+        moveModalToBody('soDetailModal');
+
+        document.addEventListener('shown.bs.modal', function (e) {
+            if (e.target && e.target.id === 'soDetailModal') {
+                document.querySelectorAll('.modal-backdrop').forEach(b => b.classList.add('so-detail-backdrop'));
+            }
+        });
+        document.addEventListener('hidden.bs.modal', function (e) {
+            if (e.target && e.target.id === 'soDetailModal') {
+                document.querySelectorAll('.modal-backdrop.so-detail-backdrop')
+                    .forEach(b => b.classList.remove('so-detail-backdrop'));
+            }
+        });
         /* ================= Helpers ================= */
         const fmtSAR = (n) => 'SAR ' + Number(n || 0).toLocaleString();
 
@@ -397,6 +564,57 @@
             if (['TARIQ', 'TAREQ', 'JAMAL'].includes(key)) return 'central';
             if (['ABDO', 'ABDUL', 'ABDOU', 'AHMED'].includes(key)) return 'western';
             return ['eastern', 'central', 'western'].includes(explicitRegion) ? explicitRegion : 'eastern';
+        }
+
+        function setDetailField(id, value) {
+            const $el = $('#' + id);
+            if (!$el.length) return;
+            $el.val(value == null ? '' : String(value));
+        }
+
+        function fmtMoney(value, currency = 'SAR') {
+            const v = Number(value || 0);
+            const c = String(currency || 'SAR').trim() || 'SAR';
+            return `${c} ${v.toLocaleString()}`;
+        }
+
+        function openSalesOrderDetail(row) {
+            if (!row) return;
+
+            setDetailField('d_po_no', row.po_no);
+            setDetailField('d_quote_no', row.quote_no);
+            setDetailField('d_date_rec', row.date_rec);
+            setDetailField('d_cur', row.cur || 'SAR');
+            setDetailField('d_region', row.region);
+            setDetailField('d_project_region', row.project_region);
+            setDetailField('d_salesperson', row.salesperson);
+            setDetailField('d_job_no', row.job_no);
+            setDetailField('d_client_name', row.client_name);
+            setDetailField('d_project_name', row.project_name);
+            setDetailField('d_project_location', row.project_location);
+            setDetailField('d_location', row.location);
+            setDetailField('d_product_family', row.product_family);
+            setDetailField('d_po_value', fmtMoney(row.po_value, row.cur));
+            setDetailField('d_value_with_vat', fmtMoney(row.value_with_vat, row.cur));
+            setDetailField('d_sales_oaa', row.sales_oaa);
+            setDetailField('d_status', row.status);
+            setDetailField('d_payment_terms', row.payment_terms);
+            setDetailField('d_remarks', row.remarks);
+
+            const modalEl = document.getElementById('soDetailModal');
+            if (!modalEl) return;
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+
+        function rowDataFromClickTarget(target) {
+            const $tr = $(target).closest('tr');
+            if (!$tr.length) return null;
+
+            let rowApi = dt.row($tr);
+            if (!rowApi.data() && $tr.prev().length) {
+                rowApi = dt.row($tr.prev());
+            }
+            return rowApi.data() || null;
         }
 
         /* ================= Charts ================= */
@@ -761,7 +979,17 @@
                 },
                 {data: 'sales_oaa', title: 'Sales OAA'},
                 {data: 'salesperson', title: 'Salesperson'},
-                {data: 'remarks', title: 'Remarks'}
+                {data: 'remarks', title: 'Remarks'},
+                {
+                    data: null,
+                    title: 'Action',
+                    orderable: false,
+                    searchable: false,
+                    className: 'text-center',
+                    render: function () {
+                        return '<button type="button" class="btn btn-sm btn-outline-info btnRowView"><i class="bi bi-eye"></i> View</button>';
+                    }
+                }
             ]
         });
 
@@ -787,9 +1015,26 @@
             await loadKpisAndCharts();
         });
 
+        $('#btnDownloadPdf').off('click').on('click', function () {
+            const qs = new URLSearchParams(buildFilters()).toString();
+            window.open(`${MANAGER_PDF_URL}?${qs}`, '_blank');
+        });
+
         $('#fIncludeRejected').off('change').on('change', async function () {
             dt.ajax.reload(null, false);
             await loadKpisAndCharts();
+        });
+
+        $(document).on('click', '.btnRowView', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openSalesOrderDetail(rowDataFromClickTarget(this));
+        });
+
+        $('#dtSalesOrders tbody').on('click', 'tr', function (e) {
+            const interactive = $(e.target).closest('button, a, input, select, textarea, label, .btn, .dropdown-menu, .dropdown-toggle');
+            if (interactive.length) return;
+            openSalesOrderDetail(rowDataFromClickTarget(this));
         });
         function renderProjectsRegionPie(data) {
             if (!Array.isArray(data)) return;

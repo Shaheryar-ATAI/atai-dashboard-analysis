@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title','ATAI')</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700&display=swap" rel="stylesheet">
 
     {{-- Bootstrap CSS (CDN + local fallback) --}}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -61,13 +64,13 @@
 
     @stack('head')
 </head>
-<body class="@yield('body-class')">
+<body class="atai-app atai-future @yield('body-class')">
 
 {{-- NAVBAR --}}
 @include('partials.navbar')
 
 {{-- PAGE CONTENT --}}
-<main class="container-fluid py-4">
+<main class="container-fluid py-4 atai-page-shell">
     @yield('content')
 </main>
 
@@ -78,16 +81,33 @@
 {{-- jQuery (CDN + local fallback) --}}
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"
         onerror="this.onerror=null;this.src='{{ asset('vendor/jquery/3.7.1/jquery.min.js') }}';"></script>
+<script>
+    // Hard fallback: some network errors do not reliably trigger onerror.
+    if (!window.jQuery) {
+        document.write('<script src="{{ asset('vendor/jquery/3.7.1/jquery.min.js') }}"><\/script>');
+    }
+</script>
 
 {{-- Bootstrap Bundle (CDN + local fallback) --}}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         onerror="this.onerror=null;this.src='{{ asset('vendor/bootstrap/5.3.3/bootstrap.bundle.min.js') }}';"></script>
+<script>
+    if (typeof window.bootstrap === 'undefined') {
+        document.write('<script src="{{ asset('vendor/bootstrap/5.3.3/bootstrap.bundle.min.js') }}"><\/script>');
+    }
+</script>
 
 {{-- DataTables (CDN + local fallback) --}}
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"
         onerror="this.onerror=null;this.src='{{ asset('vendor/datatables/1.13.8/js/jquery.dataTables.min.js') }}';"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"
         onerror="this.onerror=null;this.src='{{ asset('vendor/datatables/1.13.8/js/dataTables.bootstrap5.min.js') }}';"></script>
+<script>
+    if (!(window.jQuery && jQuery.fn && jQuery.fn.dataTable)) {
+        document.write('<script src="{{ asset('vendor/datatables/1.13.8/js/jquery.dataTables.min.js') }}"><\/script>');
+        document.write('<script src="{{ asset('vendor/datatables/1.13.8/js/dataTables.bootstrap5.min.js') }}"><\/script>');
+    }
+</script>
 
 {{-- Highcharts (multi-CDN + local fallback) --}}
 <script src="https://code.highcharts.com/highcharts.js"
@@ -134,6 +154,11 @@
 {{-- Select2 (CDN + local fallback) --}}
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.full.min.js"
         onerror="this.onerror=null;this.src='{{ asset('vendor/select2/4.1.0-rc.0/js/select2.full.min.js') }}';"></script>
+<script>
+    if (!(window.jQuery && jQuery.fn && jQuery.fn.select2)) {
+        document.write('<script src="{{ asset('vendor/select2/4.1.0-rc.0/js/select2.full.min.js') }}"><\/script>');
+    }
+</script>
 
 {{-- GLOBAL SCROLL + MODAL BODY FIX --}}
 <script>
